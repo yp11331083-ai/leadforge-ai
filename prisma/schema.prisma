@@ -1,0 +1,63 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Lead {
+  id            String   @id @default(cuid())
+  company       String
+  contactName   String?
+  title         String?
+  email         String?
+  linkedinUrl   String?
+  website       String?
+  industry      String?
+  companySize   String?
+  location      String?
+
+  // AI 產出欄位
+  painPoints    String?  // JSON 字串：AI 整理的痛點摘要
+  hiringSignals String?  // AI 偵測的徵才訊號
+  icebreaker    String?  // 個人化開場白
+  emailSubject  String?  // AI 生成的郵件主旨
+  emailBody     String?  // AI 生成的完整郵件內容
+  researchRaw   String?  // AI 研究原始資料
+
+  // 流程控制
+  status        String   @default("new") // new | researching | researched | drafting | ready | sent | replied
+  score         Int?     // 潛在客戶分數 0-100
+  tags          String?  // 逗號分隔的標籤
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status])
+  @@index([company])
+}
+
+model Campaign {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  status      String   @default("active") // active | paused | completed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model EmailTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  subject     String
+  body        String   // 含 {{company}}、{{contactName}}、{{painPoints}} 等變數
+  description String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
