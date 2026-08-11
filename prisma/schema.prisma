@@ -30,6 +30,11 @@ model Lead {
   emailBody     String?  // AI 生成的完整郵件內容
   researchRaw   String?  // AI 研究原始資料
 
+  // 深度研究（多源整合）
+  deepResearch  String?  // JSON：融資、技術堆疊、競爭對手、新聞、開放職位
+  researchMode  String   @default("basic") // basic | deep
+  researchSources String? // JSON：研究過程中實際抓取的 URL 清單
+
   // 流程控制
   status        String   @default("new") // new | researching | researched | drafting | ready | sent | replied
   score         Int?     // 潛在客戶分數 0-100

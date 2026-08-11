@@ -26,6 +26,9 @@ export interface Lead {
   emailSubject: string | null
   emailBody: string | null
   researchRaw: string | null
+  deepResearch: string | null
+  researchMode: string
+  researchSources: string | null
   status: LeadStatus
   score: number | null
   tags: string | null
@@ -144,12 +147,12 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
     }
   },
 
-  researchLead: async (id, extraContext) => {
+  researchLead: async (id, extraContext, mode: 'basic' | 'deep' = 'basic') => {
     try {
       const res = await fetch('/api/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadId: id, extraContext }),
+        body: JSON.stringify({ leadId: id, extraContext, mode }),
       })
       const data = await res.json()
       if (!res.ok) {

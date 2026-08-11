@@ -258,3 +258,262 @@ export async function searchCompanies(query: string, num: number = 10) {
     return []
   }
 }
+
+// ===== 深度研究：多源整合 =====
+
+export interface DeepResearchResult {
+  funding: {
+    last_round?: string
+    total_raised?: string
+    valuation?: string
+    lead_investors?: string[]
+    last_funding_date?: string
+  }
+  tech_stack: string[]
+  competitors: Array<{ name: string; differentiation?: string }>
+  recent_news: Array<{ title: string; source?: string; date?: string; summary?: string }>
+  open_roles: {
+    sales?: string[]
+    engineering?: string[]
+    product?: string[]
+    marketing?: string[]
+    other?: string[]
+  }
+  key_people: Array<{ name: string; title: string; linkedin?: string }>
+  growth_signals: string[]
+  strategic_initiatives: string[]
+}
+
+export interface ResearchSource {
+  url: string
+  title: string
+  type: 'website' | 'linkedin' | 'crunchbase' | 'careers' | 'news'
+  fetched: boolean
+  content_length: number
+}
+
+/**
+ * 平行執行多組 web_search，找出可研究的次要來源
+ * 注意：避免觸發 429，使用循序 + 小延遲
+ */
+async function discoverSecondarySources(company: string, website: string) {
+  const searches = [
+    { type: 'linkedin' as const, query: `${company} site:linkedin.com/company` },
+    { type: 'crunchbase' as const, query: `${company} site:crunchbase.com organization` },
+    { type: 'careers' as const, query: `${company} careers jobs hiring` },
+    { type: 'news' as const, query: `${company} funding announcement acquisition launch 2024 2025` },
+  ]
+
+  // 循序執行避免 429 rate limit
+  const allResults: Array<{ type: ResearchSource['type']; items: Array<{ url?: string; name?: string }> }> = []
+  for (const s of searches) {
+    try {
+      const items = await searchCompanies(s.query, 3)
+      allResults.push({ type: s.type, items })
+    } catch (e) {
+      console.error(`search ${s.type} failed:`, e)
+      allResults.push({ type: s.type, items: [] })
+    }
+    // 小延遲避免 rate limit
+    await new Promise((r) => setTimeout(r, 300))
+  }
+
+  // 從搜尋結果挑出最佳 URL（過濾掉官網本身）
+  const sources: Array<{ url: string; type: ResearchSource['type']; title: string }> = []
+  const websiteHost = (() => {
+    try {
+      return new URL(website).hostname.replace(/^www\./, '')
+    } catch {
+      return ''
+    }
+  })()
+
+  for (const { type, items } of allResults) {
+    for (const r of items.slice(0, 2)) {
+      if (!r?.url) continue
+      // 跳過官網本身（已經會被抓）
+      try {
+        const host = new URL(r.url).hostname.replace(/^www\./, '')
+        if (websiteHost && host === websiteHost) continue
+      } catch {
+        continue
+      }
+      sources.push({ url: r.url, type, title: r.name ?? r.url })
+    }
+  }
+
+  // 去重
+  const seen = new Set<string>()
+  return sources.filter((s) => {
+    if (seen.has(s.url)) return false
+    seen.add(s.url)
+    return true
+  }).slice(0, 5) // 最多再抓 5 個來源
+}
+
+/**
+ * 循序抓取多個 URL（避免並行觸發 429）
+ */
+async function fetchMultipleUrls(
+  urls: Array<{ url: string; type: ResearchSource['type']; title: string }>
+): Promise<Array<{ url: string; type: ResearchSource['type']; title: string; content: string | null }>> {
+  const results: Array<{ url: string; type: ResearchSource['type']; title: string; content: string | null }> = []
+  for (const u of urls) {
+    const data = await fetchWebsiteContent(u.url)
+    results.push({
+      url: u.url,
+      type: u.type,
+      title: u.title,
+      content: data ? htmlToText(data.html).slice(0, 6000) : null,
+    })
+    // 小延遲
+    await new Promise((r) => setTimeout(r, 200))
+  }
+  return results
+}
+
+/**
+ * 深度研究：同時抓取官網 + LinkedIn + Crunchbase + 徵才頁面 + 新聞
+ * 然後用 AI 整合出結構化的全方位公司情報
+ */
+export async function researchCompanyDeep(params: {
+  company: string
+  website: string
+  websiteContent: string
+  extraContext?: string
+}): Promise<{
+  success: boolean
+  data: DeepResearchResult | null
+  sources: ResearchSource[]
+  raw: string
+}> {
+  const zai = await getAI()
+  const { company, website, websiteContent, extraContext } = params
+
+  // 步驟 1：探索次要來源
+  const secondarySources = await discoverSecondarySources(company, website)
+
+  // 步驟 2：平行抓取所有來源
+  const fetched = await fetchMultipleUrls(secondarySources)
+
+  // 步驟 3：組裝來源清單（含官網）
+  const sources: ResearchSource[] = [
+    {
+      url: website,
+      title: `${company} 官網`,
+      type: 'website',
+      fetched: true,
+      content_length: websiteContent.length,
+    },
+    ...fetched.map((f) => ({
+      url: f.url,
+      title: f.title,
+      type: f.type,
+      fetched: !!f.content,
+      content_length: f.content?.length ?? 0,
+    })),
+  ]
+
+  // 步驟 4：組裝多源上下文
+  const sourceBlocks: string[] = []
+
+  sourceBlocks.push(`=== 來源 1：${company} 官網 ===\nURL: ${website}\n內容：\n${websiteContent.slice(0, 6000)}`)
+
+  fetched.forEach((f, i) => {
+    if (f.content) {
+      sourceBlocks.push(
+        `=== 來源 ${i + 2}：${f.title}（${f.type}） ===\nURL: ${f.url}\n內容：\n${f.content.slice(0, 5000)}`
+      )
+    }
+  })
+
+  const combinedSources = sourceBlocks.join('\n\n---\n\n')
+
+  // 步驟 5：AI 整合分析（輸出更豐富的結構化資料）
+  const prompt = `你是頂級 B2B 商業情報分析師，擅長從多源公開資料中拼湊出企業的全貌。
+
+請根據以下針對「${company}」收集的多源資料，整理出**結構化的深度情報**。
+
+## 多源研究資料
+
+${combinedSources}
+
+${extraContext ? `## 額外背景\n${extraContext}` : ''}
+
+## 分析維度
+
+請從以下 8 個維度分析，每個維度都要儘可能具體、有數字、有名字：
+
+1. **融資狀態（funding）**：最近一輪融資、總募集金額、估值、主要投資人、融資日期。如果查不到，明確標註 "unknown"。
+2. **技術堆疊（tech_stack）**：從徵才訊息、官網、新聞推斷他們使用的關鍵技術（例如：React、Kubernetes、Snowflake、Segment...）。至少列出 5 項，越多越好。
+3. **競爭對手（competitors）**：列出 3-5 個直接/間接競爭對手，並簡述差異化定位。
+4. **近期新聞（recent_news）**：列出 3-5 則近 12 個月的重要新聞（融資、產品發布、併購、高層異動、重大合作）。
+5. **開放職位（open_roles）**：按部門分類（sales/engineering/product/marketing/other），每個部門列出 2-5 個具體職稱。如果查不到就回空陣列。
+6. **關鍵人物（key_people）**：列出 3-5 位關鍵主管（CEO、CTO、VP Sales 等），含姓名、職稱。LinkedIn URL 可選。
+7. **成長訊號（growth_signals）**：3-5 個暗示他們正在成長/擴張的具體訊號（例如：「正在歐洲開拓市場」、「工程團隊半年內翻倍」）。
+8. **戰略倡議（strategic_initiatives）**：3-5 個他們目前正在推動的策略方向（例如：「All-in AI」、「企業版推向 Fortune 500」）。
+
+## 輸出格式
+
+請輸出**純 JSON**（不要 markdown code block），結構如下：
+
+{
+  "funding": {
+    "last_round": "Series C",
+    "total_raised": "$350M",
+    "valuation": "$2B",
+    "lead_investors": ["Sequoia", "Index Ventures"],
+    "last_funding_date": "2024-Q3"
+  },
+  "tech_stack": ["React", "TypeScript", "Go", "Kubernetes", "Snowflake"],
+  "competitors": [
+    {"name": "Competitor A", "differentiation": "更聚焦企業版"},
+    {"name": "Competitor B", "differentiation": "價格更低但功能較少"}
+  ],
+  "recent_news": [
+    {"title": "...", "source": "TechCrunch", "date": "2024-08", "summary": "..."}
+  ],
+  "open_roles": {
+    "sales": ["Enterprise AE", "SDR Manager"],
+    "engineering": ["Staff Engineer", "ML Engineer"],
+    "product": ["Senior PM"],
+    "marketing": ["Head of Growth"],
+    "other": []
+  },
+  "key_people": [
+    {"name": "John Doe", "title": "CEO", "linkedin": ""}
+  ],
+  "growth_signals": ["訊號1", "訊號2"],
+  "strategic_initiatives": ["倡議1", "倡議2"]
+}
+
+注意：
+- 不要編造資料。查不到的就標 "unknown" 或空陣列。
+- 技術堆疊要從徵才訊息或工程 blog 推斷，不要瞎猜。
+- 競爭對手差異化要具體，不要寫「類似產品」。`
+
+  const completion = await zai.chat.completions.create({
+    messages: [
+      {
+        role: 'system',
+        content:
+          '你是頂級 B2B 商業情報分析師。你擅長從 LinkedIn、Crunchbase、徵才頁面、新聞等多源資料中拼湊出企業全貌。回應必須是純 JSON 格式。',
+      },
+      { role: 'user', content: prompt },
+    ],
+    temperature: 0.3,
+  })
+
+  const raw = completion.choices?.[0]?.message?.content ?? ''
+  let cleaned = raw.trim()
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+  }
+
+  try {
+    const parsed = JSON.parse(cleaned) as DeepResearchResult
+    return { success: true, data: parsed, sources, raw }
+  } catch {
+    return { success: false, data: null, sources, raw }
+  }
+}

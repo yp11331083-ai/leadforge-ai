@@ -18,7 +18,6 @@ import {
   Sparkles,
   Mail,
   Copy,
-  Check,
   Loader2,
   Globe,
   Building2,
@@ -26,6 +25,16 @@ import {
   AlertCircle,
   Target,
   TrendingUp,
+  Layers,
+  Swords,
+  Newspaper,
+  Users,
+  Rocket,
+  Briefcase,
+  DollarSign,
+  Link2,
+  Database,
+  Zap,
 } from 'lucide-react'
 import { useLeadStore, type Lead } from '@/store/lead-store'
 import { StatusBadge, ScoreBadge } from './status-badge'
@@ -43,6 +52,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
   const updateLead = useLeadStore((s) => s.updateLead)
 
   const [researching, setResearching] = useState(false)
+  const [deepResearching, setDeepResearching] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [extraContext, setExtraContext] = useState('')
   const [editingSubject, setEditingSubject] = useState(false)
@@ -75,12 +85,66 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
     }
   })()
 
+  const parsedDeepResearch = (() => {
+    if (!lead.deepResearch) return null
+    try {
+      return JSON.parse(lead.deepResearch) as {
+        funding?: {
+          last_round?: string
+          total_raised?: string
+          valuation?: string
+          lead_investors?: string[]
+          last_funding_date?: string
+        }
+        tech_stack?: string[]
+        competitors?: Array<{ name: string; differentiation?: string }>
+        recent_news?: Array<{ title: string; source?: string; date?: string; summary?: string }>
+        open_roles?: {
+          sales?: string[]
+          engineering?: string[]
+          product?: string[]
+          marketing?: string[]
+          other?: string[]
+        }
+        key_people?: Array<{ name: string; title: string; linkedin?: string }>
+        growth_signals?: string[]
+        strategic_initiatives?: string[]
+      }
+    } catch {
+      return null
+    }
+  })()
+
+  const parsedSources = (() => {
+    if (!lead.researchSources) return []
+    try {
+      return JSON.parse(lead.researchSources) as Array<{
+        url: string
+        title: string
+        type: string
+        fetched: boolean
+        content_length: number
+      }>
+    } catch {
+      return []
+    }
+  })()
+
   const handleResearch = async () => {
     setResearching(true)
-    const ok = await researchLead(lead.id, extraContext)
+    const ok = await researchLead(lead.id, extraContext, 'basic')
     setResearching(false)
     if (ok) toast.success('AI 研究完成！')
     else toast.error('研究失敗，請確認網站可存取')
+  }
+
+  const handleDeepResearch = async () => {
+    setDeepResearching(true)
+    toast.info('深度研究啟動中，AI 將同時抓取 LinkedIn / Crunchbase / 徵才頁 / 新聞，約需 30-60 秒...')
+    const ok = await researchLead(lead.id, extraContext, 'deep')
+    setDeepResearching(false)
+    if (ok) toast.success('深度研究完成！')
+    else toast.error('深度研究失敗，請稍後再試')
   }
 
   const handleGenerateEmail = async () => {
@@ -171,29 +235,62 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
 
           {/* AI 研究 */}
           <section className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <h3 className="flex items-center gap-2 text-sm font-semibold">
                 <Sparkles className="h-4 w-4 text-amber-500" />
                 AI 公司研究
-              </h3>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleResearch}
-                disabled={researching || !lead.website}
-              >
-                {researching ? (
-                  <>
-                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                    研究中...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-1 h-3 w-3" />
-                    {parsedResearch ? '重新研究' : '啟動研究'}
-                  </>
+                {lead.researchMode === 'deep' && (
+                  <Badge variant="outline" className="ml-1 text-[10px] bg-violet-50 dark:bg-violet-950/40 border-violet-300 dark:border-violet-800 text-violet-700 dark:text-violet-300">
+                    <Database className="mr-0.5 h-2.5 w-2.5" />
+                    深度研究
+                  </Badge>
                 )}
-              </Button>
+              </h3>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleResearch}
+                  disabled={researching || deepResearching || !lead.website}
+                >
+                  {researching ? (
+                    <>
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                      研究中...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-1 h-3 w-3" />
+                      基本研究
+                    </>
+                  )}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleDeepResearch}
+                  disabled={researching || deepResearching || !lead.website}
+                  className="bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700"
+                >
+                  {deepResearching ? (
+                    <>
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                      深度研究中...
+                    </>
+                  ) : (
+                    <>
+                      <Database className="mr-1 h-3 w-3" />
+                      深度研究
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <div className="text-[11px] text-muted-foreground bg-muted/40 rounded-md p-2 flex items-start gap-1.5">
+              <Zap className="h-3 w-3 mt-0.5 shrink-0 text-amber-500" />
+              <span>
+                <b>基本研究</b>：只抓官網，10-15 秒。 <b>深度研究</b>：同時抓 LinkedIn / Crunchbase / 徵才頁 / 新聞，30-60 秒，輸出融資、技術堆疊、競爭對手、開放職位等 8 大維度。
+              </span>
             </div>
 
             {!lead.website && (
@@ -291,10 +388,256 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground">
-                點擊「啟動研究」讓 AI 瀏覽他們的官網並整理出痛點與切入點
+                點擊「基本研究」或「深度研究」啟動 AI 分析
               </div>
             )}
           </section>
+
+          {/* 深度研究結果 */}
+          {parsedDeepResearch && (
+            <>
+              <Separator />
+              <section className="space-y-3">
+                <h3 className="flex items-center gap-2 text-sm font-semibold">
+                  <Database className="h-4 w-4 text-violet-500" />
+                  深度研究情報
+                  <span className="text-[10px] font-normal text-muted-foreground">
+                    （多源整合：{parsedSources.length} 個來源）
+                  </span>
+                </h3>
+
+                {/* 融資狀態 */}
+                {parsedDeepResearch.funding && (
+                  <div className="rounded-lg border border-border/60 bg-violet-50/40 dark:bg-violet-950/20 p-3">
+                    <p className="text-xs font-medium text-violet-700 dark:text-violet-300 mb-2 flex items-center gap-1">
+                      <DollarSign className="h-3 w-3" /> 融資狀態
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {parsedDeepResearch.funding.last_round && (
+                        <div>
+                          <span className="text-muted-foreground">最近一輪：</span>
+                          <span className="font-medium">{parsedDeepResearch.funding.last_round}</span>
+                        </div>
+                      )}
+                      {parsedDeepResearch.funding.total_raised && (
+                        <div>
+                          <span className="text-muted-foreground">總募集：</span>
+                          <span className="font-medium">{parsedDeepResearch.funding.total_raised}</span>
+                        </div>
+                      )}
+                      {parsedDeepResearch.funding.valuation && (
+                        <div>
+                          <span className="text-muted-foreground">估值：</span>
+                          <span className="font-medium">{parsedDeepResearch.funding.valuation}</span>
+                        </div>
+                      )}
+                      {parsedDeepResearch.funding.last_funding_date && (
+                        <div>
+                          <span className="text-muted-foreground">融資時間：</span>
+                          <span className="font-medium">{parsedDeepResearch.funding.last_funding_date}</span>
+                        </div>
+                      )}
+                      {parsedDeepResearch.funding.lead_investors &&
+                        parsedDeepResearch.funding.lead_investors.length > 0 && (
+                          <div className="col-span-2">
+                            <span className="text-muted-foreground">主要投資人：</span>
+                            <span className="font-medium">
+                              {parsedDeepResearch.funding.lead_investors.join('、')}
+                            </span>
+                          </div>
+                        )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 技術堆疊 */}
+                {parsedDeepResearch.tech_stack && parsedDeepResearch.tech_stack.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                      <Layers className="h-3 w-3" /> 技術堆疊
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {parsedDeepResearch.tech_stack.map((tech, i) => (
+                        <Badge
+                          key={i}
+                          variant="outline"
+                          className="text-xs bg-slate-50 dark:bg-slate-900/40 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-mono"
+                        >
+                          {tech}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 開放職位 */}
+                {parsedDeepResearch.open_roles && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                      <Briefcase className="h-3 w-3" /> 開放職位（按部門）
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {[
+                        { label: '業務 Sales', roles: parsedDeepResearch.open_roles.sales, color: 'emerald' },
+                        { label: '工程 Engineering', roles: parsedDeepResearch.open_roles.engineering, color: 'blue' },
+                        { label: '產品 Product', roles: parsedDeepResearch.open_roles.product, color: 'purple' },
+                        { label: '行銷 Marketing', roles: parsedDeepResearch.open_roles.marketing, color: 'pink' },
+                      ].map(({ label, roles }) =>
+                        roles && roles.length > 0 ? (
+                          <div key={label} className="rounded-md bg-muted/40 p-2">
+                            <p className="text-[11px] font-medium text-muted-foreground mb-1">{label}</p>
+                            <div className="flex flex-wrap gap-1">
+                              {roles.map((r, i) => (
+                                <span key={i} className="text-[11px] px-1.5 py-0.5 rounded bg-background border border-border/60">
+                                  {r}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 競爭對手 */}
+                {parsedDeepResearch.competitors && parsedDeepResearch.competitors.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                      <Swords className="h-3 w-3" /> 競爭對手
+                    </p>
+                    <ul className="space-y-1.5">
+                      {parsedDeepResearch.competitors.map((c, i) => (
+                        <li key={i} className="text-sm flex gap-2">
+                          <span className="text-orange-500 font-bold">▸</span>
+                          <div>
+                            <span className="font-medium">{c.name}</span>
+                            {c.differentiation && (
+                              <span className="text-muted-foreground"> — {c.differentiation}</span>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* 近期新聞 */}
+                {parsedDeepResearch.recent_news && parsedDeepResearch.recent_news.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                      <Newspaper className="h-3 w-3" /> 近期新聞
+                    </p>
+                    <ul className="space-y-2">
+                      {parsedDeepResearch.recent_news.map((n, i) => (
+                        <li key={i} className="text-sm border-l-2 border-cyan-400 pl-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium">{n.title}</span>
+                            {n.date && (
+                              <span className="text-[10px] text-muted-foreground">{n.date}</span>
+                            )}
+                            {n.source && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300">
+                                {n.source}
+                              </span>
+                            )}
+                          </div>
+                          {n.summary && (
+                            <p className="text-xs text-muted-foreground mt-0.5">{n.summary}</p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* 關鍵人物 */}
+                {parsedDeepResearch.key_people && parsedDeepResearch.key_people.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                      <Users className="h-3 w-3" /> 關鍵人物
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {parsedDeepResearch.key_people.map((p, i) => (
+                        <div key={i} className="text-xs flex items-center gap-2 rounded-md bg-muted/40 p-2">
+                          <div className="h-6 w-6 rounded-full bg-gradient-to-br from-violet-400 to-fuchsia-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+                            {p.name?.charAt(0) ?? '?'}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-medium truncate">{p.name}</div>
+                            <div className="text-muted-foreground truncate">{p.title}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 成長訊號 */}
+                {parsedDeepResearch.growth_signals && parsedDeepResearch.growth_signals.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                      <Rocket className="h-3 w-3" /> 成長訊號
+                    </p>
+                    <ul className="space-y-1.5">
+                      {parsedDeepResearch.growth_signals.map((s, i) => (
+                        <li key={i} className="text-sm flex gap-2">
+                          <span className="text-emerald-500 font-bold">↑</span>
+                          <span>{s}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* 戰略倡議 */}
+                {parsedDeepResearch.strategic_initiatives && parsedDeepResearch.strategic_initiatives.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                      <Target className="h-3 w-3" /> 戰略倡議
+                    </p>
+                    <ul className="space-y-1.5">
+                      {parsedDeepResearch.strategic_initiatives.map((s, i) => (
+                        <li key={i} className="text-sm flex gap-2">
+                          <span className="text-violet-500 font-bold">→</span>
+                          <span>{s}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* 研究來源 */}
+                {parsedSources.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                      <Link2 className="h-3 w-3" /> 研究來源（{parsedSources.length} 個）
+                    </p>
+                    <ul className="space-y-1">
+                      {parsedSources.map((s, i) => (
+                        <li key={i} className="text-[11px] flex items-center gap-1.5">
+                          <span
+                            className={`inline-block h-1.5 w-1.5 rounded-full ${
+                              s.fetched ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
+                            }`}
+                          />
+                          <a
+                            href={s.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-emerald-600 dark:text-emerald-400 hover:underline truncate max-w-[400px]"
+                          >
+                            {s.url}
+                          </a>
+                          <span className="text-muted-foreground text-[10px]">{s.type}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </section>
+            </>
+          )}
 
           <Separator />
 
