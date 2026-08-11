@@ -119,6 +119,11 @@ interface LeadStore {
   prospectLoading: boolean
   prospectStage: string
   prospectDetail: string
+  prospectStep: number
+  prospectTotalSteps: number
+  prospectElapsedSeconds: number
+  prospectJobId: string | null
+  prospectError: string | null
   // actions
   fetchLeads: () => Promise<void>
   createLead: (data: Partial<Lead>) => Promise<Lead | null>
@@ -175,6 +180,11 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
   prospectLoading: false,
   prospectStage: '',
   prospectDetail: '',
+  prospectStep: 0,
+  prospectTotalSteps: 6,
+  prospectElapsedSeconds: 0,
+  prospectJobId: null,
+  prospectError: null,
 
   fetchLeads: async () => {
     set({ loading: true })
@@ -402,46 +412,103 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
     set({
       prospectLoading: true,
       prospectResult: null,
-      prospectStage: '初始化中',
-      prospectDetail: '',
+      prospectStage: '啟動中',
+      prospectDetail: '正在建立 AI 任務...',
+      prospectStep: 0,
+      prospectElapsedSeconds: 0,
+      prospectJobId: null,
+      prospectError: null,
     })
 
     try {
-      const res = await fetch('/api/auto-prospect', {
+      // 步驟 1：啟動任務，取得 jobId
+      const startRes = await fetch('/api/auto-prospect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
       })
-      const data = await res.json()
-      if (res.ok) {
+      const startData = await startRes.json()
+
+      if (!startRes.ok) {
         set({
-          prospectResult: {
-            candidates: data.candidates ?? [],
-            ai_search_queries: data.ai_search_queries ?? [],
-            total_discovered: data.total_discovered ?? 0,
-            evaluated: data.evaluated ?? 0,
-          },
           prospectLoading: false,
-          prospectStage: '完成',
-          prospectDetail: `找到 ${data.candidates?.length ?? 0} 家潛在客戶`,
+          prospectStage: '失敗',
+          prospectDetail: startData.error ?? '啟動失敗',
+          prospectError: startData.error ?? '啟動失敗',
         })
-        if (data.addedToLeads) {
-          await get().fetchLeads()
-        }
-        return { success: true, addedToLeads: data.addedToLeads }
+        return { success: false, error: startData.error ?? '啟動失敗' }
       }
+
+      const jobId = startData.jobId as string
+      set({ prospectJobId: jobId })
+
+      // 步驟 2：輪詢進度（每 2 秒）
+      let pollCount = 0
+      const maxPolls = 200 // 最長 400 秒
+      while (pollCount < maxPolls) {
+        await new Promise((r) => setTimeout(r, 2000))
+        pollCount++
+
+        try {
+          const statusRes = await fetch(`/api/auto-prospect/status?jobId=${jobId}`)
+          if (!statusRes.ok) {
+            console.error('status poll failed:', statusRes.status)
+            continue
+          }
+          const status = await statusRes.json()
+
+          set({
+            prospectStage: status.stage ?? '',
+            prospectDetail: status.detail ?? '',
+            prospectStep: status.step ?? 0,
+            prospectElapsedSeconds: status.elapsedSeconds ?? 0,
+          })
+
+          if (status.status === 'completed') {
+            set({
+              prospectResult: status.result ?? null,
+              prospectLoading: false,
+              prospectStage: '完成',
+              prospectDetail: status.detail,
+              prospectStep: 6,
+            })
+            if (status.result && params.saveToDb) {
+              await get().fetchLeads()
+            }
+            return { success: true, addedToLeads: 0 }
+          }
+
+          if (status.status === 'failed') {
+            set({
+              prospectLoading: false,
+              prospectStage: '失敗',
+              prospectDetail: status.error ?? status.detail ?? '自動開發失敗',
+              prospectError: status.error ?? '自動開發失敗',
+              prospectStep: 6,
+            })
+            return { success: false, error: status.error ?? '自動開發失敗' }
+          }
+        } catch (pollErr) {
+          console.error('poll error (will retry):', pollErr)
+          // 不中斷，繼續輪詢
+        }
+      }
+
+      // 超過最大輪詢次數
       set({
         prospectLoading: false,
-        prospectStage: '失敗',
-        prospectDetail: data.error ?? '自動開發失敗',
+        prospectStage: '超時',
+        prospectDetail: '任務執行超過 6 分鐘，請稍後再試或減少目標數量',
+        prospectError: '超時',
       })
-      return { success: false, error: data.error ?? '自動開發失敗' }
+      return { success: false, error: '任務超時' }
     } catch (e) {
       console.error('runAutoProspect error:', e)
       set({
         prospectLoading: false,
-        prospectStage: '失敗',
-        prospectDetail: '網路錯誤',
+        prospectStage: '錯誤',
+        prospectDetail: '網路錯誤，請確認伺服器連線正常',
+        prospectError: '網路錯誤',
       })
       return { success: false, error: '網路錯誤' }
     }

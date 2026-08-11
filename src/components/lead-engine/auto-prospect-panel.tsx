@@ -21,6 +21,9 @@ import {
   Lightbulb,
   ListChecks,
   Wand2,
+  Clock,
+  XCircle,
+  Zap,
 } from 'lucide-react'
 import { useLeadStore, type ProspectCandidate } from '@/store/lead-store'
 import { toast } from 'sonner'
@@ -45,6 +48,9 @@ export function AutoProspectPanel() {
   const prospectLoading = useLeadStore((s) => s.prospectLoading)
   const prospectStage = useLeadStore((s) => s.prospectStage)
   const prospectDetail = useLeadStore((s) => s.prospectDetail)
+  const prospectStep = useLeadStore((s) => s.prospectStep)
+  const prospectElapsedSeconds = useLeadStore((s) => s.prospectElapsedSeconds)
+  const prospectError = useLeadStore((s) => s.prospectError)
   const createLead = useLeadStore((s) => s.createLead)
   const fetchLeads = useLeadStore((s) => s.fetchLeads)
 
@@ -282,27 +288,121 @@ export function AutoProspectPanel() {
         </div>
       </Card>
 
-      {/* 進度提示 */}
+      {/* 進度面板 */}
       {prospectLoading && (
         <Card className="p-5 border-violet-200 dark:border-violet-800 bg-violet-50/40 dark:bg-violet-950/20">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin text-violet-600 dark:text-violet-400" />
-              <span className="text-sm font-medium">{prospectStage}</span>
+          <div className="space-y-4">
+            {/* Header: 旋轉圖示 + 當前階段 + 計時 */}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Loader2 className="h-5 w-5 animate-spin text-violet-600 dark:text-violet-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-violet-800 dark:text-violet-300">
+                    {prospectStage}
+                  </p>
+                  <p className="text-xs text-violet-700 dark:text-violet-400/70">
+                    {prospectDetail || '執行中...'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs font-mono text-violet-700 dark:text-violet-400">
+                <Clock className="h-3 w-3" />
+                <span className="tabular-nums">
+                  {Math.floor(prospectElapsedSeconds / 60)}:
+                  {(prospectElapsedSeconds % 60).toString().padStart(2, '0')}
+                </span>
+              </div>
             </div>
-            {prospectDetail && (
-              <p className="text-xs text-muted-foreground ml-6">{prospectDetail}</p>
-            )}
-            <div className="ml-6 text-[11px] text-muted-foreground">
-              <p>AI 正在執行 6 步驟：</p>
-              <ol className="list-decimal ml-5 mt-1 space-y-0.5">
-                <li>生成搜尋策略（8 組精準查詢）</li>
-                <li>Google 搜尋候選公司（~40 個結果）</li>
-                <li>過濾並萃取出公司網址</li>
-                <li>抓取每家公司網站內容</li>
-                <li>AI 評估契合度與採購意圖</li>
-                <li>依分數排序，回傳 Top {form.targetCount}</li>
-              </ol>
+
+            {/* 進度條 */}
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px] text-violet-700 dark:text-violet-400">
+                <span>步驟 {prospectStep} / 6</span>
+                <span>{Math.round((prospectStep / 6) * 100)}%</span>
+              </div>
+              <div className="h-2 rounded-full bg-violet-100 dark:bg-violet-950/60 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500 transition-all duration-500"
+                  style={{ width: `${(prospectStep / 6) * 100}%` }}
+                />
+              </div>
+            </div>
+
+            {/* 6 步驟清單 */}
+            <div className="space-y-1.5">
+              {[
+                { n: 1, label: '生成搜尋策略', desc: 'AI 設計 8 組精準查詢', icon: Wand2 },
+                { n: 2, label: '搜尋候選公司', desc: 'Google 搜尋 ~40 個結果', icon: Search },
+                { n: 3, label: '篩選公司網址', desc: '過濾並萃取公司網站', icon: ListChecks },
+                { n: 4, label: '抓取網站內容', desc: 'page_reader 抓取每家官網', icon: Zap },
+                { n: 5, label: 'AI 評估契合度', desc: '5 維度評分，輸出 fit_score', icon: Target },
+                { n: 6, label: '排序回傳', desc: '依分數排序，取 Top N', icon: Sparkles },
+              ].map(({ n, label, desc, icon: Icon }) => {
+                const done = prospectStep > n
+                const current = prospectStep === n
+                return (
+                  <div
+                    key={n}
+                    className={`flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-all ${
+                      current
+                        ? 'bg-violet-100 dark:bg-violet-950/60 border border-violet-300 dark:border-violet-700'
+                        : done
+                        ? 'opacity-50'
+                        : 'opacity-30'
+                    }`}
+                  >
+                    <div
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+                        done
+                          ? 'bg-emerald-500 text-white'
+                          : current
+                          ? 'bg-violet-500 text-white animate-pulse'
+                          : 'bg-slate-200 dark:bg-slate-800 text-muted-foreground'
+                      }`}
+                    >
+                      {done ? (
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                      ) : current ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Icon className="h-3 w-3" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className={`text-xs font-medium ${current ? 'text-violet-800 dark:text-violet-300' : ''}`}>
+                        {n}. {label}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">{desc}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <p className="text-[10px] text-violet-700/70 dark:text-violet-400/60 text-center">
+              預計 2-4 分鐘完成 · 視目標數量與網路速度而定 · 可以切到其他分頁做別的事
+            </p>
+          </div>
+        </Card>
+      )}
+
+      {/* 失敗顯示 */}
+      {!prospectLoading && prospectError && (
+        <Card className="p-5 border-rose-200 dark:border-rose-800 bg-rose-50/40 dark:bg-rose-950/20">
+          <div className="flex items-start gap-3">
+            <XCircle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-rose-800 dark:text-rose-300">
+                {prospectStage}
+              </p>
+              <p className="text-xs text-rose-700 dark:text-rose-400">
+                {prospectDetail}
+              </p>
+              <p className="text-[11px] text-rose-600/70 dark:text-rose-400/70 mt-2">
+                建議：減少目標數量、簡化服務描述、或稍後再試。若是網路問題，重新整理頁面即可。
+              </p>
             </div>
           </div>
         </Card>
