@@ -66,3 +66,24 @@ model EmailTemplate {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+// 單例：儲存 SMTP 與 Smartlead 設定（id 固定為 "singleton"）
+model EmailConfig {
+  id                String   @id @default("singleton")
+
+  // SMTP 設定
+  smtpHost          String?
+  smtpPort          Int?
+  smtpUser          String?
+  smtpPass          String?  // 顯示時遮罩
+  smtpFromName      String?
+  smtpFromEmail     String?
+  smtpSecure        Boolean  @default(true)
+
+  // Smartlead 設定
+  smartleadApiKey   String?
+  smartleadDefaultCampaignId String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}

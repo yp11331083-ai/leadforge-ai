@@ -35,10 +35,22 @@ import {
   Link2,
   Database,
   Zap,
+  Send,
+  Server,
+  CheckCircle2,
 } from 'lucide-react'
 import { useLeadStore, type Lead } from '@/store/lead-store'
 import { StatusBadge, ScoreBadge } from './status-badge'
 import { toast } from 'sonner'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 interface LeadDetailSheetProps {
   lead: Lead | null
@@ -59,6 +71,18 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
   const [editingBody, setEditingBody] = useState(false)
   const [tempSubject, setTempSubject] = useState('')
   const [tempBody, setTempBody] = useState('')
+
+  const sendEmail = useLeadStore((s) => s.sendEmail)
+  const pushToSmartlead = useLeadStore((s) => s.pushToSmartlead)
+  const emailConfig = useLeadStore((s) => s.emailConfig)
+  const smartleadCampaigns = useLeadStore((s) => s.smartleadCampaigns)
+  const fetchSmartleadCampaigns = useLeadStore((s) => s.fetchSmartleadCampaigns)
+  const fetchEmailConfig = useLeadStore((s) => s.fetchEmailConfig)
+
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const [pushingSmartlead, setPushingSmartlead] = useState(false)
+  const [smartleadDialogOpen, setSmartleadDialogOpen] = useState(false)
+  const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null)
 
   if (!lead) return null
 
@@ -153,6 +177,43 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
     setGenerating(false)
     if (ok) toast.success('冷郵件已生成！')
     else toast.error('郵件生成失敗')
+  }
+
+  const handleSendEmail = async () => {
+    if (!lead.email) {
+      toast.error('此名單缺少收件者 email')
+      return
+    }
+    if (!confirm(`確定要透過 SMTP 直接發信到 ${lead.email}？\n\n主旨：${lead.emailSubject}`)) {
+      return
+    }
+    setSendingEmail(true)
+    const result = await sendEmail(lead.id)
+    setSendingEmail(false)
+    if (result.success) toast.success(`已發送郵件到 ${lead.email}`)
+    else toast.error(result.error ?? '發信失敗')
+  }
+
+  const handleOpenSmartleadDialog = async () => {
+    await fetchEmailConfig()
+    await fetchSmartleadCampaigns()
+    setSmartleadDialogOpen(true)
+  }
+
+  const handlePushToSmartlead = async () => {
+    if (!selectedCampaignId) {
+      toast.error('請先選擇一個 Smartlead 行銷活動')
+      return
+    }
+    setPushingSmartlead(true)
+    const result = await pushToSmartlead(lead.id, selectedCampaignId)
+    setPushingSmartlead(false)
+    if (result.success) {
+      toast.success(`已推送到 Smartlead Campaign #${selectedCampaignId}`)
+      setSmartleadDialogOpen(false)
+    } else {
+      toast.error(result.error ?? '推送失敗')
+    }
   }
 
   const copyToClipboard = (text: string, label: string) => {
@@ -769,6 +830,93 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                     </p>
                   </div>
                 )}
+
+                {/* 發信動作區 */}
+                <div className="pt-3 border-t border-border/40 space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">發送郵件</p>
+
+                  {/* SMTP 發信 */}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleSendEmail}
+                      disabled={
+                        sendingEmail ||
+                        pushingSmartlead ||
+                        !lead.email ||
+                        !lead.emailBody ||
+                        !emailConfig?.smtpHost
+                      }
+                      className="flex-1 justify-start"
+                    >
+                      {sendingEmail ? (
+                        <>
+                          <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                          發送中...
+                        </>
+                      ) : (
+                        <>
+                          <Server className="mr-2 h-3.5 w-3.5" />
+                          SMTP 直接發信
+                        </>
+                      )}
+                    </Button>
+                    {emailConfig?.smtpHost ? (
+                      <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs">
+                        <CheckCircle2 className="mr-1 h-3 w-3" />
+                        SMTP 已設定
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs">
+                        未設定
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Smartlead 推送 */}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={handleOpenSmartleadDialog}
+                      disabled={
+                        sendingEmail ||
+                        pushingSmartlead ||
+                        !lead.email ||
+                        !lead.emailBody ||
+                        !emailConfig?.smartleadApiKey
+                      }
+                      className="flex-1 justify-start bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700"
+                    >
+                      <Rocket className="mr-2 h-3.5 w-3.5" />
+                      推送到 Smartlead
+                    </Button>
+                    {emailConfig?.smartleadApiKey ? (
+                      <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs">
+                        <CheckCircle2 className="mr-1 h-3 w-3" />
+                        已連接
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs">
+                        未連接
+                      </Badge>
+                    )}
+                  </div>
+
+                  {!lead.email && (
+                    <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/40 p-2 text-xs text-amber-700 dark:text-amber-300">
+                      <AlertCircle className="h-3 w-3" />
+                      此名單缺少收件者 email，無法發信
+                    </div>
+                  )}
+
+                  {!emailConfig?.smtpHost && !emailConfig?.smartleadApiKey && (
+                    <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/40 p-2 text-xs text-amber-700 dark:text-amber-300">
+                      <AlertCircle className="h-3 w-3" />
+                      尚未設定發信方式，請至「發信設定」分頁設定 SMTP 或 Smartlead
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground">
@@ -778,6 +926,97 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
           </section>
         </div>
       </SheetContent>
+
+      {/* Smartlead 推送對話框 */}
+      <Dialog open={smartleadDialogOpen} onOpenChange={setSmartleadDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Rocket className="h-4 w-4 text-violet-600" />
+              推送到 Smartlead
+            </DialogTitle>
+            <DialogDescription>
+              選擇要推送到的 Smartlead 行銷活動。AI 生成的郵件主旨與內容會作為序章首封郵件。
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="rounded-md bg-muted/40 p-3 text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">收件者</span>
+                <span className="font-medium">{lead.email}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">主旨</span>
+                <span className="font-medium truncate max-w-[300px]">{lead.emailSubject}</span>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs font-medium mb-2 block">選擇 Smartlead 行銷活動</Label>
+              {smartleadCampaigns.length === 0 ? (
+                <div className="rounded-md border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground">
+                  你的 Smartlead 帳號中沒有任何行銷活動。請先至 Smartlead 後台建立。
+                </div>
+              ) : (
+                <ScrollArea className="h-64 rounded-md border border-border/60">
+                  <div className="p-2 space-y-1">
+                    {smartleadCampaigns.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => setSelectedCampaignId(c.id)}
+                        className={`w-full text-left p-2 rounded-md transition-colors ${
+                          selectedCampaignId === c.id
+                            ? 'bg-violet-100 dark:bg-violet-950/40 border border-violet-400'
+                            : 'bg-background hover:bg-muted/60 border border-transparent'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{c.name}</p>
+                            <p className="text-[11px] text-muted-foreground">
+                              ID: {c.id}
+                              {c.status && ` · ${c.status}`}
+                              {c.leadsCount != null && ` · ${c.leadsCount} 名單`}
+                              {c.sequenceSteps != null && ` · ${c.sequenceSteps} 步驟`}
+                            </p>
+                          </div>
+                          {selectedCampaignId === c.id && (
+                            <CheckCircle2 className="h-4 w-4 text-violet-600 shrink-0" />
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSmartleadDialogOpen(false)}>
+              取消
+            </Button>
+            <Button
+              onClick={handlePushToSmartlead}
+              disabled={pushingSmartlead || !selectedCampaignId || smartleadCampaigns.length === 0}
+              className="bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700"
+            >
+              {pushingSmartlead ? (
+                <>
+                  <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                  推送中...
+                </>
+              ) : (
+                <>
+                  <Send className="mr-1 h-3.5 w-3.5" />
+                  確認推送
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Sheet>
   )
 }
