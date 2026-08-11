@@ -87,3 +87,19 @@ model EmailConfig {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
+
+// 單例：儲存使用者的服務介紹（給 AI 自動開發用）
+model ServiceOffering {
+  id                String   @id @default("singleton")
+
+  serviceName       String?  // 服務/產品名稱
+  description       String?  // 詳細描述
+  targetIndustries  String?  // 目標產業（逗號分隔）
+  targetCompanySize String?  // 目標公司規模
+  targetLocation    String?  // 目標地區
+  keyBenefits        String?  // 核心價值主張
+  idealCustomerSignals String? // 理想客戶的訊號
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}

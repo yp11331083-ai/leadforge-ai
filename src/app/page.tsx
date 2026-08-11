@@ -11,6 +11,7 @@ import {
   Github,
   Database,
   Mail,
+  Wand2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -22,12 +23,14 @@ import { LeadsTable } from '@/components/lead-engine/leads-table'
 import { ResearchPanel } from '@/components/lead-engine/research-panel'
 import { SenderConfigPanel } from '@/components/lead-engine/sender-config-panel'
 import { EmailSendingPanel } from '@/components/lead-engine/email-sending-panel'
+import { AutoProspectPanel } from '@/components/lead-engine/auto-prospect-panel'
 import { LeadDetailSheet } from '@/components/lead-engine/lead-detail-sheet'
 import { AddLeadModal, ImportModal } from '@/components/lead-engine/modals'
 
 export default function Home() {
   const fetchLeads = useLeadStore((s) => s.fetchLeads)
   const fetchEmailConfig = useLeadStore((s) => s.fetchEmailConfig)
+  const fetchServiceOffering = useLeadStore((s) => s.fetchServiceOffering)
   const leads = useLeadStore((s) => s.leads)
   const selectedLeadId = useLeadStore((s) => s.selectedLeadId)
   const setSelectedLeadId = useLeadStore((s) => s.setSelectedLeadId)
@@ -39,7 +42,8 @@ export default function Home() {
   useEffect(() => {
     fetchLeads()
     fetchEmailConfig()
-  }, [fetchLeads, fetchEmailConfig])
+    fetchServiceOffering()
+  }, [fetchLeads, fetchEmailConfig, fetchServiceOffering])
 
   // 監聽 filterStatus 變化
   const filterStatus = useLeadStore((s) => s.filterStatus)
@@ -90,27 +94,35 @@ export default function Home() {
 
         {/* 主內容 Tabs */}
         <Tabs defaultValue="leads" className="w-full">
-          <TabsList className="grid w-full max-w-lg grid-cols-4">
+          <TabsList className="grid w-full max-w-2xl grid-cols-5">
             <TabsTrigger value="leads">
               <Table2 className="mr-1.5 h-3.5 w-3.5" />
-              <span className="hidden sm:inline">名單</span>
+              <span className="hidden md:inline">名單</span>
+            </TabsTrigger>
+            <TabsTrigger value="prospect">
+              <Wand2 className="mr-1.5 h-3.5 w-3.5" />
+              <span className="hidden md:inline">自動開發</span>
             </TabsTrigger>
             <TabsTrigger value="research">
               <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-              <span className="hidden sm:inline">AI 研究</span>
+              <span className="hidden md:inline">AI 研究</span>
             </TabsTrigger>
             <TabsTrigger value="settings">
               <Settings className="mr-1.5 h-3.5 w-3.5" />
-              <span className="hidden sm:inline">寄件人</span>
+              <span className="hidden md:inline">寄件人</span>
             </TabsTrigger>
             <TabsTrigger value="email">
               <Mail className="mr-1.5 h-3.5 w-3.5" />
-              <span className="hidden sm:inline">發信設定</span>
+              <span className="hidden md:inline">發信</span>
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="leads" className="mt-4">
             <LeadsTable />
+          </TabsContent>
+
+          <TabsContent value="prospect" className="mt-4">
+            <AutoProspectPanel />
           </TabsContent>
 
           <TabsContent value="research" className="mt-4">

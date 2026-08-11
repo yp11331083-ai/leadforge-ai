@@ -74,6 +74,36 @@ export interface SmartleadCampaign {
   createdAt?: string
 }
 
+export interface ServiceOffering {
+  serviceName: string | null
+  description: string | null
+  targetIndustries: string | null
+  targetCompanySize: string | null
+  targetLocation: string | null
+  keyBenefits: string | null
+  idealCustomerSignals: string | null
+  updatedAt: string
+}
+
+export interface ProspectCandidate {
+  company: string
+  website: string
+  industry?: string
+  fit_score: number
+  why_they_need_it: string
+  suggested_angle: string
+  key_signals: string[]
+  confidence: 'high' | 'medium' | 'low'
+  website_title?: string
+}
+
+export interface AutoProspectResult {
+  candidates: ProspectCandidate[]
+  ai_search_queries: string[]
+  total_discovered: number
+  evaluated: number
+}
+
 interface LeadStore {
   leads: Lead[]
   stats: Stats
@@ -84,6 +114,11 @@ interface LeadStore {
   senderConfig: SenderConfig
   emailConfig: EmailConfig | null
   smartleadCampaigns: SmartleadCampaign[]
+  serviceOffering: ServiceOffering | null
+  prospectResult: AutoProspectResult | null
+  prospectLoading: boolean
+  prospectStage: string
+  prospectDetail: string
   // actions
   fetchLeads: () => Promise<void>
   createLead: (data: Partial<Lead>) => Promise<Lead | null>
@@ -101,6 +136,19 @@ interface LeadStore {
   saveEmailConfig: (cfg: Partial<EmailConfig>) => Promise<void>
   testEmailConfig: (action: 'test-smtp' | 'test-smartlead') => Promise<{ success: boolean; message?: string; error?: string }>
   fetchSmartleadCampaigns: () => Promise<void>
+  fetchServiceOffering: () => Promise<void>
+  saveServiceOffering: (cfg: Partial<ServiceOffering>) => Promise<void>
+  runAutoProspect: (params: {
+    serviceName: string
+    description: string
+    targetIndustries?: string
+    targetCompanySize?: string
+    targetLocation?: string
+    keyBenefits?: string
+    idealCustomerSignals?: string
+    targetCount?: number
+    saveToDb?: boolean
+  }) => Promise<{ success: boolean; error?: string; addedToLeads?: number }>
 }
 
 const DEFAULT_SENDER: SenderConfig = {
@@ -122,6 +170,11 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
   senderConfig: DEFAULT_SENDER,
   emailConfig: null,
   smartleadCampaigns: [],
+  serviceOffering: null,
+  prospectResult: null,
+  prospectLoading: false,
+  prospectStage: '',
+  prospectDetail: '',
 
   fetchLeads: async () => {
     set({ loading: true })
@@ -318,6 +371,79 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
     } catch (e) {
       console.error('pushToSmartlead error:', e)
       return { success: false, error: '推送過程發生錯誤' }
+    }
+  },
+
+  fetchServiceOffering: async () => {
+    try {
+      const res = await fetch('/api/service-offering')
+      const data = await res.json()
+      if (res.ok) set({ serviceOffering: data })
+    } catch (e) {
+      console.error('fetchServiceOffering error:', e)
+    }
+  },
+
+  saveServiceOffering: async (cfg) => {
+    try {
+      const res = await fetch('/api/service-offering', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cfg),
+      })
+      const data = await res.json()
+      if (res.ok) set({ serviceOffering: data })
+    } catch (e) {
+      console.error('saveServiceOffering error:', e)
+    }
+  },
+
+  runAutoProspect: async (params) => {
+    set({
+      prospectLoading: true,
+      prospectResult: null,
+      prospectStage: '初始化中',
+      prospectDetail: '',
+    })
+
+    try {
+      const res = await fetch('/api/auto-prospect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        set({
+          prospectResult: {
+            candidates: data.candidates ?? [],
+            ai_search_queries: data.ai_search_queries ?? [],
+            total_discovered: data.total_discovered ?? 0,
+            evaluated: data.evaluated ?? 0,
+          },
+          prospectLoading: false,
+          prospectStage: '完成',
+          prospectDetail: `找到 ${data.candidates?.length ?? 0} 家潛在客戶`,
+        })
+        if (data.addedToLeads) {
+          await get().fetchLeads()
+        }
+        return { success: true, addedToLeads: data.addedToLeads }
+      }
+      set({
+        prospectLoading: false,
+        prospectStage: '失敗',
+        prospectDetail: data.error ?? '自動開發失敗',
+      })
+      return { success: false, error: data.error ?? '自動開發失敗' }
+    } catch (e) {
+      console.error('runAutoProspect error:', e)
+      set({
+        prospectLoading: false,
+        prospectStage: '失敗',
+        prospectDetail: '網路錯誤',
+      })
+      return { success: false, error: '網路錯誤' }
     }
   },
 }))

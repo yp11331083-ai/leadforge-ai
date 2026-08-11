@@ -517,3 +517,428 @@ ${extraContext ? `## 額外背景\n${extraContext}` : ''}
     return { success: false, data: null, sources, raw }
   }
 }
+
+// ===== AI 自動開發：根據服務描述找出潛在客戶 =====
+
+export interface ProspectCandidate {
+  company: string
+  website: string
+  industry?: string
+  fit_score: number // 0-100
+  why_they_need_it: string
+  suggested_angle: string
+  key_signals: string[]
+  confidence: 'high' | 'medium' | 'low'
+  website_title?: string
+}
+
+export interface AutoProspectResult {
+  candidates: ProspectCandidate[]
+  ai_search_queries: string[]
+  total_discovered: number
+  evaluated: number
+}
+
+/**
+ * 步驟 1：AI 根據服務描述，生成多組精準的搜尋查詢詞
+ */
+export async function generateSearchQueries(params: {
+  serviceName: string
+  description: string
+  targetIndustries?: string
+  targetCompanySize?: string
+  targetLocation?: string
+  idealCustomerSignals?: string
+}): Promise<{ success: boolean; queries: string[]; raw: string }> {
+  const zai = await getAI()
+  const { serviceName, description, targetIndustries, targetCompanySize, targetLocation, idealCustomerSignals } = params
+
+  const prompt = `你是頂級 B2B 潛在客戶開發專家。
+
+我經營的服務/產品如下：
+
+**服務名稱**：${serviceName}
+**詳細描述**：${description}
+${targetIndustries ? `**目標產業**：${targetIndustries}` : ''}
+${targetCompanySize ? `**目標公司規模**：${targetCompanySize}` : ''}
+${targetLocation ? `**目標地區**：${targetLocation}` : ''}
+${idealCustomerSignals ? `**理想客戶訊號**：${idealCustomerSignals}` : ''}
+
+請幫我設計 8 組**用於 Google 搜尋的查詢詞**，目標是找出「最可能需要我服務」的企業。
+
+查詢策略要多元，包含：
+1. **徵才訊號類**：搜尋正在招募與我服務相關職位的公司（例如 "hiring sales operations manager"）
+2. **融資/成長訊號類**：最近融資、擴編的公司（例如 "Series A SaaS 2024"）
+3. **產業 + 痛點類**：特定產業 + 我服務解決的痛點（例如 "logistics companies manual data entry problem"）
+4. **技術堆疊類**：使用特定技術堆疊的公司（例如 "companies using Salesforce looking for automation"）
+5. **地區 + 產業類**：特定地區的目標產業公司
+6. **規模 + 產業類**：特定規模的目標公司
+7. **競爭對手客戶類**：使用競爭對手產品的公司
+8. **行為訊號類**：近期發布特定內容/參加特定活動的公司
+
+每組查詢詞要：
+- 英文（Google 搜尋效果較好）
+- 具體、可執行
+- 包含 site: 限定或進階搜尋運算子（如 site:linkedin.com/company、site:crunchbase.com）
+- 不要太寬泛（避免 "best SaaS companies"）
+
+請輸出純 JSON 陣列（不要 markdown code block）：
+["query 1", "query 2", ..., "query 8"]`
+
+  const completion = await zai.chat.completions.create({
+    messages: [
+      {
+        role: 'system',
+        content: '你是頂級 B2B 潛在客戶開發專家。回應必須是純 JSON 陣列。',
+      },
+      { role: 'user', content: prompt },
+    ],
+    temperature: 0.5,
+  })
+
+  const raw = completion.choices?.[0]?.message?.content ?? ''
+  let cleaned = raw.trim()
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+  }
+  try {
+    const queries = JSON.parse(cleaned) as string[]
+    return { success: true, queries, raw }
+  } catch {
+    return { success: false, queries: [], raw }
+  }
+}
+
+/**
+ * 步驟 2：從搜尋結果中萃取公司 URL（過濾掉非公司頁面）
+ */
+export function extractCompanyUrls(
+  searchResults: Array<{ url?: string; name?: string; host_name?: string }>
+): Array<{ url: string; name: string }> {
+  const companies: Array<{ url: string; name: string }> = []
+  const seen = new Set<string>()
+
+  for (const r of searchResults) {
+    if (!r?.url) continue
+    const url = r.url
+
+    // 排除明顯非公司頁面的 URL
+    const excludePatterns = [
+      /youtube\.com|facebook\.com|twitter\.com|x\.com|tiktok\.com/i,
+      /wikipedia\.org/i,
+      /\.pdf$|\.jpg$|\.png$/i,
+      /google\.com\/search/i,
+      /news\./i,
+      // 排除 LinkedIn 職缺頁（不是公司頁）
+      /linkedin\.com\/jobs\//i,
+      // 排除 LinkedIn 個人 profile
+      /linkedin\.com\/in\//i,
+      // 排除博客文章路徑
+      /\/blog\//i,
+      /\/learn\//i,
+      /\/articles?\//i,
+      /\/news\//i,
+      // 排除求職網
+      /indeed\.com|glassdoor\.com|monster\.com|ziprecruiter\.com/i,
+      // 排除文章網站
+      /medium\.com|substack\.com|wordpress\.com|dev\.to/i,
+      /techcrunch\.com|venturebeat\.com|thenextweb\.com|theverge\.com/i,
+      /bloomberg\.com|reuters\.com|forbes\.com|businessinsider\.com/i,
+      /github\.com|gitlab\.com|bitbucket\.org/i,
+      /g2\.com|capterra\.com|trustpilot\.com/i,  // 評論網站
+    ]
+    if (excludePatterns.some((p) => p.test(url))) continue
+
+    try {
+      const host = new URL(url).hostname.replace(/^www\./, '')
+
+      // LinkedIn 公司頁
+      if (/linkedin\.com\/company\//.test(url)) {
+        const name = r.name ?? url.split('/').pop() ?? host
+        const key = `li:${url}`
+        if (!seen.has(key)) {
+          seen.add(key)
+          companies.push({ url, name })
+        }
+        continue
+      }
+
+      // Crunchbase 公司頁
+      if (/crunchbase\.com\/organization\//.test(url)) {
+        const name = r.name ?? url.split('/').pop() ?? host
+        const key = `cb:${url}`
+        if (!seen.has(key)) {
+          seen.add(key)
+          companies.push({ url, name })
+        }
+        continue
+      }
+
+      // Y Combinator 公司頁
+      if (/ycombinator\.com\/companies\//.test(url)) {
+        const name = r.name ?? url.split('/').pop() ?? host
+        const key = `yc:${url}`
+        if (!seen.has(key)) {
+          seen.add(key)
+          companies.push({ url, name })
+        }
+        continue
+      }
+
+      // 一般公司官網首頁（不是子頁面）
+      // 只接受根目錄或主頁
+      const path = new URL(url).pathname
+      const isRootOrMain = path === '/' || path === '' || /^\/[a-z]{2}(-[a-z]{2})?\/?$/i.test(path)
+
+      // 排除常見非公司網域
+      const nonCompanyDomains = [
+        'store.sony.com.tw', 'scale.com',
+      ]
+      if (nonCompanyDomains.includes(host)) continue
+
+      // 看起來像公司官網首頁
+      if (isRootOrMain && !/\.gov|\.edu|\.mil/i.test(host)) {
+        const key = `web:${host}`
+        if (!seen.has(key)) {
+          seen.add(key)
+          companies.push({ url, name: r.name ?? host })
+        }
+      }
+    } catch {
+      continue
+    }
+  }
+
+  return companies
+}
+
+/**
+ * 步驟 3：AI 評估每個候選公司與你服務的契合度
+ */
+export async function evaluateProspectFit(params: {
+  serviceName: string
+  description: string
+  keyBenefits?: string
+  idealCustomerSignals?: string
+  companyUrl: string
+  companyName: string
+  websiteContent: string
+}): Promise<{
+  success: boolean
+  data: ProspectCandidate | null
+  raw: string
+}> {
+  const zai = await getAI()
+  const { serviceName, description, keyBenefits, idealCustomerSignals, companyUrl, companyName, websiteContent } = params
+
+  const prompt = `你是頂級 B2B 業務分析師，擅長判斷一家公司是否需要某個服務。
+
+## 我的服務
+
+**服務名稱**：${serviceName}
+**服務描述**：${description}
+${keyBenefits ? `**核心價值**：${keyBenefits}` : ''}
+${idealCustomerSignals ? `**理想客戶訊號**：${idealCustomerSignals}` : ''}
+
+## 候選公司
+
+**公司名稱**：${companyName}
+**公司網站**：${companyUrl}
+
+**網站內容**：
+${websiteContent.slice(0, 5000)}
+
+## 任務
+
+請評估這家公司是否需要我的服務。從以下維度判斷：
+
+1. **業務型態契合度**：他們做的事是否會用到我的服務？
+2. **規模契合度**：他們的規模是否符合我的目標客戶？
+3. **訊號強度**：網站/徵才/產品訊息是否暗示他們有我服務能解決的痛點？
+4. **採購能力**：他們看起來有預算採購嗎？
+5. **接觸可能性**：是否有公開聯絡資訊？
+
+## 輸出格式
+
+請輸出純 JSON（不要 markdown）：
+
+{
+  "company": "${companyName}",
+  "website": "${companyUrl}",
+  "industry": "推斷的產業",
+  "fit_score": 75,  // 0-100，整數
+  "why_they_need_it": "2-3 句具體說明為什麼他們需要我的服務，要點出他們的具體痛點與我的服務如何對應",
+  "suggested_angle": "建議的開發切入點（1 句）",
+  "key_signals": ["訊號1", "訊號2", "訊號3"],
+  "confidence": "high"  // high / medium / low
+}
+
+注意：
+- fit_score 要客觀，不要全部都給 80+。真的不適合就給低分。
+- why_they_need_it 要具體，不要寫「他們可能需要自動化」這種廢話。
+- 如果查不到足夠資訊判斷，confidence 給 low，fit_score 給 30 以下。
+- 行業別用中文，例如 "SaaS 軟體"、"電商"、"製造業"。`
+
+  const completion = await zai.chat.completions.create({
+    messages: [
+      {
+        role: 'system',
+        content: '你是頂級 B2B 業務分析師。你客觀評估公司契合度，不會盲目給高分。回應必須是純 JSON 格式。',
+      },
+      { role: 'user', content: prompt },
+    ],
+    temperature: 0.3,
+  })
+
+  const raw = completion.choices?.[0]?.message?.content ?? ''
+  let cleaned = raw.trim()
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+  }
+
+  try {
+    const data = JSON.parse(cleaned) as ProspectCandidate
+    return { success: true, data, raw }
+  } catch {
+    return { success: false, data: null, raw }
+  }
+}
+
+/**
+ * 主函式：自動開發潛在客戶
+ * 1. AI 生成搜尋查詢詞
+ * 2. web_search 找候選公司
+ * 3. 萃取公司 URL
+ * 4. page_reader 抓每家公司網站
+ * 5. AI 評估契合度
+ * 6. 依分數排序回傳 top N
+ */
+export async function autoProspect(params: {
+  serviceName: string
+  description: string
+  targetIndustries?: string
+  targetCompanySize?: string
+  targetLocation?: string
+  keyBenefits?: string
+  idealCustomerSignals?: string
+  targetCount?: number // 預設 10
+  onProgress?: (stage: string, detail?: string) => void
+}): Promise<{
+  success: boolean
+  result: AutoProspectResult | null
+  error?: string
+}> {
+  const {
+    serviceName,
+    description,
+    targetIndustries,
+    targetCompanySize,
+    targetLocation,
+    keyBenefits,
+    idealCustomerSignals,
+    targetCount = 10,
+    onProgress,
+  } = params
+
+  // 步驟 1：AI 生成搜尋查詢詞
+  onProgress?.('生成搜尋策略', 'AI 正在設計精準搜尋查詢...')
+  const queryResult = await generateSearchQueries({
+    serviceName,
+    description,
+    targetIndustries,
+    targetCompanySize,
+    targetLocation,
+    idealCustomerSignals,
+  })
+
+  if (!queryResult.success || queryResult.queries.length === 0) {
+    return { success: false, result: null, error: 'AI 無法生成搜尋策略' }
+  }
+
+  onProgress?.('搜尋候選公司', `使用 ${queryResult.queries.length} 組查詢詞搜尋...`)
+
+  // 步驟 2：循序執行 web_search（避免 429）
+  const allSearchResults: Array<{ url?: string; name?: string; host_name?: string }> = []
+  for (const q of queryResult.queries) {
+    try {
+      const results = await searchCompanies(q, 5)
+      allSearchResults.push(...results)
+      onProgress?.('搜尋候選公司', `已搜尋 ${allSearchResults.length} 個結果...`)
+    } catch (e) {
+      console.error(`search failed for "${q}":`, e)
+    }
+    await new Promise((r) => setTimeout(r, 400))
+  }
+
+  // 步驟 3：萃取公司 URL
+  const candidates = extractCompanyUrls(allSearchResults)
+  onProgress?.('篩選候選公司', `從 ${allSearchResults.length} 個結果中萃取出 ${candidates.length} 家公司`)
+
+  if (candidates.length === 0) {
+    return {
+      success: false,
+      result: null,
+      error: '搜尋結果中找不到符合的公司網址，請調整服務描述再試一次',
+    }
+  }
+
+  // 取前 N*2 家做評估（確保最終能篩出 N 家）
+  const toEvaluate = candidates.slice(0, Math.max(targetCount * 2, 15))
+  onProgress?.('AI 分析契合度', `正在評估 ${toEvaluate.length} 家候選公司...`)
+
+  // 步驟 4 + 5：循序抓網站 + AI 評估
+  const evaluated: ProspectCandidate[] = []
+  for (let i = 0; i < toEvaluate.length; i++) {
+    const c = toEvaluate[i]
+    onProgress?.('AI 分析契合度', `(${i + 1}/${toEvaluate.length}) ${c.name}`)
+
+    try {
+      // 抓網站內容
+      const websiteData = await fetchWebsiteContent(c.url)
+      const websiteText = websiteData ? htmlToText(websiteData.html).slice(0, 6000) : ''
+
+      // AI 評估契合度
+      const fitResult = await evaluateProspectFit({
+        serviceName,
+        description,
+        keyBenefits,
+        idealCustomerSignals,
+        companyUrl: c.url,
+        companyName: c.name,
+        websiteContent: websiteText || `(無法抓取網站內容，僅依 URL 判斷：${c.url})`,
+      })
+
+      if (fitResult.success && fitResult.data) {
+        evaluated.push({
+          ...fitResult.data,
+          website_title: websiteData?.title,
+        })
+      }
+    } catch (e) {
+      console.error(`evaluate ${c.name} failed:`, e)
+    }
+
+    // 小延遲
+    await new Promise((r) => setTimeout(r, 200))
+
+    // 已經收集到足夠的高分候選就停止
+    const highConfCount = evaluated.filter((e) => e.fit_score >= 60).length
+    if (highConfCount >= targetCount && i >= targetCount) break
+  }
+
+  // 步驟 6：依 fit_score 排序，取 top N
+  evaluated.sort((a, b) => b.fit_score - a.fit_score)
+  const top = evaluated.slice(0, targetCount)
+
+  onProgress?.('完成', `已篩選出 ${top.length} 家最契合的潛在客戶`)
+
+  return {
+    success: true,
+    result: {
+      candidates: top,
+      ai_search_queries: queryResult.queries,
+      total_discovered: candidates.length,
+      evaluated: evaluated.length,
+    },
+  }
+}
