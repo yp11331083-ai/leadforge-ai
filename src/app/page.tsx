@@ -14,6 +14,10 @@ import {
   Wand2,
   AlertTriangle,
   X,
+  LayoutDashboard,
+  BarChart3,
+  Send,
+  Crown,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -28,6 +32,8 @@ import { EmailSendingPanel } from '@/components/lead-engine/email-sending-panel'
 import { AutoProspectPanel } from '@/components/lead-engine/auto-prospect-panel'
 import { LeadDetailSheet } from '@/components/lead-engine/lead-detail-sheet'
 import { AddLeadModal, ImportModal } from '@/components/lead-engine/modals'
+import { SalesCardFeed } from '@/components/sales-view/sales-card-feed'
+import { AnalyticsDashboard } from '@/components/analytics-view/analytics-dashboard'
 
 export default function Home() {
   const fetchLeads = useLeadStore((s) => s.fetchLeads)
@@ -37,6 +43,8 @@ export default function Home() {
   const selectedLeadId = useLeadStore((s) => s.selectedLeadId)
   const setSelectedLeadId = useLeadStore((s) => s.setSelectedLeadId)
   const rateLimitedAt = useLeadStore((s) => s.rateLimitedAt)
+  const viewMode = useLeadStore((s) => s.viewMode)
+  const setViewMode = useLeadStore((s) => s.setViewMode)
   const [rateBannerDismissed, setRateBannerDismissed] = useState(false)
 
   const [addOpen, setAddOpen] = useState(false)
@@ -55,9 +63,8 @@ export default function Home() {
     fetchLeads()
   }, [filterStatus, fetchLeads])
 
-  // 點擊 lead 時自動開啟 detail sheet（detailOpen 直接由 selectedLeadId 推導）
+  // 點擊 lead 時自動開啟 detail sheet
   const detailOpen = !!selectedLeadId
-
   const selectedLead = leads.find((l) => l.id === selectedLeadId) ?? null
 
   return (
@@ -79,20 +86,75 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-              <Upload className="mr-1.5 h-3.5 w-3.5" />
-              <span className="hidden sm:inline">批次匯入</span>
-            </Button>
-            <Button size="sm" onClick={() => setAddOpen(true)}>
-              <Plus className="mr-1.5 h-3.5 w-3.5" />
-              <span className="hidden sm:inline">新增名單</span>
-            </Button>
+          {/* View switcher: 後台 / 業務前台 / 數據儀表板 */}
+          <div className="hidden md:flex items-center gap-1 p-1 rounded-lg bg-muted/60 border border-border/60">
+            <ViewSwitcherBtn
+              active={viewMode === 'admin'}
+              onClick={() => setViewMode('admin')}
+              icon={LayoutDashboard}
+              label="後台"
+            />
+            <ViewSwitcherBtn
+              active={viewMode === 'sales'}
+              onClick={() => setViewMode('sales')}
+              icon={Send}
+              label="業務前台"
+            />
+            <ViewSwitcherBtn
+              active={viewMode === 'analytics'}
+              onClick={() => setViewMode('analytics')}
+              icon={BarChart3}
+              label="數據儀表板"
+            />
           </div>
+
+          {/* Admin-only buttons */}
+          {viewMode === 'admin' && (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+                <Upload className="mr-1.5 h-3.5 w-3.5" />
+                <span className="hidden sm:inline">批次匯入</span>
+              </Button>
+              <Button size="sm" onClick={() => setAddOpen(true)}>
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                <span className="hidden sm:inline">新增名單</span>
+              </Button>
+            </div>
+          )}
+
+          {/* Sales view: avatar */}
+          {viewMode === 'sales' && (
+            <div className="flex items-center gap-2">
+              <div className="text-right hidden sm:block">
+                <p className="text-xs font-medium">Alex Chen</p>
+                <p className="text-[10px] text-muted-foreground">Sales Rep</p>
+              </div>
+              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-xs font-bold">
+                A
+              </div>
+            </div>
+          )}
+
+          {/* Analytics view: VIP badge */}
+          {viewMode === 'analytics' && (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-950/50 dark:to-yellow-950/50 border border-amber-300 dark:border-amber-800">
+                <Crown className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                <span className="text-xs font-medium text-amber-800 dark:text-amber-300">VP of Sales</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile view switcher */}
+        <div className="md:hidden border-t border-border/60 px-4 py-2 flex items-center gap-1 overflow-x-auto">
+          <ViewSwitcherBtn active={viewMode === 'admin'} onClick={() => setViewMode('admin')} icon={LayoutDashboard} label="後台" mobile />
+          <ViewSwitcherBtn active={viewMode === 'sales'} onClick={() => setViewMode('sales')} icon={Send} label="業務" mobile />
+          <ViewSwitcherBtn active={viewMode === 'analytics'} onClick={() => setViewMode('analytics')} icon={BarChart3} label="數據" mobile />
         </div>
       </header>
 
-      <main className="flex-1 mx-auto max-w-[1400px] w-full px-4 sm:px-6 py-5 space-y-5">
+      <main className="flex-1 mx-auto w-full px-4 sm:px-6 py-5 space-y-5" style={{ maxWidth: viewMode === 'sales' ? '640px' : '1400px' }}>
         {/* Rate limit 橫幅 */}
         {rateLimitedAt && !rateBannerDismissed && (
           <div className="rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-3 flex items-start gap-3">
@@ -115,135 +177,131 @@ export default function Home() {
           </div>
         )}
 
-        {/* 統計儀表板 */}
-        <StatsDashboard />
+        {/* === Admin 後台視圖 === */}
+        {viewMode === 'admin' && (
+          <>
+            <StatsDashboard />
+            <Tabs defaultValue="leads" className="w-full">
+              <TabsList className="grid w-full max-w-2xl grid-cols-5">
+                <TabsTrigger value="leads">
+                  <Table2 className="mr-1.5 h-3.5 w-3.5" />
+                  <span className="hidden md:inline">名單</span>
+                </TabsTrigger>
+                <TabsTrigger value="prospect">
+                  <Wand2 className="mr-1.5 h-3.5 w-3.5" />
+                  <span className="hidden md:inline">自動開發</span>
+                </TabsTrigger>
+                <TabsTrigger value="research">
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                  <span className="hidden md:inline">AI 研究</span>
+                </TabsTrigger>
+                <TabsTrigger value="settings">
+                  <Settings className="mr-1.5 h-3.5 w-3.5" />
+                  <span className="hidden md:inline">寄件人</span>
+                </TabsTrigger>
+                <TabsTrigger value="email">
+                  <Mail className="mr-1.5 h-3.5 w-3.5" />
+                  <span className="hidden md:inline">發信</span>
+                </TabsTrigger>
+              </TabsList>
 
-        {/* 主內容 Tabs */}
-        <Tabs defaultValue="leads" className="w-full">
-          <TabsList className="grid w-full max-w-2xl grid-cols-5">
-            <TabsTrigger value="leads">
-              <Table2 className="mr-1.5 h-3.5 w-3.5" />
-              <span className="hidden md:inline">名單</span>
-            </TabsTrigger>
-            <TabsTrigger value="prospect">
-              <Wand2 className="mr-1.5 h-3.5 w-3.5" />
-              <span className="hidden md:inline">自動開發</span>
-            </TabsTrigger>
-            <TabsTrigger value="research">
-              <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-              <span className="hidden md:inline">AI 研究</span>
-            </TabsTrigger>
-            <TabsTrigger value="settings">
-              <Settings className="mr-1.5 h-3.5 w-3.5" />
-              <span className="hidden md:inline">寄件人</span>
-            </TabsTrigger>
-            <TabsTrigger value="email">
-              <Mail className="mr-1.5 h-3.5 w-3.5" />
-              <span className="hidden md:inline">發信</span>
-            </TabsTrigger>
-          </TabsList>
+              <TabsContent value="leads" className="mt-4">
+                <LeadsTable />
+              </TabsContent>
 
-          <TabsContent value="leads" className="mt-4">
-            <LeadsTable />
-          </TabsContent>
+              <TabsContent value="prospect" className="mt-4">
+                <AutoProspectPanel />
+              </TabsContent>
 
-          <TabsContent value="prospect" className="mt-4">
-            <AutoProspectPanel />
-          </TabsContent>
-
-          <TabsContent value="research" className="mt-4">
-            <div className="grid gap-5 lg:grid-cols-2">
-              <ResearchPanel />
-              <div className="space-y-4">
-                <Card className="p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="rounded-lg bg-cyan-100 dark:bg-cyan-950/50 p-2">
-                      <Database className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
-                    </div>
-                    <div>
-                      <h2 className="text-base font-semibold">工作流程</h2>
-                      <p className="text-xs text-muted-foreground">
-                        從研究到發信的完整 4 步驟
-                      </p>
-                    </div>
-                  </div>
-                  <ol className="space-y-3">
-                    {[
-                      {
-                        n: '1',
-                        title: '建立名單',
-                        desc: '手動新增、CSV/JSON 批次匯入，或直接從研究面板輸入網站由 AI 自動建立',
-                      },
-                      {
-                        n: '2',
-                        title: 'AI 公司研究',
-                        desc: 'Claygent 引擎透過 page_reader 抓取官網，AI 整理出痛點、徵才訊號、採購意圖、切入點',
-                      },
-                      {
-                        n: '3',
-                        title: 'AI 生成冷郵件',
-                        desc: '根據研究結果，AI 撰寫個人化主旨、開場白、價值主張、行動呼籲',
-                      },
-                      {
-                        n: '4',
-                        title: '發送郵件',
-                        desc: '透過 SMTP 直接發信，或推送到 Smartlead 由專業發信平台代發，自動追蹤成效',
-                      },
-                    ].map((step) => (
-                      <li key={step.n} className="flex gap-3">
-                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-xs font-bold text-emerald-700 dark:text-emerald-400">
-                          {step.n}
+              <TabsContent value="research" className="mt-4">
+                <div className="grid gap-5 lg:grid-cols-2">
+                  <ResearchPanel />
+                  <div className="space-y-4">
+                    <Card className="p-5">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="rounded-lg bg-cyan-100 dark:bg-cyan-950/50 p-2">
+                          <Database className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium">{step.title}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {step.desc}
+                        <div>
+                          <h2 className="text-base font-semibold">工作流程</h2>
+                          <p className="text-xs text-muted-foreground">
+                            從研究到發信的完整 4 步驟
                           </p>
                         </div>
-                      </li>
-                    ))}
-                  </ol>
-                </Card>
+                      </div>
+                      <ol className="space-y-3">
+                        {[
+                          { n: '1', title: '建立名單', desc: '手動新增、CSV/JSON 批次匯入，或直接從研究面板輸入網站由 AI 自動建立' },
+                          { n: '2', title: 'AI 公司研究', desc: 'Claygent 引擎透過 page_reader 抓取官網，AI 整理出痛點、徵才訊號、採購意圖、切入點' },
+                          { n: '3', title: 'AI 生成冷郵件', desc: '根據研究結果，AI 撰寫個人化主旨、開場白、價值主張、行動呼籲' },
+                          { n: '4', title: '發送郵件', desc: '透過 SMTP 直接發信，或推送到 Smartlead 由專業發信平台代發，自動追蹤成效' },
+                        ].map((step) => (
+                          <li key={step.n} className="flex gap-3">
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                              {step.n}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium">{step.title}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {step.desc}
+                              </p>
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
+                    </Card>
 
-                <Card className="p-5 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border-emerald-200 dark:border-emerald-900">
-                  <h3 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300 mb-2">
-                    核心優勢
-                  </h3>
-                  <ul className="space-y-1.5 text-xs text-emerald-700 dark:text-emerald-400">
-                    <li className="flex gap-1.5">
-                      <span className="font-bold">▸</span>
-                      <span>AI 真實瀏覽網站，不是靠搜尋結果猜測</span>
-                    </li>
-                    <li className="flex gap-1.5">
-                      <span className="font-bold">▸</span>
-                      <span>研究 + 郵件一體化，省去切換工具</span>
-                    </li>
-                    <li className="flex gap-1.5">
-                      <span className="font-bold">▸</span>
-                      <span>可編輯的 AI 文案，不是黑盒子</span>
-                    </li>
-                    <li className="flex gap-1.5">
-                      <span className="font-bold">▸</span>
-                      <span>潛在客戶評分系統，排序聯繫優先級</span>
-                    </li>
-                  </ul>
-                </Card>
-              </div>
-            </div>
-          </TabsContent>
+                    <Card className="p-5 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border-emerald-200 dark:border-emerald-900">
+                      <h3 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300 mb-2">
+                        核心優勢
+                      </h3>
+                      <ul className="space-y-1.5 text-xs text-emerald-700 dark:text-emerald-400">
+                        <li className="flex gap-1.5">
+                          <span className="font-bold">▸</span>
+                          <span>AI 真實瀏覽網站，不是靠搜尋結果猜測</span>
+                        </li>
+                        <li className="flex gap-1.5">
+                          <span className="font-bold">▸</span>
+                          <span>研究 + 郵件一體化，省去切換工具</span>
+                        </li>
+                        <li className="flex gap-1.5">
+                          <span className="font-bold">▸</span>
+                          <span>可編輯的 AI 文案，不是黑盒子</span>
+                        </li>
+                        <li className="flex gap-1.5">
+                          <span className="font-bold">▸</span>
+                          <span>潛在客戶評分系統，排序聯繫優先級</span>
+                        </li>
+                      </ul>
+                    </Card>
+                  </div>
+                </div>
+              </TabsContent>
 
-          <TabsContent value="settings" className="mt-4">
-            <div className="max-w-2xl">
-              <SenderConfigPanel />
-            </div>
-          </TabsContent>
+              <TabsContent value="settings" className="mt-4">
+                <div className="max-w-2xl">
+                  <SenderConfigPanel />
+                </div>
+              </TabsContent>
 
-          <TabsContent value="email" className="mt-4">
-            <div className="max-w-2xl">
-              <EmailSendingPanel />
-            </div>
-          </TabsContent>
-        </Tabs>
+              <TabsContent value="email" className="mt-4">
+                <div className="max-w-2xl">
+                  <EmailSendingPanel />
+                </div>
+              </TabsContent>
+            </Tabs>
+          </>
+        )}
+
+        {/* === Sales 業務前台視圖 === */}
+        {viewMode === 'sales' && (
+          <SalesCardFeed onEditLead={(id) => setSelectedLeadId(id)} />
+        )}
+
+        {/* === Analytics 數據儀表板視圖 === */}
+        {viewMode === 'analytics' && (
+          <AnalyticsDashboard />
+        )}
       </main>
 
       {/* Footer */}
@@ -251,6 +309,11 @@ export default function Home() {
         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 flex items-center justify-between text-xs text-muted-foreground">
           <span>
             Powered by Z.ai · {leads.length} 筆名單
+            {viewMode !== 'admin' && (
+              <span className="ml-2 px-1.5 py-0.5 rounded bg-muted/60">
+                {viewMode === 'sales' ? '業務前台' : '數據儀表板'}
+              </span>
+            )}
           </span>
           <a
             href="https://chat.z.ai"
@@ -276,5 +339,33 @@ export default function Home() {
       />
       <Toaster />
     </div>
+  )
+}
+
+function ViewSwitcherBtn({
+  active,
+  onClick,
+  icon: Icon,
+  label,
+  mobile,
+}: {
+  active: boolean
+  onClick: () => void
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+  mobile?: boolean
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+        active
+          ? 'bg-background shadow-sm text-emerald-700 dark:text-emerald-400'
+          : 'text-muted-foreground hover:text-foreground'
+      } ${mobile ? 'shrink-0' : ''}`}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </button>
   )
 }

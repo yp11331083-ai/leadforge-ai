@@ -145,6 +145,8 @@ interface LeadStore {
   prospectJobId: string | null
   prospectError: string | null
   rateLimitedAt: number | null  // 第一次偵測到 429 的時間戳
+  viewMode: 'admin' | 'sales' | 'analytics'
+  setViewMode: (mode: 'admin' | 'sales' | 'analytics') => void
   // actions
   fetchLeads: () => Promise<void>
   createLead: (data: Partial<Lead>) => Promise<Lead | null>
@@ -208,6 +210,8 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
   prospectJobId: null,
   prospectError: null,
   rateLimitedAt: null,
+  viewMode: 'admin',
+  setViewMode: (mode) => set({ viewMode: mode }),
 
   fetchLeads: async () => {
     set({ loading: true })
