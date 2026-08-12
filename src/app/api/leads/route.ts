@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getSession, leadFilter, tenantFilter, requireUser } from '@/lib/auth/session'
 
-// 取得所有 Lead，支援 status 篩選
+// 取得所有 Lead，依 role 過濾
 export async function GET(req: NextRequest) {
   try {
+    const user = await requireUser()
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
     const search = searchParams.get('search')
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = {
+      ...leadFilter(user),  // SDR 只看自己的，Admin/Manager 看全部
+    }
     if (status && status !== 'all') where.status = status
     if (search) {
       where.OR = [
@@ -22,11 +26,13 @@ export async function GET(req: NextRequest) {
     const leads = await db.lead.findMany({
       where,
       orderBy: { createdAt: 'desc' },
+      include: { assignee: { select: { id: true, name: true, email: true } } },
     })
 
-    // 統計指標
-    const total = await db.lead.count()
-    const byStatus = await db.lead.groupBy({ by: ['status'], _count: true })
+    // 統計指標（用 role 過濾後的範圍）
+    const allWhere = leadFilter(user)
+    const total = await db.lead.count({ where: allWhere })
+    const byStatus = await db.lead.groupBy({ by: ['status'], where: allWhere, _count: true })
 
     const stats = {
       total,
@@ -38,7 +44,10 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json({ leads, stats })
-  } catch (error) {
+  } catch (error: any) {
+    if (error.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: '請先登入' }, { status: 401 })
+    }
     console.error('GET /api/leads error:', error)
     return NextResponse.json({ error: 'Failed to fetch leads' }, { status: 500 })
   }
@@ -47,21 +56,15 @@ export async function GET(req: NextRequest) {
 // 新增 Lead
 export async function POST(req: NextRequest) {
   try {
+    const user = await requireUser()
     const body = await req.json()
 
-    // 支援批次匯入
     if (Array.isArray(body)) {
       const created = await db.lead.createMany({
         data: body.map((item) => ({
-          company: item.company,
-          contactName: item.contactName ?? null,
-          title: item.title ?? null,
-          email: item.email ?? null,
-          linkedinUrl: item.linkedinUrl ?? null,
-          website: item.website ?? null,
-          industry: item.industry ?? null,
-          companySize: item.companySize ?? null,
-          location: item.location ?? null,
+          ...item,
+          tenantId: user.tenantId,
+          assigneeId: item.assigneeId ?? (user.role === 'sdr' ? user.id : null),
           status: item.status ?? 'new',
         })),
       })
@@ -70,20 +73,17 @@ export async function POST(req: NextRequest) {
 
     const lead = await db.lead.create({
       data: {
-        company: body.company,
-        contactName: body.contactName ?? null,
-        title: body.title ?? null,
-        email: body.email ?? null,
-        linkedinUrl: body.linkedinUrl ?? null,
-        website: body.website ?? null,
-        industry: body.industry ?? null,
-        companySize: body.companySize ?? null,
-        location: body.location ?? null,
+        ...body,
+        tenantId: user.tenantId,
+        assigneeId: body.assigneeId ?? (user.role === 'sdr' ? user.id : null),
         status: body.status ?? 'new',
       },
     })
     return NextResponse.json(lead)
-  } catch (error) {
+  } catch (error: any) {
+    if (error.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: '請先登入' }, { status: 401 })
+    }
     console.error('POST /api/leads error:', error)
     return NextResponse.json({ error: 'Failed to create lead' }, { status: 500 })
   }

@@ -10,8 +10,54 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ===== 多租戶 =====
+model Tenant {
+  id              String   @id @default(cuid())
+  name            String   // 公司名稱（例如 Monite、AlwaysHired）
+  slug            String   @unique // URL 用識別碼
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  stripePriceId        String?  // 訂閱方案
+  plan            String   @default("trial") // trial | starter | pro | enterprise
+  status          String   @default("active") // active | suspended | cancelled
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  users           User[]
+  leads           Lead[]
+  campaigns       Campaign[]
+  emailConfig     EmailConfig?
+  serviceOffering ServiceOffering?
+  emailEvents     EmailEvent[]
+  meetings        Meeting[]
+  usageEvents     UsageEvent[]
+}
+
+// ===== 使用者與權限 =====
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  passwordHash  String   // bcrypt hash
+  role          String   @default("sdr") // admin | sales_manager | sdr
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignedLeads Lead[]   @relation("AssignedLeads")  // SDR 被分配的 leads
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([role])
+}
+
+// ===== 潛在客戶名單 =====
 model Lead {
   id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assigneeId    String?  // 被分配給哪個 SDR
+  assignee      User?    @relation("AssignedLeads", fields: [assigneeId], references: [id], onDelete: SetNull)
+
   company       String
   contactName   String?
   title         String?
@@ -23,89 +69,177 @@ model Lead {
   location      String?
 
   // AI 產出欄位
-  painPoints    String?  // JSON 字串：AI 整理的痛點摘要
-  hiringSignals String?  // AI 偵測的徵才訊號
-  icebreaker    String?  // 個人化開場白
-  emailSubject  String?  // AI 生成的郵件主旨
-  emailBody     String?  // AI 生成的完整郵件內容
-  researchRaw   String?  // AI 研究原始資料
+  painPoints    String?
+  hiringSignals String?
+  icebreaker    String?
+  emailSubject  String?
+  emailBody     String?
+  researchRaw   String?
 
-  // 深度研究（多源整合）
-  deepResearch  String?  // JSON：融資、技術堆疊、競爭對手、新聞、開放職位
-  researchMode  String   @default("basic") // basic | deep
-  researchSources String? // JSON：研究過程中實際抓取的 URL 清單
+  // 深度研究
+  deepResearch  String?
+  researchMode  String   @default("basic")
+  researchSources String?
 
-  // Email Enrichment（找決策者 email）
-  enrichedEmails String? // JSON：決策者清單 [{name, title, email, confidence, source}]
+  // Email Enrichment
+  enrichedEmails String?
 
   // 流程控制
-  status        String   @default("new") // new | researching | researched | drafting | ready | sent | replied
-  score         Int?     // 潛在客戶分數 0-100
-  tags          String?  // 逗號分隔的標籤
+  status        String   @default("new")
+  score         Int?
+  tags          String?
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  emailEvents   EmailEvent[]
+  meetings      Meeting[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, assigneeId])
   @@index([status])
   @@index([company])
 }
 
 model Campaign {
   id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name        String
   description String?
-  status      String   @default("active") // active | paused | completed
+  status      String   @default("active")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
 }
 
 model EmailTemplate {
   id          String   @id @default(cuid())
+  tenantId    String
   name        String
   subject     String
-  body        String   // 含 {{company}}、{{contactName}}、{{painPoints}} 等變數
+  body        String
   description String?
   isDefault   Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
 }
 
-// 單例：儲存 SMTP 與 Smartlead 設定（id 固定為 "singleton"）
+// ===== 設定（每個租戶一筆） =====
 model EmailConfig {
-  id                String   @id @default("singleton")
+  id                String   @id @default(cuid())
+  tenantId          String   @unique
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  // SMTP 設定
+  // SMTP
   smtpHost          String?
   smtpPort          Int?
   smtpUser          String?
-  smtpPass          String?  // 顯示時遮罩
+  smtpPass          String?
   smtpFromName      String?
   smtpFromEmail     String?
   smtpSecure        Boolean  @default(true)
 
-  // Smartlead 設定
+  // Smartlead
   smartleadApiKey   String?
   smartleadDefaultCampaignId String?
+  smartleadWebhookSecret      String?  // 驗證 webhook 用
 
-  // Apollo.io 設定（B2B 人才大數據庫）
+  // Apollo.io
   apolloApiKey      String?
+
+  // Cal.com（會議追蹤）
+  calComApiKey      String?
+  calComWebhookSecret String?
+
+  // Stripe（計費）
+  stripeSecretKey        String?
+  stripeWebhookSecret    String?
+  stripeMeteredPriceId   String?  // 依發信量計費的 price ID
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
 
-// 單例：儲存使用者的服務介紹（給 AI 自動開發用）
+// ===== 服務介紹（每個租戶一筆） =====
 model ServiceOffering {
-  id                String   @id @default("singleton")
+  id                String   @id @default(cuid())
+  tenantId          String   @unique
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  serviceName       String?  // 服務/產品名稱
-  description       String?  // 詳細描述
-  targetIndustries  String?  // 目標產業（逗號分隔）
-  targetCompanySize String?  // 目標公司規模
-  targetLocation    String?  // 目標地區
-  keyBenefits        String?  // 核心價值主張
-  idealCustomerSignals String? // 理想客戶的訊號
+  serviceName       String?
+  description       String?
+  targetIndustries  String?
+  targetCompanySize String?
+  targetLocation    String?
+  keyBenefits        String?
+  idealCustomerSignals String?
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+}
+
+// ===== 開信追蹤事件（Smartlead webhook 寫入） =====
+model EmailEvent {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leadId        String
+  lead          Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  eventType     String   // sent | delivered | opened | replied | bounced | clicked
+  eventTime     DateTime @default(now())
+  rawPayload    String?  // 完整 webhook payload
+
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, leadId])
+  @@index([tenantId, eventType])
+  @@index([leadId, eventType])
+}
+
+// ===== 會議追蹤（Cal.com webhook 寫入） =====
+model Meeting {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leadId        String?
+  lead          Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  source        String   @default("calcom")  // calcom | calendly | manual
+  externalId    String?  // Cal.com 的 booking ID
+  attendeeEmail String?
+  attendeeName  String?
+  eventTypeId   String?
+  startTime     DateTime
+  endTime       DateTime
+  status        String   @default("scheduled")  // scheduled | completed | cancelled
+  rawPayload    String?
+
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([tenantId, leadId])
+}
+
+// ===== 用量事件（給 Stripe metered billing 用） =====
+model UsageEvent {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  type          String   // email_sent | lead_added | email_enriched
+  leadId        String?
+  metadata      String?  // JSON
+  stripeUsageRecorded Boolean @default(false)  // 是否已上報到 Stripe
+  recordedAt    DateTime?
+
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, type, stripeUsageRecorded])
+  @@index([tenantId, createdAt])
 }

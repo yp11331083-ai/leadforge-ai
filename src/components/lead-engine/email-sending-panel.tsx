@@ -20,6 +20,8 @@ import {
   ExternalLink,
   Plug,
   Users,
+  Calendar,
+  CreditCard,
 } from 'lucide-react'
 import { useLeadStore } from '@/store/lead-store'
 import { toast } from 'sonner'
@@ -40,14 +42,19 @@ export function EmailSendingPanel() {
     smtpSecure: false,
     smartleadApiKey: '',
     apolloApiKey: '',
+    calComApiKey: '',
+    stripeSecretKey: '',
+    stripeMeteredPriceId: '',
   })
   const [saving, setSaving] = useState(false)
   const [testingSmtp, setTestingSmtp] = useState(false)
   const [testingSmartlead, setTestingSmartlead] = useState(false)
   const [testingApollo, setTestingApollo] = useState(false)
+  const [testingCalCom, setTestingCalCom] = useState(false)
   const [smtpOk, setSmtpOk] = useState<boolean | null>(null)
   const [smartleadOk, setSmartleadOk] = useState<boolean | null>(null)
   const [apolloOk, setApolloOk] = useState<boolean | null>(null)
+  const [calComOk, setCalComOk] = useState<boolean | null>(null)
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
 
   useEffect(() => {
@@ -62,16 +69,20 @@ export function EmailSendingPanel() {
       smtpHost: emailConfig.smtpHost ?? '',
       smtpPort: emailConfig.smtpPort?.toString() ?? '587',
       smtpUser: emailConfig.smtpUser ?? '',
-      smtpPass: '', // 永遠空白，密碼不回顯
+      smtpPass: '',
       smtpFromName: emailConfig.smtpFromName ?? '',
       smtpFromEmail: emailConfig.smtpFromEmail ?? '',
       smtpSecure: emailConfig.smtpSecure,
       smartleadApiKey: '',
       apolloApiKey: '',
+      calComApiKey: '',
+      stripeSecretKey: '',
+      stripeMeteredPriceId: emailConfig.stripeMeteredPriceId ?? '',
     })
     setSmtpOk(null)
     setSmartleadOk(null)
     setApolloOk(null)
+    setCalComOk(null)
   }
 
   const handleSave = async () => {
@@ -120,9 +131,24 @@ export function EmailSendingPanel() {
     else toast.error(result.error ?? 'Apollo 測試失敗')
   }
 
+  const handleTestCalCom = async () => {
+    if (form.calComApiKey) {
+      await saveEmailConfig({ calComApiKey: form.calComApiKey })
+    }
+    setTestingCalCom(true)
+    setCalComOk(null)
+    const result = await testEmailConfig('test-calcom' as any)
+    setTestingCalCom(false)
+    setCalComOk(result.success)
+    if (result.success) toast.success(result.message ?? 'Cal.com API Key 有效')
+    else toast.error(result.error ?? 'Cal.com 測試失敗')
+  }
+
   const smtpConfigured = !!(emailConfig?.smtpHost && emailConfig?.smtpUser && emailConfig?.smtpPass && emailConfig?.smtpFromEmail)
   const smartleadConfigured = !!emailConfig?.smartleadApiKey
   const apolloConfigured = !!emailConfig?.apolloApiKey
+  const calComConfigured = !!emailConfig?.calComApiKey
+  const stripeConfigured = !!emailConfig?.stripeSecretKey
 
   return (
     <div className="space-y-5">
@@ -475,6 +501,146 @@ export function EmailSendingPanel() {
           >
             <ExternalLink className="h-3 w-3" />
             前往 Apollo 取得 API Key
+          </a>
+        </div>
+      </Card>
+
+      {/* Cal.com 區塊 */}
+      <Card className="p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="rounded-lg bg-rose-100 dark:bg-rose-950/50 p-2">
+            <Calendar className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold flex items-center gap-2">
+              Cal.com 會議追蹤
+              {calComConfigured ? (
+                <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs">
+                  <CheckCircle2 className="mr-1 h-3 w-3" />已設定
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs">
+                  <AlertCircle className="mr-1 h-3 w-3" />未設定
+                </Badge>
+              )}
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              自動追蹤潛在客戶預約的會議，串接 webhook 後「約到會議」KPI 自動 +1
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="calcom-key" className="flex items-center gap-1.5">
+              <KeyRound className="h-3 w-3" /> Cal.com API Key
+              {emailConfig?.calComApiKey && (
+                <span className="text-xs text-muted-foreground">（目前：{emailConfig.calComApiKey}）</span>
+              )}
+            </Label>
+            <Input
+              id="calcom-key"
+              type="password"
+              value={form.calComApiKey}
+              onChange={(e) => setForm((f) => ({ ...f, calComApiKey: e.target.value }))}
+              placeholder={emailConfig?.calComApiKey ? '••••••••（留空不變更）' : '至 Cal.com → Settings → API 取得'}
+            />
+          </div>
+
+          {calComOk !== null && (
+            <div className={`flex items-center gap-2 rounded-md p-2 text-xs ${
+              calComOk ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300'
+                      : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300'
+            }`}>
+              {calComOk ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+              {calComOk ? 'Cal.com API Key 有效！' : 'Cal.com API Key 無效。'}
+            </div>
+          )}
+
+          <div className="rounded-md bg-rose-50 dark:bg-rose-950/30 p-3 text-xs space-y-1.5 text-rose-700 dark:text-rose-300">
+            <p className="font-medium">設定 webhook 接收會議事件</p>
+            <p className="font-mono text-[11px]">URL: https://your-domain.com/api/webhooks/calcom</p>
+            <p className="text-rose-700 dark:text-rose-400">訂閱事件：booking.created, booking.cancelled</p>
+          </div>
+
+          <a
+            href="https://app.cal.com/settings/api"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-rose-600 dark:text-rose-400 hover:underline"
+          >
+            <ExternalLink className="h-3 w-3" />
+            前往 Cal.com 取得 API Key
+          </a>
+        </div>
+      </Card>
+
+      {/* Stripe 區塊 */}
+      <Card className="p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="rounded-lg bg-indigo-100 dark:bg-indigo-950/50 p-2">
+            <CreditCard className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold flex items-center gap-2">
+              Stripe 計費
+              {stripeConfigured ? (
+                <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs">
+                  <CheckCircle2 className="mr-1 h-3 w-3" />已設定
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs">
+                  <AlertCircle className="mr-1 h-3 w-3" />未設定
+                </Badge>
+              )}
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Metered billing：依發送郵件數計費，Stripe 月底自動扣款
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="stripe-key" className="flex items-center gap-1.5">
+              <KeyRound className="h-3 w-3" /> Stripe Secret Key
+              {emailConfig?.stripeSecretKey && (
+                <span className="text-xs text-muted-foreground">（目前：{emailConfig.stripeSecretKey}）</span>
+              )}
+            </Label>
+            <Input
+              id="stripe-key"
+              type="password"
+              value={form.stripeSecretKey}
+              onChange={(e) => setForm((f) => ({ ...f, stripeSecretKey: e.target.value }))}
+              placeholder={emailConfig?.stripeSecretKey ? '••••••••（留空不變更）' : 'sk_live_... 或 sk_test_...'}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="stripe-price">Metered Price ID</Label>
+            <Input
+              id="stripe-price"
+              value={form.stripeMeteredPriceId}
+              onChange={(e) => setForm((f) => ({ ...f, stripeMeteredPriceId: e.target.value }))}
+              placeholder="price_... (usage_type=metered)"
+            />
+          </div>
+
+          <div className="rounded-md bg-indigo-50 dark:bg-indigo-950/30 p-3 text-xs space-y-1.5 text-indigo-700 dark:text-indigo-300">
+            <p className="font-medium">Stripe Webhook 設定</p>
+            <p className="font-mono text-[11px]">URL: https://your-domain.com/api/webhooks/stripe</p>
+            <p className="text-indigo-700 dark:text-indigo-400">訂閱：customer.subscription.created/updated/deleted, invoice.payment_succeeded/failed</p>
+          </div>
+
+          <a
+            href="https://dashboard.stripe.com/webhooks"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+          >
+            <ExternalLink className="h-3 w-3" />
+            前往 Stripe 設定 Webhook
           </a>
         </div>
       </Card>

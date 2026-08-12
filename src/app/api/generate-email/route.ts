@@ -1,54 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireUser, leadFilter } from '@/lib/auth/session'
 import { generateColdEmail } from '@/lib/ai/agent'
 
 export async function POST(req: NextRequest) {
   try {
+    const user = await requireUser()
     const body = await req.json()
-    const {
-      leadId,
-      senderName,
-      senderCompany,
-      senderProduct,
-      tone = 'professional',
-      language = 'zh-TW',
-    } = body
+    const { leadId, senderName, senderCompany, senderProduct, tone = 'professional', language = 'zh-TW' } = body
 
-    if (!leadId) {
-      return NextResponse.json({ error: 'leadId is required' }, { status: 400 })
-    }
-    if (!senderName || !senderCompany || !senderProduct) {
-      return NextResponse.json(
-        { error: 'senderName, senderCompany, senderProduct are required' },
-        { status: 400 }
-      )
-    }
+    if (!leadId) return NextResponse.json({ error: 'leadId is required' }, { status: 400 })
 
-    const lead = await db.lead.findUnique({ where: { id: leadId } })
+    const lead = await db.lead.findFirst({ where: { id: leadId, ...leadFilter(user) } })
     if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
 
-    // 解析研究結果
-    let research: {
-      business_summary?: string
-      pain_points?: string[]
-      buying_signals?: string[]
-      outreach_angle?: string
-    } = {}
+    let research: any = {}
     let hiringSignals: string[] = []
-
     if (lead.painPoints) {
-      try {
-        research = JSON.parse(lead.painPoints)
-      } catch {
-        /* keep default */
-      }
+      try { research = JSON.parse(lead.painPoints) } catch {}
     }
     if (lead.hiringSignals) {
-      try {
-        hiringSignals = JSON.parse(lead.hiringSignals)
-      } catch {
-        /* keep default */
-      }
+      try { hiringSignals = JSON.parse(lead.hiringSignals) } catch {}
     }
 
     await db.lead.update({ where: { id: leadId }, data: { status: 'drafting' } })
@@ -72,14 +44,10 @@ export async function POST(req: NextRequest) {
 
     if (!result.success) {
       await db.lead.update({ where: { id: leadId }, data: { status: 'researched' } })
-      return NextResponse.json(
-        { error: 'Email generation failed', raw: result.raw },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: 'Email generation failed' }, { status: 500 })
     }
 
     const emailData = result.data
-
     await db.lead.update({
       where: { id: leadId },
       data: {
@@ -90,12 +58,11 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    return NextResponse.json({
-      success: true,
-      leadId,
-      email: emailData,
-    })
-  } catch (error) {
+    return NextResponse.json({ success: true, leadId, email: emailData })
+  } catch (error: any) {
+    if (error.message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: '請先登入' }, { status: 401 })
+    }
     console.error('POST /api/generate-email error:', error)
     return NextResponse.json({ error: 'Email generation failed' }, { status: 500 })
   }

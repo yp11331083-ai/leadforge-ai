@@ -147,6 +147,18 @@ interface LeadStore {
   rateLimitedAt: number | null  // 第一次偵測到 429 的時間戳
   viewMode: 'admin' | 'sales' | 'analytics'
   setViewMode: (mode: 'admin' | 'sales' | 'analytics') => void
+  // 當前使用者（從 NextAuth session 拿取）
+  currentUser: {
+    id: string
+    email: string
+    name: string
+    role: 'admin' | 'sales_manager' | 'sdr'
+    tenantId: string
+    tenantName: string
+    tenantSlug: string
+    tenantPlan: string
+  } | null
+  setCurrentUser: (user: LeadStore['currentUser']) => void
   // actions
   fetchLeads: () => Promise<void>
   createLead: (data: Partial<Lead>) => Promise<Lead | null>
@@ -212,6 +224,8 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
   rateLimitedAt: null,
   viewMode: 'admin',
   setViewMode: (mode) => set({ viewMode: mode }),
+  currentUser: null,
+  setCurrentUser: (user) => set({ currentUser: user }),
 
   fetchLeads: async () => {
     set({ loading: true })
