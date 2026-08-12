@@ -942,3 +942,433 @@ export async function autoProspect(params: {
     },
   }
 }
+
+// ===== Email Enrichment：找出決策者 email =====
+
+export interface DecisionMaker {
+  name: string
+  title: string
+  seniority: 'c_level' | 'vp' | 'director' | 'manager' | 'other'
+  email?: string
+  linkedin?: string
+  confidence: 'high' | 'medium' | 'low'  // email 信心度
+  email_source: 'apollo' | 'ai_predicted' | 'web_search' | 'unknown'
+  priority: number  // 1=最高優先
+  reason?: string  // 為什麼這個人是對的聯絡人
+}
+
+export interface EnrichEmailResult {
+  decisionMakers: DecisionMaker[]
+  companyEmailPattern?: string  // 例如 "first.last@company.com"
+  totalFound: number
+  hasEmailCount: number
+}
+
+/**
+ * 決策者優先級排序規則
+ * 用戶要求：
+ * 1. VP of Sales / VP Sales / Sales Director → 第一優先
+ * 2. CEO / Founder → 第二優先
+ * 3. CRO / CMO / COO → 第三優先
+ * 4. SDR / AE → 永遠跳過（除非真的找不到別的）
+ */
+export function rankTitle(title: string): { seniority: DecisionMaker['seniority']; priority: number; reason: string } {
+  const t = title.toLowerCase()
+
+  // VP Sales / VP of Sales / Sales Director → 最優先
+  if (/\b(vp|vice president)\b.*\b(sales|revenue|growth)\b/i.test(t) ||
+      /\b(sales|revenue)\b.*\b(vp|vice president)\b/i.test(t) ||
+      /\bdirector\b.*\b(sales|revenue|growth)\b/i.test(t) ||
+      /\b(sales|revenue|growth)\b.*\bdirector\b/i.test(t)) {
+    return { seniority: 'vp', priority: 1, reason: '業務最高主管 — 直接背負業績' }
+  }
+
+  // CRO (Chief Revenue Officer)
+  if (/\bcro\b|\bchief revenue officer\b/i.test(t)) {
+    return { seniority: 'c_level', priority: 1, reason: '營收長 — 業績最高決策者' }
+  }
+
+  // CEO / Founder / Co-Founder / President
+  if (/\bceo\b|\bchief executive\b|\bfounder\b|\bco-founder\b|\bco founder\b|\bpresident\b/i.test(t)) {
+    return { seniority: 'c_level', priority: 2, reason: 'CEO/創辦人 — 能做預算決定' }
+  }
+
+  // CMO / COO / CTO
+  if (/\bcmo\b|\bchief marketing\b|\bcoo\b|\bchief operating\b|\bcto\b|\bchief technology\b|\bchief product\b|\bcpo\b/i.test(t)) {
+    return { seniority: 'c_level', priority: 3, reason: 'C-level 主管' }
+  }
+
+  // Head of Sales / Head of Growth
+  if (/\bhead\b.*\b(sales|revenue|growth|business development|bd)\b/i.test(t) ||
+      /\b(sales|revenue|growth)\b.*\bhead\b/i.test(t)) {
+    return { seniority: 'director', priority: 2, reason: '業務主管 — 高階業務決策者' }
+  }
+
+  // Director / Senior Director（其他部門）
+  if (/\bdirector\b/i.test(t)) {
+    return { seniority: 'director', priority: 3, reason: 'Director 主管' }
+  }
+
+  // SDR / AE / Account Executive → 跳過
+  if (/\b(sdr|sales development|account executive|\bae\b|business development rep|bd rep)\b/i.test(t)) {
+    return { seniority: 'manager', priority: 99, reason: '業務專員 — 太基層，跳過' }
+  }
+
+  // 其他經理
+  if (/\b(manager|lead|principal)\b/i.test(t)) {
+    return { seniority: 'manager', priority: 5, reason: 'Manager 級 — 視情況聯繫' }
+  }
+
+  return { seniority: 'other', priority: 4, reason: '其他' }
+}
+
+/**
+ * 從網域名稱與人名預測 email 格式
+ * 常見格式：first.last@company.com / first@company.com / firstinitiallast@company.com
+ */
+export function predictEmailFormats(firstName: string, lastName: string, domain: string): string[] {
+  const f = firstName.toLowerCase().replace(/[^a-z]/g, '')
+  const l = lastName.toLowerCase().replace(/[^a-z]/g, '')
+  const fi = f.charAt(0)
+  const li = l.charAt(0)
+
+  if (!f && !l) return []
+  if (!l) return [`${f}@${domain}`]
+  if (!f) return [`${l}@${domain}`]
+
+  return [
+    `${f}.${l}@${domain}`,      // john.doe@company.com (最常見)
+    `${f}@${domain}`,           // john@company.com (新創常見)
+    `${f}${l}@${domain}`,       // johndoe@company.com
+    `${fi}${l}@${domain}`,      // jdoe@company.com
+    `${fi}.${l}@${domain}`,    // j.doe@company.com
+    `${f}${li}@${domain}`,      // johnd@company.com
+    `${f}_${l}@${domain}`,      // john_doe@company.com
+    `${l}@${domain}`,           // doe@company.com (少見)
+  ]
+}
+
+/**
+ * 從網址萃取網域名稱
+ */
+export function extractDomain(url: string): string | null {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '')
+    // 取最後兩段（例如 example.com 從 mail.example.com）
+    const parts = host.split('.')
+    if (parts.length >= 2) {
+      return parts.slice(-2).join('.')
+    }
+    return host
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 透過 Apollo API 找人
+ */
+async function findPeopleWithApollo(params: {
+  apolloApiKey: string
+  companyName: string
+  domain: string
+  targetTitles: string[]
+}): Promise<DecisionMaker[]> {
+  const { apolloApiKey, companyName, domain, targetTitles } = params
+
+  try {
+    // Apollo People Search API
+    // 文件：https://apolloio.github.io/apollo-api-docs/?shell#get-people-search-information
+    const body = {
+      api_key: apolloApiKey,
+      q_organization_domains: domain,
+      page: 1,
+      per_page: 25,
+      person_titles: targetTitles,
+    }
+
+    const res = await fetch('https://api.apollo.io/v1/people/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+    if (!res.ok) {
+      console.error('Apollo API failed:', res.status, await res.text())
+      return []
+    }
+
+    const data = await res.json() as {
+      people?: Array<{
+        first_name?: string
+        last_name?: string
+        name?: string
+        title?: string
+        email?: string
+        linkedin_url?: string
+        email_status?: string
+      }>
+    }
+
+    const people = data.people ?? []
+    return people.map((p) => {
+      const name = p.name ?? [p.first_name, p.last_name].filter(Boolean).join(' ')
+      const title = p.title ?? ''
+      const rank = rankTitle(title)
+      return {
+        name,
+        title,
+        seniority: rank.seniority,
+        email: p.email && p.email !== 'email_not_found@不定.com' ? p.email : undefined,
+        linkedin: p.linkedin_url,
+        confidence: p.email ? 'high' as const : 'low' as const,
+        email_source: p.email ? 'apollo' as const : 'unknown' as const,
+        priority: rank.priority,
+        reason: rank.reason,
+      }
+    })
+  } catch (e) {
+    console.error('Apollo API error:', e)
+    return []
+  }
+}
+
+/**
+ * AI 透過 web_search 找決策者
+ */
+async function findPeopleWithAI(params: {
+  companyName: string
+  domain: string
+}): Promise<DecisionMaker[]> {
+  const { companyName, domain } = params
+  const zai = await getAI()
+
+  // 5 組搜尋策略（漸進放寬）
+  const searches = [
+    // 1. 嚴格 LinkedIn 限定 + VP Sales
+    { query: `"${companyName}" "VP of Sales" OR "VP Sales" OR "Vice President of Sales" site:linkedin.com`, label: 'VP Sales LinkedIn' },
+    // 2. LinkedIn 限定 + CEO/Founder
+    { query: `"${companyName}" CEO OR founder OR "Co-Founder" site:linkedin.com`, label: 'CEO LinkedIn' },
+    // 3. Sales Director
+    { query: `"${companyName}" "Sales Director" OR "Director of Sales" OR "Head of Sales" site:linkedin.com`, label: 'Sales Director LinkedIn' },
+    // 4. CRO + 其他 C-level
+    { query: `"${companyName}" "Chief Revenue Officer" OR CRO OR "Chief Marketing Officer" OR CMO site:linkedin.com`, label: 'C-level LinkedIn' },
+    // 5. 不限 LinkedIn，找公司領導頁
+    { query: `"${companyName}" leadership team about founders executives`, label: 'Leadership page' },
+  ]
+
+  const found: Array<{ name: string; title: string; linkedin?: string; source: string }> = []
+
+  for (const s of searches) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const results = await searchCompanies(s.query, 5)
+        for (const r of results) {
+          if (!r?.name) continue
+          const title = r.name
+
+          // 從搜尋結果標題萃取姓名
+          // 標題通常長這樣：
+          // "John Doe - VP of Sales at ACME | LinkedIn"
+          // "Jane Smith | CEO & Founder at ACME"
+          // "ACME - CEO & Founder John Smith"
+          const nameMatch = title.match(/^([A-Z][a-zA-Z'’-]+(?:\s+[A-Z][a-zA-Z'’-]+){1,3})(?:\s*[-–|]|\s+at\s|\s+\|)/)
+          const altNameMatch = !nameMatch ? title.match(/\b([A-Z][a-zA-Z'’-]+(?:\s+[A-Z][a-zA-Z'’-]+){1,2})\b/) : null
+
+          // 從標題萃取職稱
+          const titlePatterns = [
+            /\b((?:VP|Vice President)\s*(?:of\s+)?(?:Sales|Revenue|Growth|Marketing))\b/i,
+            /\b((?:Sales|Revenue|Marketing)\s+Director)\b/i,
+            /\b((?:Director|Head)\s+of\s+(?:Sales|Revenue|Growth|Marketing))\b/i,
+            /\b(Chief\s+(?:Executive|Revenue|Marketing|Operating|Technology)\s+Officer)\b/i,
+            /\b(CEO|CTO|CMO|COO|CRO|CFO)\b/i,
+            /\b(Founder|Co-Founder|Co\s*Founder)\b/i,
+            /\b(President)\b/i,
+          ]
+
+          let extractedTitle: string | null = null
+          for (const pattern of titlePatterns) {
+            const m = title.match(pattern)
+            if (m) {
+              extractedTitle = m[1] || m[0]
+              break
+            }
+          }
+
+          const name = nameMatch?.[1] ?? altNameMatch?.[1]
+          if (!name || !extractedTitle) continue
+
+          // 過濾掉公司名當人名的情況（公司名通常包含「Inc, Ltd, LLC, Co」等）
+          if (/\b(Inc|Ltd|LLC|Corp|Company|Co\.?)\b/i.test(name)) continue
+
+          // 只接受長度合理的人名（2-4 個字）
+          const nameWords = name.split(/\s+/)
+          if (nameWords.length < 2 || nameWords.length > 4) continue
+
+          found.push({
+            name: name.trim(),
+            title: extractedTitle,
+            linkedin: r.url && /linkedin\.com/.test(r.url) ? r.url : undefined,
+            source: s.label,
+          })
+        }
+        break  // 成功，跳出 retry 迴圈
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : ''
+        if (msg.includes('429') && attempt === 0) {
+          // 429 rate limit, 等 5 秒後重試
+          console.warn(`search "${s.label}" 429, retrying in 5s...`)
+          await new Promise((r) => setTimeout(r, 5000))
+          continue
+        }
+        console.error(`search "${s.label}" failed:`, e)
+        break
+      }
+    }
+    // 搜尋之間的延遲（避免 429）
+    await new Promise((r) => setTimeout(r, 800))
+  }
+
+  // 去重（同名同 title）
+  const seen = new Set<string>()
+  const unique = found.filter((p) => {
+    const key = `${p.name}|${p.title}`.toLowerCase()
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
+  if (unique.length === 0) {
+    // 如果都搜尋不到，用 AI 從深度研究裡的 key_people 找
+    // （這裡因為沒有 lead 上下文，先回空陣列）
+    return []
+  }
+
+  // 用 AI 評估每個人，並嘗試找出 email
+  const decisionMakers: DecisionMaker[] = []
+  for (const person of unique.slice(0, 10)) {
+    const rank = rankTitle(person.title)
+    if (rank.priority === 99) continue  // 跳過 SDR/AE
+
+    // 從姓名與網域預測 email 格式
+    const nameParts = person.name.split(' ')
+    const firstName = nameParts[0] ?? ''
+    const lastName = nameParts.slice(1).join(' ') ?? ''
+    const predictedEmails = predictEmailFormats(firstName, lastName, domain)
+
+    decisionMakers.push({
+      name: person.name,
+      title: person.title,
+      seniority: rank.seniority,
+      email: predictedEmails[0],  // 最高機率格式
+      linkedin: person.linkedin,
+      confidence: 'medium',
+      email_source: 'ai_predicted',
+      priority: rank.priority,
+      reason: rank.reason,
+    })
+  }
+
+  return decisionMakers
+}
+
+/**
+ * 主函式：找出公司決策者 email
+ */
+export async function enrichEmail(params: {
+  companyName: string
+  website: string
+  apolloApiKey?: string
+  existingKeyPeople?: Array<{ name: string; title: string; linkedin?: string }>
+}): Promise<{
+  success: boolean
+  result: EnrichEmailResult | null
+  error?: string
+}> {
+  const { companyName, website, apolloApiKey, existingKeyPeople } = params
+
+  const domain = extractDomain(website)
+  if (!domain) {
+    return { success: false, result: null, error: '無法從網址萃取網域' }
+  }
+
+  let decisionMakers: DecisionMaker[] = []
+
+  // 策略 0（最優先）：用深度研究裡的 key_people（已存在，不消耗 web_search 配額）
+  if (existingKeyPeople && existingKeyPeople.length > 0) {
+    for (const p of existingKeyPeople.slice(0, 8)) {
+      const rank = rankTitle(p.title)
+      if (rank.priority === 99) continue
+
+      const nameParts = p.name.split(' ')
+      const firstName = nameParts[0] ?? ''
+      const lastName = nameParts.slice(1).join(' ') ?? ''
+      const predictedEmails = predictEmailFormats(firstName, lastName, domain)
+
+      decisionMakers.push({
+        name: p.name,
+        title: p.title,
+        seniority: rank.seniority,
+        email: predictedEmails[0],
+        linkedin: p.linkedin,
+        confidence: 'medium',
+        email_source: 'ai_predicted',
+        priority: rank.priority,
+        reason: `${rank.reason}（從深度研究取得）`,
+      })
+    }
+  }
+
+  // 策略 1：Apollo API（如果有 API key 且還沒足夠決策者）
+  if (apolloApiKey && decisionMakers.length < 3) {
+    const targetTitles = [
+      'VP of Sales', 'VP Sales', 'Vice President of Sales',
+      'Sales Director', 'Director of Sales',
+      'Chief Revenue Officer', 'CRO',
+      'CEO', 'Chief Executive Officer',
+      'Founder', 'Co-Founder',
+      'Head of Sales', 'Head of Revenue',
+      'CMO', 'COO',
+    ]
+    const apolloPeople = await findPeopleWithApollo({
+      apolloApiKey,
+      companyName,
+      domain,
+      targetTitles,
+    })
+    // 合併，避免重複
+    const existingNames = new Set(decisionMakers.map((d) => d.name.toLowerCase()))
+    for (const p of apolloPeople) {
+      if (!existingNames.has(p.name.toLowerCase())) {
+        decisionMakers.push(p)
+      }
+    }
+  }
+
+  // 策略 2：AI web_search（如果還是沒結果）
+  if (decisionMakers.length === 0) {
+    decisionMakers = await findPeopleWithAI({ companyName, domain })
+  }
+
+  // 排序：優先級 1 > 2 > 3，有 email > 沒 email
+  decisionMakers.sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority
+    const aHasEmail = a.email ? 0 : 1
+    const bHasEmail = b.email ? 0 : 1
+    return aHasEmail - bHasEmail
+  })
+
+  // 取前 5 個
+  const top = decisionMakers.slice(0, 5)
+
+  return {
+    success: true,
+    result: {
+      decisionMakers: top,
+      companyEmailPattern: `*@${domain}`,
+      totalFound: decisionMakers.length,
+      hasEmailCount: top.filter((d) => d.email).length,
+    },
+  }
+}
+

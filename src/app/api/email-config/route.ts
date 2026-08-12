@@ -30,6 +30,7 @@ export async function PUT(req: NextRequest) {
       smtpSecure: body.smtpSecure ?? true,
       smartleadApiKey: body.smartleadApiKey ?? null,
       smartleadDefaultCampaignId: body.smartleadDefaultCampaignId ?? null,
+      apolloApiKey: body.apolloApiKey ?? null,
     }
     if (body.smtpPass && body.smtpPass.trim() !== '') {
       data.smtpPass = body.smtpPass
@@ -100,6 +101,36 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    if (action === 'test-apollo') {
+      const config = await db.emailConfig.findUnique({ where: { id: 'singleton' } })
+      if (!config?.apolloApiKey) {
+        return NextResponse.json(
+          { error: 'Apollo API Key 尚未設定' },
+          { status: 400 }
+        )
+      }
+      // Apollo Account API（測試連線）
+      const res = await fetch('https://api.apollo.io/v1/auth/health', {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Content-Type': 'application/json',
+          'X-Api-Key': config.apolloApiKey,
+        },
+      })
+      if (!res.ok) {
+        const text = await res.text()
+        return NextResponse.json(
+          { error: `Apollo API 失敗: ${res.status} ${text.slice(0, 200)}` },
+          { status: 502 }
+        )
+      }
+      return NextResponse.json({
+        success: true,
+        message: 'Apollo API Key 有效！',
+      })
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (error) {
     console.error('POST /api/email-config error:', error)
@@ -111,6 +142,7 @@ export async function POST(req: NextRequest) {
 function maskSecrets(config: {
   smtpPass: string | null
   smartleadApiKey: string | null
+  apolloApiKey: string | null
   [k: string]: unknown
 }) {
   return {
@@ -118,6 +150,9 @@ function maskSecrets(config: {
     smtpPass: config.smtpPass ? '••••••••' : null,
     smartleadApiKey: config.smartleadApiKey
       ? config.smartleadApiKey.slice(0, 4) + '••••' + config.smartleadApiKey.slice(-4)
+      : null,
+    apolloApiKey: config.apolloApiKey
+      ? config.apolloApiKey.slice(0, 4) + '••••' + config.apolloApiKey.slice(-4)
       : null,
   }
 }

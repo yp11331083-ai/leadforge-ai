@@ -38,6 +38,8 @@ import {
   Send,
   Server,
   CheckCircle2,
+  Crown,
+  Search,
 } from 'lucide-react'
 import { useLeadStore, type Lead } from '@/store/lead-store'
 import { StatusBadge, ScoreBadge } from './status-badge'
@@ -78,11 +80,13 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
   const smartleadCampaigns = useLeadStore((s) => s.smartleadCampaigns)
   const fetchSmartleadCampaigns = useLeadStore((s) => s.fetchSmartleadCampaigns)
   const fetchEmailConfig = useLeadStore((s) => s.fetchEmailConfig)
+  const enrichEmail = useLeadStore((s) => s.enrichEmail)
 
   const [sendingEmail, setSendingEmail] = useState(false)
   const [pushingSmartlead, setPushingSmartlead] = useState(false)
   const [smartleadDialogOpen, setSmartleadDialogOpen] = useState(false)
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null)
+  const [enrichingEmail, setEnrichingEmail] = useState(false)
 
   if (!lead) return null
 
@@ -154,6 +158,30 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
     }
   })()
 
+  const parsedEnrichedEmails = (() => {
+    if (!lead.enrichedEmails) return null
+    try {
+      return JSON.parse(lead.enrichedEmails) as {
+        decisionMakers: Array<{
+          name: string
+          title: string
+          seniority: string
+          email?: string
+          linkedin?: string
+          confidence: string
+          email_source: string
+          priority: number
+          reason?: string
+        }>
+        companyEmailPattern?: string
+        totalFound: number
+        hasEmailCount: number
+      }
+    } catch {
+      return null
+    }
+  })()
+
   const handleResearch = async () => {
     setResearching(true)
     const ok = await researchLead(lead.id, extraContext, 'basic')
@@ -214,6 +242,40 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
     } else {
       toast.error(result.error ?? '推送失敗')
     }
+  }
+
+  const handleEnrichEmail = async () => {
+    if (!lead.website) {
+      toast.error('此名單缺少網址，無法萃取網域')
+      return
+    }
+    setEnrichingEmail(true)
+    toast.info('正在搜尋決策者 email，約 30-60 秒...')
+    const result = await enrichEmail(lead.id)
+    setEnrichingEmail(false)
+    if (result.success) {
+      const count = result.result?.hasEmailCount ?? 0
+      toast.success(`找到 ${result.result?.totalFound ?? 0} 位決策者，其中 ${count} 位有 email`)
+    } else {
+      toast.error(result.error ?? 'Email enrichment 失敗')
+    }
+  }
+
+  const handleUseDecisionMakerEmail = async (dm: {
+    name: string
+    title: string
+    email?: string
+  }) => {
+    if (!dm.email) {
+      toast.error('此人沒有 email')
+      return
+    }
+    await updateLead(lead.id, {
+      email: dm.email,
+      contactName: dm.name,
+      title: dm.title,
+    })
+    toast.success(`已設為收件者：${dm.name} <${dm.email}>`)
   }
 
   const copyToClipboard = (text: string, label: string) => {
@@ -699,6 +761,169 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
               </section>
             </>
           )}
+
+          <Separator />
+
+          {/* Email Enrichment */}
+          <section className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <Crown className="h-4 w-4 text-amber-500" />
+                決策者 Email
+                {parsedEnrichedEmails && (
+                  <Badge variant="outline" className="ml-1 text-[10px] bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300">
+                    {parsedEnrichedEmails.hasEmailCount} / {parsedEnrichedEmails.totalFound} 有 email
+                  </Badge>
+                )}
+              </h3>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleEnrichEmail}
+                disabled={enrichingEmail || !lead.website}
+              >
+                {enrichingEmail ? (
+                  <>
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                    找 Email 中...
+                  </>
+                ) : (
+                  <>
+                    <Search className="mr-1 h-3 w-3" />
+                    {parsedEnrichedEmails ? '重新找 Email' : '找出決策者 Email'}
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {!lead.website && (
+              <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/40 p-2 text-xs text-amber-700 dark:text-amber-300">
+                <AlertCircle className="h-3 w-3" />
+                需要有公司網址才能找決策者 email
+              </div>
+            )}
+
+            {parsedEnrichedEmails && parsedEnrichedEmails.decisionMakers.length > 0 ? (
+              <div className="space-y-2">
+                {parsedEnrichedEmails.decisionMakers.map((dm, i) => {
+                  const isTop = i === 0
+                  const confidenceColor =
+                    dm.confidence === 'high'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
+                      : dm.confidence === 'medium'
+                      ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300'
+                      : 'bg-slate-50 dark:bg-slate-900/40 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+
+                  const sourceLabel =
+                    dm.email_source === 'apollo' ? 'Apollo 驗證' :
+                    dm.email_source === 'ai_predicted' ? 'AI 預測' :
+                    dm.email_source === 'web_search' ? '網路搜尋' : '未知'
+
+                  return (
+                    <div
+                      key={i}
+                      className={`rounded-lg border p-3 ${
+                        isTop
+                          ? 'border-amber-300 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/20'
+                          : 'border-border/60 bg-muted/30'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {isTop && (
+                              <Badge variant="outline" className="text-[10px] bg-amber-100 dark:bg-amber-950/60 border-amber-400 dark:border-amber-700 text-amber-800 dark:text-amber-300">
+                                <Crown className="mr-1 h-2.5 w-2.5" />
+                                第一優先
+                              </Badge>
+                            )}
+                            <span className="text-sm font-semibold truncate">{dm.name}</span>
+                            <Badge variant="outline" className="text-[10px]">
+                              {dm.title}
+                            </Badge>
+                          </div>
+                          {dm.reason && (
+                            <p className="text-[11px] text-muted-foreground mt-0.5">{dm.reason}</p>
+                          )}
+                          {dm.email && (
+                            <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                              <a
+                                href={`mailto:${dm.email}`}
+                                className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline font-mono"
+                              >
+                                {dm.email}
+                              </a>
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] ${confidenceColor}`}
+                              >
+                                {sourceLabel} · {dm.confidence}
+                              </Badge>
+                            </div>
+                          )}
+                          {dm.linkedin && (
+                            <a
+                              href={dm.linkedin}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline block mt-1 truncate max-w-[400px]"
+                            >
+                              LinkedIn: {dm.linkedin.replace(/^[^/]+\/\/[^/]+\//, '')}
+                            </a>
+                          )}
+                        </div>
+                        {dm.email && (
+                          <div className="flex flex-col gap-1 shrink-0">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => copyToClipboard(dm.email!, 'email')}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                            {lead.email !== dm.email && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => handleUseDecisionMakerEmail(dm)}
+                              >
+                                設為收件者
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {parsedEnrichedEmails.companyEmailPattern && (
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    公司 email 網域：{parsedEnrichedEmails.companyEmailPattern}
+                  </p>
+                )}
+
+                {!emailConfig?.apolloApiKey && (
+                  <div className="rounded-md bg-cyan-50 dark:bg-cyan-950/30 p-2 text-[11px] text-cyan-700 dark:text-cyan-300 flex items-start gap-1.5">
+                    <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+                    <span>
+                      目前用 <b>AI 預測模式</b>（信心度 medium）。設定 Apollo API Key 後，可取得已驗證的真實 email。
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : parsedEnrichedEmails ? (
+              <div className="rounded-lg border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground">
+                未找到決策者。可能是公司太小或 LinkedIn 上沒有公開資訊。建議手動到 LinkedIn 搜尋。
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground">
+                點擊「找出決策者 Email」讓 AI 找出 VP Sales / Director / CEO / Founder 的 email
+              </div>
+            )}
+          </section>
 
           <Separator />
 

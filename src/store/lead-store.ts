@@ -63,6 +63,26 @@ export interface EmailConfig {
   smtpSecure: boolean
   smartleadApiKey: string | null
   smartleadDefaultCampaignId: string | null
+  apolloApiKey: string | null
+}
+
+export interface DecisionMaker {
+  name: string
+  title: string
+  seniority: 'c_level' | 'vp' | 'director' | 'manager' | 'other'
+  email?: string
+  linkedin?: string
+  confidence: 'high' | 'medium' | 'low'
+  email_source: 'apollo' | 'ai_predicted' | 'web_search' | 'unknown'
+  priority: number
+  reason?: string
+}
+
+export interface EnrichEmailResult {
+  decisionMakers: DecisionMaker[]
+  companyEmailPattern?: string
+  totalFound: number
+  hasEmailCount: number
 }
 
 export interface SmartleadCampaign {
@@ -139,8 +159,9 @@ interface LeadStore {
   setSenderConfig: (cfg: Partial<SenderConfig>) => void
   fetchEmailConfig: () => Promise<void>
   saveEmailConfig: (cfg: Partial<EmailConfig>) => Promise<void>
-  testEmailConfig: (action: 'test-smtp' | 'test-smartlead') => Promise<{ success: boolean; message?: string; error?: string }>
+  testEmailConfig: (action: 'test-smtp' | 'test-smartlead' | 'test-apollo') => Promise<{ success: boolean; message?: string; error?: string }>
   fetchSmartleadCampaigns: () => Promise<void>
+  enrichEmail: (id: string) => Promise<{ success: boolean; result?: EnrichEmailResult; error?: string }>
   fetchServiceOffering: () => Promise<void>
   saveServiceOffering: (cfg: Partial<ServiceOffering>) => Promise<void>
   runAutoProspect: (params: {
@@ -381,6 +402,33 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
     } catch (e) {
       console.error('pushToSmartlead error:', e)
       return { success: false, error: '推送過程發生錯誤' }
+    }
+  },
+
+  enrichEmail: async (id) => {
+    try {
+      const res = await fetch('/api/enrich-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: id }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        await get().fetchLeads()
+        return {
+          success: true,
+          result: {
+            decisionMakers: data.decisionMakers ?? [],
+            companyEmailPattern: data.companyEmailPattern,
+            totalFound: data.totalFound ?? 0,
+            hasEmailCount: data.hasEmailCount ?? 0,
+          },
+        }
+      }
+      return { success: false, error: data.error ?? 'Email enrichment 失敗' }
+    } catch (e) {
+      console.error('enrichEmail error:', e)
+      return { success: false, error: '網路錯誤' }
     }
   },
 

@@ -19,6 +19,7 @@ import {
   KeyRound,
   ExternalLink,
   Plug,
+  Users,
 } from 'lucide-react'
 import { useLeadStore } from '@/store/lead-store'
 import { toast } from 'sonner'
@@ -38,12 +39,15 @@ export function EmailSendingPanel() {
     smtpFromEmail: '',
     smtpSecure: false,
     smartleadApiKey: '',
+    apolloApiKey: '',
   })
   const [saving, setSaving] = useState(false)
   const [testingSmtp, setTestingSmtp] = useState(false)
   const [testingSmartlead, setTestingSmartlead] = useState(false)
+  const [testingApollo, setTestingApollo] = useState(false)
   const [smtpOk, setSmtpOk] = useState<boolean | null>(null)
   const [smartleadOk, setSmartleadOk] = useState<boolean | null>(null)
+  const [apolloOk, setApolloOk] = useState<boolean | null>(null)
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
 
   useEffect(() => {
@@ -63,9 +67,11 @@ export function EmailSendingPanel() {
       smtpFromEmail: emailConfig.smtpFromEmail ?? '',
       smtpSecure: emailConfig.smtpSecure,
       smartleadApiKey: '',
+      apolloApiKey: '',
     })
     setSmtpOk(null)
     setSmartleadOk(null)
+    setApolloOk(null)
   }
 
   const handleSave = async () => {
@@ -101,8 +107,22 @@ export function EmailSendingPanel() {
     else toast.error(result.error ?? 'Smartlead 連線失敗')
   }
 
+  const handleTestApollo = async () => {
+    if (form.apolloApiKey) {
+      await saveEmailConfig({ apolloApiKey: form.apolloApiKey })
+    }
+    setTestingApollo(true)
+    setApolloOk(null)
+    const result = await testEmailConfig('test-apollo')
+    setTestingApollo(false)
+    setApolloOk(result.success)
+    if (result.success) toast.success(result.message ?? 'Apollo API Key 有效')
+    else toast.error(result.error ?? 'Apollo 測試失敗')
+  }
+
   const smtpConfigured = !!(emailConfig?.smtpHost && emailConfig?.smtpUser && emailConfig?.smtpPass && emailConfig?.smtpFromEmail)
   const smartleadConfigured = !!emailConfig?.smartleadApiKey
+  const apolloConfigured = !!emailConfig?.apolloApiKey
 
   return (
     <div className="space-y-5">
@@ -354,6 +374,107 @@ export function EmailSendingPanel() {
           >
             <ExternalLink className="h-3 w-3" />
             前往 Smartlead 取得 API Key
+          </a>
+        </div>
+      </Card>
+
+      {/* Apollo.io 區塊 */}
+      <Card className="p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="rounded-lg bg-cyan-100 dark:bg-cyan-950/50 p-2">
+            <Users className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold flex items-center gap-2">
+              Apollo.io 找 Email
+              {apolloConfigured ? (
+                <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs">
+                  <CheckCircle2 className="mr-1 h-3 w-3" />
+                  已設定
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs">
+                  <AlertCircle className="mr-1 h-3 w-3" />
+                  未設定（將用 AI 預測）
+                </Badge>
+              )}
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              找出 VP Sales / Director / CEO / Founder 等決策者的驗證 email。未設定時自動切換 AI 模式。
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="apollo-key" className="flex items-center gap-1.5">
+              <KeyRound className="h-3 w-3" /> Apollo API Key
+              {emailConfig?.apolloApiKey && (
+                <span className="text-xs text-muted-foreground">
+                  （目前：{emailConfig.apolloApiKey}）
+                </span>
+              )}
+            </Label>
+            <Input
+              id="apollo-key"
+              type="password"
+              value={form.apolloApiKey}
+              onChange={(e) => setForm((f) => ({ ...f, apolloApiKey: e.target.value }))}
+              placeholder={emailConfig?.apolloApiKey ? '••••••••（留空不變更）' : '至 Apollo → Settings → API Keys 取得'}
+            />
+          </div>
+
+          {apolloOk !== null && (
+            <div
+              className={`flex items-center gap-2 rounded-md p-2 text-xs ${
+                apolloOk
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300'
+                  : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300'
+              }`}
+            >
+              {apolloOk ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+              {apolloOk ? 'Apollo API Key 有效！可以使用 Apollo 找 email。' : 'Apollo API Key 無效或測試失敗。'}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <Button
+              onClick={handleTestApollo}
+              disabled={testingApollo}
+              size="sm"
+              variant="outline"
+            >
+              {testingApollo ? (
+                <>
+                  <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                  測試中...
+                </>
+              ) : (
+                <>
+                  <Plug className="mr-1 h-3.5 w-3.5" />
+                  測試 Apollo API
+                </>
+              )}
+            </Button>
+          </div>
+
+          <div className="rounded-md bg-cyan-50 dark:bg-cyan-950/30 p-3 text-xs space-y-1.5 text-cyan-700 dark:text-cyan-300">
+            <p className="font-medium">未設定 Apollo 時怎麼運作？</p>
+            <ul className="space-y-0.5 ml-3 list-disc text-cyan-700 dark:text-cyan-400">
+              <li>AI 透過 LinkedIn 搜尋找出 VP Sales / Director / CEO 等決策者</li>
+              <li>從姓名 + 公司網域預測 email 格式（first.last@company.com 等 8 種常見格式）</li>
+              <li>信心度標為 medium（建議後續用 Apollo 驗證）</li>
+            </ul>
+          </div>
+
+          <a
+            href="https://app.apollo.io/#/settings/integrations/api"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-cyan-600 dark:text-cyan-400 hover:underline"
+          >
+            <ExternalLink className="h-3 w-3" />
+            前往 Apollo 取得 API Key
           </a>
         </div>
       </Card>

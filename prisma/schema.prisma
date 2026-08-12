@@ -35,6 +35,9 @@ model Lead {
   researchMode  String   @default("basic") // basic | deep
   researchSources String? // JSON：研究過程中實際抓取的 URL 清單
 
+  // Email Enrichment（找決策者 email）
+  enrichedEmails String? // JSON：決策者清單 [{name, title, email, confidence, source}]
+
   // 流程控制
   status        String   @default("new") // new | researching | researched | drafting | ready | sent | replied
   score         Int?     // 潛在客戶分數 0-100
@@ -83,6 +86,9 @@ model EmailConfig {
   // Smartlead 設定
   smartleadApiKey   String?
   smartleadDefaultCampaignId String?
+
+  // Apollo.io 設定（B2B 人才大數據庫）
+  apolloApiKey      String?
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
