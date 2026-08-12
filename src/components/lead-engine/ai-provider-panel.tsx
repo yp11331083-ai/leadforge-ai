@@ -29,7 +29,7 @@ const EMPTY_FORM = {
   anthropicApiKey: '',
   anthropicModel: 'claude-3-5-sonnet-20241022',
   geminiApiKey: '',
-  geminiModel: 'gemini-1.5-flash',
+  geminiModel: 'gemini-2.0-flash',
   tavilyApiKey: '',
   jinaApiKey: '',
   firecrawlApiKey: '',
@@ -60,7 +60,7 @@ export function AiProviderPanel() {
       anthropicApiKey: '',
       anthropicModel: emailConfig.anthropicModel ?? 'claude-3-5-sonnet-20241022',
       geminiApiKey: '',
-      geminiModel: emailConfig.geminiModel ?? 'gemini-1.5-flash',
+      geminiModel: emailConfig.geminiModel ?? 'gemini-2.0-flash',
       tavilyApiKey: '',
       jinaApiKey: '',
       firecrawlApiKey: '',
@@ -255,11 +255,11 @@ export function AiProviderPanel() {
             <Input
               value={form.geminiModel}
               onChange={(e) => setForm((f) => ({ ...f, geminiModel: e.target.value }))}
-              placeholder="gemini-1.5-flash"
+              placeholder="gemini-2.0-flash"
               className="text-xs font-mono h-8"
             />
           </div>
-          <p className="text-[10px] text-muted-foreground">Gemini 1.5 Flash（最便宜，有免費額度）</p>
+          <p className="text-[10px] text-muted-foreground">Gemini 2.0 Flash（最便宜，有免費額度）</p>
         </div>
 
         <div className="space-y-1.5">

@@ -24,7 +24,7 @@ export async function loadProviderConfig(): Promise<void> {
       anthropicApiKey: config.anthropicApiKey ?? undefined,
       anthropicModel: config.anthropicModel ?? 'claude-3-5-sonnet-20241022',
       geminiApiKey: config.geminiApiKey ?? undefined,
-      geminiModel: config.geminiModel ?? 'gemini-1.5-flash',
+      geminiModel: config.geminiModel ?? 'gemini-2.0-flash',
       tavilyApiKey: config.tavilyApiKey ?? undefined,
       jinaApiKey: config.jinaApiKey ?? undefined,
       firecrawlApiKey: config.firecrawlApiKey ?? undefined,
