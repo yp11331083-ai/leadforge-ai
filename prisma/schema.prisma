@@ -161,6 +161,24 @@ model EmailConfig {
   stripeWebhookSecret    String?
   stripeMeteredPriceId   String?  // 依發信量計費的 price ID
 
+  // ===== 多 AI 提供者設定（fallback 機制）=====
+  // 當 Z.ai 限流時，自動切換到這些提供者
+  openaiApiKey      String?  // OpenAI GPT-4o / GPT-4o-mini
+  openaiModel       String?  @default("gpt-4o-mini")
+  anthropicApiKey   String?  // Claude 3.5 Sonnet
+  anthropicModel    String?  @default("claude-3-5-sonnet-20241022")
+  geminiApiKey      String?  // Google Gemini 1.5 Flash
+  geminiModel       String?  @default("gemini-1.5-flash")
+  // web_search 替代方案
+  tavilyApiKey      String?  // Tavily AI 搜尋
+  // page_reader 替代方案
+  jinaApiKey        String?  // Jina Reader
+  firecrawlApiKey   String?  // Firecrawl
+  // 提供者優先順序（逗號分隔）
+  chatProviderOrder       String?  @default("zai,openai,anthropic,gemini")
+  searchProviderOrder     String?  @default("zai,tavily")
+  pageReaderProviderOrder String?  @default("zai,jina,firecrawl")
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }

@@ -64,6 +64,22 @@ export interface EmailConfig {
   smartleadApiKey: string | null
   smartleadDefaultCampaignId: string | null
   apolloApiKey: string | null
+  calComApiKey: string | null
+  stripeSecretKey: string | null
+  stripeMeteredPriceId: string | null
+  // AI 提供者
+  openaiApiKey: string | null
+  openaiModel: string | null
+  anthropicApiKey: string | null
+  anthropicModel: string | null
+  geminiApiKey: string | null
+  geminiModel: string | null
+  tavilyApiKey: string | null
+  jinaApiKey: string | null
+  firecrawlApiKey: string | null
+  chatProviderOrder: string | null
+  searchProviderOrder: string | null
+  pageReaderProviderOrder: string | null
 }
 
 export interface DecisionMaker {

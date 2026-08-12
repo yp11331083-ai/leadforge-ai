@@ -40,6 +40,19 @@ export async function PUT(req: NextRequest) {
       calComApiKey: body.calComApiKey ?? null,
       stripeSecretKey: body.stripeSecretKey ?? null,
       stripeMeteredPriceId: body.stripeMeteredPriceId ?? null,
+      // AI 提供者
+      openaiApiKey: body.openaiApiKey ?? null,
+      openaiModel: body.openaiModel ?? 'gpt-4o-mini',
+      anthropicApiKey: body.anthropicApiKey ?? null,
+      anthropicModel: body.anthropicModel ?? 'claude-3-5-sonnet-20241022',
+      geminiApiKey: body.geminiApiKey ?? null,
+      geminiModel: body.geminiModel ?? 'gemini-1.5-flash',
+      tavilyApiKey: body.tavilyApiKey ?? null,
+      jinaApiKey: body.jinaApiKey ?? null,
+      firecrawlApiKey: body.firecrawlApiKey ?? null,
+      chatProviderOrder: body.chatProviderOrder ?? 'zai,openai,anthropic,gemini',
+      searchProviderOrder: body.searchProviderOrder ?? 'zai,tavily',
+      pageReaderProviderOrder: body.pageReaderProviderOrder ?? 'zai,jina,firecrawl',
     }
     if (body.smtpPass && body.smtpPass.trim() !== '') {
       data.smtpPass = body.smtpPass
@@ -151,6 +164,24 @@ function maskSecrets(config: any) {
       : null,
     stripeSecretKey: config.stripeSecretKey
       ? config.stripeSecretKey.slice(0, 7) + '••••' + config.stripeSecretKey.slice(-4)
+      : null,
+    openaiApiKey: config.openaiApiKey
+      ? config.openaiApiKey.slice(0, 4) + '••••' + config.openaiApiKey.slice(-4)
+      : null,
+    anthropicApiKey: config.anthropicApiKey
+      ? config.anthropicApiKey.slice(0, 4) + '••••' + config.anthropicApiKey.slice(-4)
+      : null,
+    geminiApiKey: config.geminiApiKey
+      ? config.geminiApiKey.slice(0, 4) + '••••' + config.geminiApiKey.slice(-4)
+      : null,
+    tavilyApiKey: config.tavilyApiKey
+      ? config.tavilyApiKey.slice(0, 4) + '••••' + config.tavilyApiKey.slice(-4)
+      : null,
+    jinaApiKey: config.jinaApiKey
+      ? config.jinaApiKey.slice(0, 4) + '••••' + config.jinaApiKey.slice(-4)
+      : null,
+    firecrawlApiKey: config.firecrawlApiKey
+      ? config.firecrawlApiKey.slice(0, 4) + '••••' + config.firecrawlApiKey.slice(-4)
       : null,
   }
 }

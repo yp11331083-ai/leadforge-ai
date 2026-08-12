@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser, leadFilter } from '@/lib/auth/session'
+import { loadProviderConfig } from '@/lib/ai/load-config'
 import { generateColdEmail } from '@/lib/ai/agent'
 
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
+    await loadProviderConfig()
     const body = await req.json()
     const { leadId, senderName, senderCompany, senderProduct, tone = 'professional', language = 'zh-TW' } = body
 

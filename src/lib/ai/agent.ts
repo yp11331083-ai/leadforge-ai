@@ -1,4 +1,13 @@
 import ZAI from 'z-ai-web-dev-sdk'
+import {
+  chatWithFallback,
+  searchWithFallback,
+  fetchPageWithFallback,
+  type ChatMessage,
+  type ProviderConfig,
+  type SearchResultItem,
+  type PageContent,
+} from './providers'
 
 let zaiInstance: ZAI | null = null
 
@@ -9,22 +18,48 @@ export async function getAI() {
   return zaiInstance
 }
 
+// 全域 provider config（從 API route 注入）
+let globalProviderConfig: ProviderConfig = {}
+
+export function setProviderConfig(config: ProviderConfig) {
+  globalProviderConfig = config
+}
+
+export function getProviderConfig(): ProviderConfig {
+  return globalProviderConfig
+}
+
 /**
- * 使用 page_reader 抓取網站內容，作為「Claygent」研究引擎
+ * 使用 page_reader 抓取網站內容（多 provider fallback）
  */
 export async function fetchWebsiteContent(url: string) {
-  const zai = await getAI()
   try {
-    const result = await zai.functions.invoke('page_reader', { url })
-    return {
-      title: result.data?.title ?? '',
-      html: result.data?.html ?? '',
-      url: result.data?.url ?? url,
-      publishedTime: result.data?.publishedTime,
+    // 優先用 providers 抽象層（支援 fallback）
+    const result = await fetchPageWithFallback(url, globalProviderConfig)
+    if (result) {
+      return {
+        title: result.title,
+        html: result.html,
+        url: result.url,
+        publishedTime: result.publishedTime,
+      }
     }
+    return null
   } catch (error) {
     console.error('fetchWebsiteContent error:', error)
     return null
+  }
+}
+
+/**
+ * 透過 web_search 搜尋（多 provider fallback）
+ */
+export async function searchCompanies(query: string, num: number = 10): Promise<SearchResultItem[]> {
+  try {
+    return await searchWithFallback(query, num, globalProviderConfig)
+  } catch (error) {
+    console.error('searchCompanies error:', error)
+    return []
   }
 }
 
@@ -88,7 +123,7 @@ ${extraContext ? `額外背景資訊：${extraContext}` : ''}
   "outreach_angle": "建議的切入點"
 }`
 
-  const completion = await zai.chat.completions.create({
+  const chatResult = await chatWithFallback({
     messages: [
       {
         role: 'system',
@@ -97,9 +132,9 @@ ${extraContext ? `額外背景資訊：${extraContext}` : ''}
       { role: 'user', content: prompt },
     ],
     temperature: 0.4,
-  })
+  }, globalProviderConfig)
 
-  const raw = completion.choices?.[0]?.message?.content ?? ''
+  const raw = chatResult.content
   return parseResearchResult(raw)
 }
 
@@ -217,7 +252,7 @@ export async function generateColdEmail(params: {
   "cta": "行動呼籲一句話"
 }`
 
-  const completion = await zai.chat.completions.create({
+  const chatResult = await chatWithFallback({
     messages: [
       {
         role: 'system',
@@ -227,9 +262,9 @@ export async function generateColdEmail(params: {
       { role: 'user', content: prompt },
     ],
     temperature: 0.7,
-  })
+  }, globalProviderConfig)
 
-  const raw = completion.choices?.[0]?.message?.content ?? ''
+  const raw = chatResult.content
   let cleaned = raw.trim()
   if (cleaned.startsWith('```')) {
     cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
@@ -239,23 +274,6 @@ export async function generateColdEmail(params: {
     return { success: true, data: parsed, raw }
   } catch {
     return { success: false, data: null, raw }
-  }
-}
-
-/**
- * 透過 web_search 搜尋潛在客戶公司
- */
-export async function searchCompanies(query: string, num: number = 10) {
-  const zai = await getAI()
-  try {
-    const results = await zai.functions.invoke('web_search', {
-      query,
-      num,
-    })
-    return results
-  } catch (error) {
-    console.error('searchCompanies error:', error)
-    return []
   }
 }
 
@@ -492,7 +510,7 @@ ${extraContext ? `## 額外背景\n${extraContext}` : ''}
 - 技術堆疊要從徵才訊息或工程 blog 推斷，不要瞎猜。
 - 競爭對手差異化要具體，不要寫「類似產品」。`
 
-  const completion = await zai.chat.completions.create({
+  const chatResult = await chatWithFallback({
     messages: [
       {
         role: 'system',
@@ -502,9 +520,9 @@ ${extraContext ? `## 額外背景\n${extraContext}` : ''}
       { role: 'user', content: prompt },
     ],
     temperature: 0.3,
-  })
+  }, globalProviderConfig)
 
-  const raw = completion.choices?.[0]?.message?.content ?? ''
+  const raw = chatResult.content
   let cleaned = raw.trim()
   if (cleaned.startsWith('```')) {
     cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
@@ -585,7 +603,7 @@ ${idealCustomerSignals ? `**理想客戶訊號**：${idealCustomerSignals}` : ''
 請輸出純 JSON 陣列（不要 markdown code block）：
 ["query 1", "query 2", ..., "query 8"]`
 
-  const completion = await zai.chat.completions.create({
+  const chatResult = await chatWithFallback({
     messages: [
       {
         role: 'system',
@@ -594,9 +612,9 @@ ${idealCustomerSignals ? `**理想客戶訊號**：${idealCustomerSignals}` : ''
       { role: 'user', content: prompt },
     ],
     temperature: 0.5,
-  })
+  }, globalProviderConfig)
 
-  const raw = completion.choices?.[0]?.message?.content ?? ''
+  const raw = chatResult.content
   let cleaned = raw.trim()
   if (cleaned.startsWith('```')) {
     cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
@@ -779,7 +797,7 @@ ${websiteContent.slice(0, 5000)}
 - 如果查不到足夠資訊判斷，confidence 給 low，fit_score 給 30 以下。
 - 行業別用中文，例如 "SaaS 軟體"、"電商"、"製造業"。`
 
-  const completion = await zai.chat.completions.create({
+  const chatResult = await chatWithFallback({
     messages: [
       {
         role: 'system',
@@ -788,9 +806,9 @@ ${websiteContent.slice(0, 5000)}
       { role: 'user', content: prompt },
     ],
     temperature: 0.3,
-  })
+  }, globalProviderConfig)
 
-  const raw = completion.choices?.[0]?.message?.content ?? ''
+  const raw = chatResult.content
   let cleaned = raw.trim()
   if (cleaned.startsWith('```')) {
     cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')

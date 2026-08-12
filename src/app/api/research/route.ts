@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser, leadFilter } from '@/lib/auth/session'
+import { loadProviderConfig } from '@/lib/ai/load-config'
 import { fetchWebsiteContent, htmlToText, researchCompany, researchCompanyDeep } from '@/lib/ai/agent'
 
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser()
+    await loadProviderConfig()  // 注入 provider config
     const body = await req.json()
     const { leadId, website, company, extraContext, mode = 'basic' } = body
 

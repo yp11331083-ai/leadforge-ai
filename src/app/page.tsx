@@ -24,6 +24,7 @@ import {
   Users,
   ShieldCheck,
   CreditCard,
+  Cpu,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -35,6 +36,7 @@ import { LeadsTable } from '@/components/lead-engine/leads-table'
 import { ResearchPanel } from '@/components/lead-engine/research-panel'
 import { SenderConfigPanel } from '@/components/lead-engine/sender-config-panel'
 import { EmailSendingPanel } from '@/components/lead-engine/email-sending-panel'
+import { AiProviderPanel } from '@/components/lead-engine/ai-provider-panel'
 import { AutoProspectPanel } from '@/components/lead-engine/auto-prospect-panel'
 import { LeadDetailSheet } from '@/components/lead-engine/lead-detail-sheet'
 import { AddLeadModal, ImportModal } from '@/components/lead-engine/modals'
@@ -310,12 +312,13 @@ export default function Home() {
           <>
             <StatsDashboard />
             <Tabs defaultValue="leads" className="w-full">
-              <TabsList className="grid w-full max-w-2xl grid-cols-5">
+              <TabsList className="grid w-full max-w-2xl grid-cols-6">
                 <TabsTrigger value="leads"><Table2 className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">名單</span></TabsTrigger>
                 <TabsTrigger value="prospect"><Wand2 className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">自動開發</span></TabsTrigger>
                 <TabsTrigger value="research"><Sparkles className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">AI 研究</span></TabsTrigger>
                 <TabsTrigger value="settings"><Settings className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">寄件人</span></TabsTrigger>
                 <TabsTrigger value="email"><Mail className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">發信</span></TabsTrigger>
+                <TabsTrigger value="providers"><Cpu className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">AI 提供者</span></TabsTrigger>
               </TabsList>
               <TabsContent value="leads" className="mt-4"><LeadsTable /></TabsContent>
               <TabsContent value="prospect" className="mt-4"><AutoProspectPanel /></TabsContent>
@@ -340,6 +343,7 @@ export default function Home() {
               </TabsContent>
               <TabsContent value="settings" className="mt-4"><div className="max-w-2xl"><SenderConfigPanel /></div></TabsContent>
               <TabsContent value="email" className="mt-4"><div className="max-w-2xl"><EmailSendingPanel /></div></TabsContent>
+              <TabsContent value="providers" className="mt-4"><div className="max-w-2xl"><AiProviderPanel /></div></TabsContent>
             </Tabs>
           </>
         )}

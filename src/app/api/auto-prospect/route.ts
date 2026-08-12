@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser, leadFilter } from '@/lib/auth/session'
+import { loadProviderConfig } from '@/lib/ai/load-config'
 import { autoProspect } from '@/lib/ai/agent'
 import { jobs, updateJob, cleanupOldJobs, type ProspectJob } from '@/lib/prospect-jobs'
 
@@ -10,6 +11,7 @@ export async function POST(req: NextRequest) {
   try {
     cleanupOldJobs()
     const user = await requireUser()
+    await loadProviderConfig()
     const body = await req.json()
     const { targetCount = 10, saveToDb = false } = body
 
