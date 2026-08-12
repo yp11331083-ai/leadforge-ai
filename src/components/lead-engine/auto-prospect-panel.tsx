@@ -51,6 +51,7 @@ export function AutoProspectPanel() {
   const prospectStep = useLeadStore((s) => s.prospectStep)
   const prospectElapsedSeconds = useLeadStore((s) => s.prospectElapsedSeconds)
   const prospectError = useLeadStore((s) => s.prospectError)
+  const rateLimitedAt = useLeadStore((s) => s.rateLimitedAt)
   const createLead = useLeadStore((s) => s.createLead)
   const fetchLeads = useLeadStore((s) => s.fetchLeads)
 
@@ -390,19 +391,55 @@ export function AutoProspectPanel() {
 
       {/* 失敗顯示 */}
       {!prospectLoading && prospectError && (
-        <Card className="p-5 border-rose-200 dark:border-rose-800 bg-rose-50/40 dark:bg-rose-950/20">
+        <Card className={`p-5 ${
+          rateLimitedAt
+            ? 'border-amber-300 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-950/30'
+            : 'border-rose-200 dark:border-rose-800 bg-rose-50/40 dark:bg-rose-950/20'
+        }`}>
           <div className="flex items-start gap-3">
-            <XCircle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <p className="text-sm font-semibold text-rose-800 dark:text-rose-300">
+            {rateLimitedAt ? (
+              <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            ) : (
+              <XCircle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+            )}
+            <div className="space-y-2 flex-1">
+              <p className={`text-sm font-semibold ${
+                rateLimitedAt
+                  ? 'text-amber-800 dark:text-amber-300'
+                  : 'text-rose-800 dark:text-rose-300'
+              }`}>
                 {prospectStage}
               </p>
-              <p className="text-xs text-rose-700 dark:text-rose-400">
+              <p className={`text-xs ${
+                rateLimitedAt
+                  ? 'text-amber-700 dark:text-amber-400'
+                  : 'text-rose-700 dark:text-rose-400'
+              }`}>
                 {prospectDetail}
               </p>
-              <p className="text-[11px] text-rose-600/70 dark:text-rose-400/70 mt-2">
-                建議：減少目標數量、簡化服務描述、或稍後再試。若是網路問題，重新整理頁面即可。
-              </p>
+
+              {rateLimitedAt && (
+                <div className="space-y-2 mt-3">
+                  <div className="rounded-md bg-amber-100 dark:bg-amber-950/60 p-2.5 text-[11px] text-amber-800 dark:text-amber-300 space-y-1">
+                    <p className="font-medium">⏳ 預估恢復時間</p>
+                    <ul className="ml-3 list-disc space-y-0.5 text-amber-700 dark:text-amber-400">
+                      <li>短期限流：等 5-30 分鐘</li>
+                      <li>每日配額：等到明天 UTC 0:00（台灣時間早上 8:00）</li>
+                      <li>目前無法精確預測，建議 1-2 小時後再試一次</li>
+                    </ul>
+                  </div>
+                  <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/40 p-2.5 text-[11px] text-emerald-700 dark:text-emerald-300">
+                    <p className="font-medium">✅ 不受影響的功能</p>
+                    <p className="mt-0.5">已儲存的名單、研究結果、AI 生成的郵件、發信設定都不受影響。你可以繼續編輯、複製郵件、發信。</p>
+                  </div>
+                </div>
+              )}
+
+              {!rateLimitedAt && (
+                <p className="text-[11px] text-rose-600/70 dark:text-rose-400/70 mt-2">
+                  建議：減少目標數量、簡化服務描述、或稍後再試。
+                </p>
+              )}
             </div>
           </div>
         </Card>

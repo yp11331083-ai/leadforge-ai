@@ -144,6 +144,7 @@ interface LeadStore {
   prospectElapsedSeconds: number
   prospectJobId: string | null
   prospectError: string | null
+  rateLimitedAt: number | null  // 第一次偵測到 429 的時間戳
   // actions
   fetchLeads: () => Promise<void>
   createLead: (data: Partial<Lead>) => Promise<Lead | null>
@@ -206,6 +207,7 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
   prospectElapsedSeconds: 0,
   prospectJobId: null,
   prospectError: null,
+  rateLimitedAt: null,
 
   fetchLeads: async () => {
     set({ loading: true })
@@ -262,7 +264,7 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
     }
   },
 
-  researchLead: async (id, extraContext, mode: 'basic' | 'deep' = 'basic') => {
+  researchLead: async (id, extraContext, mode = 'basic') => {
     try {
       const res = await fetch('/api/research', {
         method: 'POST',
@@ -271,6 +273,10 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
       })
       const data = await res.json()
       if (!res.ok) {
+        const isRateLimited = (data.error ?? '').includes('429') || (data.error ?? '').includes('Too many requests')
+        if (isRateLimited) {
+          set({ rateLimitedAt: Date.now() })
+        }
         console.error('researchLead failed:', data.error)
         return false
       }
@@ -292,6 +298,10 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
       })
       const data = await res.json()
       if (!res.ok) {
+        const isRateLimited = (data.error ?? '').includes('429') || (data.error ?? '').includes('Too many requests')
+        if (isRateLimited) {
+          set({ rateLimitedAt: Date.now() })
+        }
         console.error('generateEmail failed:', data.error)
         return false
       }
@@ -425,6 +435,10 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
           },
         }
       }
+      const isRateLimited = (data.error ?? '').includes('429') || (data.error ?? '').includes('Too many requests')
+      if (isRateLimited) {
+        set({ rateLimitedAt: Date.now() })
+      }
       return { success: false, error: data.error ?? 'Email enrichment 失敗' }
     } catch (e) {
       console.error('enrichEmail error:', e)
@@ -478,13 +492,18 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
       const startData = await startRes.json()
 
       if (!startRes.ok) {
+        const errorMsg = startData.error ?? '啟動失敗'
+        const isRateLimited = errorMsg.includes('429') || errorMsg.includes('Too many requests')
         set({
           prospectLoading: false,
-          prospectStage: '失敗',
-          prospectDetail: startData.error ?? '啟動失敗',
-          prospectError: startData.error ?? '啟動失敗',
+          prospectStage: isRateLimited ? 'AI 配額用完' : '失敗',
+          prospectDetail: isRateLimited
+            ? 'AI 服務配額已用完（429）。這通常是每日配額限制，請過 1-2 小時再試。已儲存的名單與設定不受影響。'
+            : errorMsg,
+          prospectError: errorMsg,
+          rateLimitedAt: isRateLimited ? Date.now() : null,
         })
-        return { success: false, error: startData.error ?? '啟動失敗' }
+        return { success: false, error: errorMsg }
       }
 
       const jobId = startData.jobId as string
@@ -527,14 +546,19 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
           }
 
           if (status.status === 'failed') {
+            const errorMsg = status.error ?? status.detail ?? '自動開發失敗'
+            const isRateLimited = errorMsg.includes('429') || errorMsg.includes('Too many requests')
             set({
               prospectLoading: false,
-              prospectStage: '失敗',
-              prospectDetail: status.error ?? status.detail ?? '自動開發失敗',
-              prospectError: status.error ?? '自動開發失敗',
+              prospectStage: isRateLimited ? 'AI 配額用完' : '失敗',
+              prospectDetail: isRateLimited
+                ? 'AI 服務配額已用完（429）。這通常是每日配額限制，請過 1-2 小時再試。已儲存的名單與設定不受影響。'
+                : errorMsg,
+              prospectError: errorMsg,
               prospectStep: 6,
+              rateLimitedAt: isRateLimited ? (get().rateLimitedAt ?? Date.now()) : null,
             })
-            return { success: false, error: status.error ?? '自動開發失敗' }
+            return { success: false, error: errorMsg }
           }
         } catch (pollErr) {
           console.error('poll error (will retry):', pollErr)

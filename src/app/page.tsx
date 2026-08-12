@@ -12,6 +12,8 @@ import {
   Database,
   Mail,
   Wand2,
+  AlertTriangle,
+  X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -34,6 +36,8 @@ export default function Home() {
   const leads = useLeadStore((s) => s.leads)
   const selectedLeadId = useLeadStore((s) => s.selectedLeadId)
   const setSelectedLeadId = useLeadStore((s) => s.setSelectedLeadId)
+  const rateLimitedAt = useLeadStore((s) => s.rateLimitedAt)
+  const [rateBannerDismissed, setRateBannerDismissed] = useState(false)
 
   const [addOpen, setAddOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
@@ -89,6 +93,28 @@ export default function Home() {
       </header>
 
       <main className="flex-1 mx-auto max-w-[1400px] w-full px-4 sm:px-6 py-5 space-y-5">
+        {/* Rate limit 橫幅 */}
+        {rateLimitedAt && !rateBannerDismissed && (
+          <div className="rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-3 flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0 text-sm">
+              <p className="font-semibold text-amber-800 dark:text-amber-300">
+                AI 服務配額暫時用完（429 Too Many Requests）
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                AI 研究、自動開發、郵件生成、找 Email 等功能暫時無法使用。預估恢復時間：1-2 小時後或明日重置。已儲存的名單、研究結果、郵件內容都不受影響，可繼續編輯與發信。
+              </p>
+            </div>
+            <button
+              onClick={() => setRateBannerDismissed(true)}
+              className="text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 shrink-0"
+              aria-label="關閉"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
         {/* 統計儀表板 */}
         <StatsDashboard />
 
