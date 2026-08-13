@@ -19,8 +19,8 @@ export const metadata: Metadata = {
   description: "AI-driven B2B cold outreach and lead generation SaaS platform",
   keywords: ["B2B", "Cold Outreach", "Lead Generation", "AI", "SaaS"],
   icons: {
-    icon: "/logo.png",
-    apple: "/logo.png",
+    icon: "/logo.svg",
+    apple: "/logo.svg",
   },
 };
 

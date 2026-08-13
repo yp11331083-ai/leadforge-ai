@@ -102,7 +102,7 @@ function SignupForm() {
       <div className="w-full max-w-md space-y-6">
         {/* Logo */}
         <div className="text-center">
-          <img src="/logo.png" alt="Forge AI" className="h-14 w-14 rounded-2xl shadow-lg mx-auto mb-3" />
+          <img src="/logo.svg" alt="Forge AI" className="h-14 w-14 rounded-2xl shadow-lg mx-auto mb-3" />
           <h1 className="text-2xl font-bold tracking-tight">
             Forge<span className="text-emerald-600 dark:text-emerald-400"> AI</span>
           </h1>
