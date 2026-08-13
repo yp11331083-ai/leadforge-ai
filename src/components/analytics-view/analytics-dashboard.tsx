@@ -119,7 +119,7 @@ export function AnalyticsDashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard icon={Mail} label="Sent" value={stats.sent} color="from-teal-500 to-cyan-600" />
         <KpiCard icon={MailOpen} label="Open Rate" value={`${stats.openRate}%`} subtext={`${stats.uniqueOpenedLeads} people opened`} color="from-emerald-500 to-teal-600" />
-        <KpiCard icon={MessageSquareReply} label="Reply Rate" value={`${stats.replyRate}%`} subtext={`${stats.replied} emailsreplies`} color="from-amber-500 to-orange-600" />
+        <KpiCard icon={MessageSquareReply} label="Reply Rate" value={`${stats.replyRate}%`} subtext={`${stats.replied} replies`} color="from-amber-500 to-orange-600" />
         <KpiCard icon={CalendarCheck} label="Meetings Booked" value={stats.meetings} subtext={`${stats.upcomingMeetings} upcoming`} color="from-violet-500 to-fuchsia-600" />
       </div>
 

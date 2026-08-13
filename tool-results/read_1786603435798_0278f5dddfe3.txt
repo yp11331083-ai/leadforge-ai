@@ -1,0 +1,1248 @@
+     1→'use client'
+     2→
+     3→import { useState } from 'react'
+     4→import {
+     5→  Sheet,
+     6→  SheetContent,
+     7→  SheetHeader,
+     8→  SheetTitle,
+     9→  SheetDescription,
+    10→} from '@/components/ui/sheet'
+    11→import { Button } from '@/components/ui/button'
+    12→import { Textarea } from '@/components/ui/textarea'
+    13→import { Input } from '@/components/ui/input'
+    14→import { Label } from '@/components/ui/label'
+    15→import { Badge } from '@/components/ui/badge'
+    16→import { Separator } from '@/components/ui/separator'
+    17→import {
+    18→  Sparkles,
+    19→  Mail,
+    20→  Copy,
+    21→  Loader2,
+    22→  Globe,
+    23→  Building2,
+    24→  User,
+    25→  AlertCircle,
+    26→  Target,
+    27→  TrendingUp,
+    28→  Layers,
+    29→  Swords,
+    30→  Newspaper,
+    31→  Users,
+    32→  Rocket,
+    33→  Briefcase,
+    34→  DollarSign,
+    35→  Link2,
+    36→  Database,
+    37→  Zap,
+    38→  Send,
+    39→  Server,
+    40→  CheckCircle2,
+    41→  Crown,
+    42→  Search,
+    43→} from 'lucide-react'
+    44→import { useLeadStore, type Lead } from '@/store/lead-store'
+    45→import { StatusBadge, ScoreBadge } from './status-badge'
+    46→import { toast } from 'sonner'
+    47→import {
+    48→  Dialog,
+    49→  DialogContent,
+    50→  DialogHeader,
+    51→  DialogTitle,
+    52→  DialogDescription,
+    53→  DialogFooter,
+    54→} from '@/components/ui/dialog'
+    55→import { ScrollArea } from '@/components/ui/scroll-area'
+    56→
+    57→interface LeadDetailSheetProps {
+    58→  lead: Lead | null
+    59→  open: boolean
+    60→  onOpenChange: (open: boolean) => void
+    61→}
+    62→
+    63→export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetProps) {
+    64→  const researchLead = useLeadStore((s) => s.researchLead)
+    65→  const generateEmail = useLeadStore((s) => s.generateEmail)
+    66→  const updateLead = useLeadStore((s) => s.updateLead)
+    67→
+    68→  const [researching, setResearching] = useState(false)
+    69→  const [deepResearching, setDeepResearching] = useState(false)
+    70→  const [generating, setGenerating] = useState(false)
+    71→  const [extraContext, setExtraContext] = useState('')
+    72→  const [editingSubject, setEditingSubject] = useState(false)
+    73→  const [editingBody, setEditingBody] = useState(false)
+    74→  const [tempSubject, setTempSubject] = useState('')
+    75→  const [tempBody, setTempBody] = useState('')
+    76→
+    77→  const sendEmail = useLeadStore((s) => s.sendEmail)
+    78→  const pushToSmartlead = useLeadStore((s) => s.pushToSmartlead)
+    79→  const emailConfig = useLeadStore((s) => s.emailConfig)
+    80→  const smartleadCampaigns = useLeadStore((s) => s.smartleadCampaigns)
+    81→  const fetchSmartleadCampaigns = useLeadStore((s) => s.fetchSmartleadCampaigns)
+    82→  const fetchEmailConfig = useLeadStore((s) => s.fetchEmailConfig)
+    83→  const enrichEmail = useLeadStore((s) => s.enrichEmail)
+    84→
+    85→  const [sendingEmail, setSendingEmail] = useState(false)
+    86→  const [pushingSmartlead, setPushingSmartlead] = useState(false)
+    87→  const [smartleadDialogOpen, setSmartleadDialogOpen] = useState(false)
+    88→  const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null)
+    89→  const [enrichingEmail, setEnrichingEmail] = useState(false)
+    90→
+    91→  if (!lead) return null
+    92→
+    93→  const parsedResearch = (() => {
+    94→    if (!lead.painPoints) return null
+    95→    try {
+    96→      return JSON.parse(lead.painPoints) as {
+    97→        business_summary?: string
+    98→        pain_points?: string[]
+    99→        buying_signals?: string[]
+   100→        outreach_angle?: string
+   101→      }
+   102→    } catch {
+   103→      return null
+   104→    }
+   105→  })()
+   106→
+   107→  const parsedHiring = (() => {
+   108→    if (!lead.hiringSignals) return []
+   109→    try {
+   110→      return JSON.parse(lead.hiringSignals) as string[]
+   111→    } catch {
+   112→      return []
+   113→    }
+   114→  })()
+   115→
+   116→  const parsedDeepResearch = (() => {
+   117→    if (!lead.deepResearch) return null
+   118→    try {
+   119→      return JSON.parse(lead.deepResearch) as {
+   120→        funding?: {
+   121→          last_round?: string
+   122→          total_raised?: string
+   123→          valuation?: string
+   124→          lead_investors?: string[]
+   125→          last_funding_date?: string
+   126→        }
+   127→        tech_stack?: string[]
+   128→        competitors?: Array<{ name: string; differentiation?: string }>
+   129→        recent_news?: Array<{ title: string; source?: string; date?: string; summary?: string }>
+   130→        open_roles?: {
+   131→          sales?: string[]
+   132→          engineering?: string[]
+   133→          product?: string[]
+   134→          marketing?: string[]
+   135→          other?: string[]
+   136→        }
+   137→        key_people?: Array<{ name: string; title: string; linkedin?: string }>
+   138→        growth_signals?: string[]
+   139→        strategic_initiatives?: string[]
+   140→      }
+   141→    } catch {
+   142→      return null
+   143→    }
+   144→  })()
+   145→
+   146→  const parsedSources = (() => {
+   147→    if (!lead.researchSources) return []
+   148→    try {
+   149→      return JSON.parse(lead.researchSources) as Array<{
+   150→        url: string
+   151→        title: string
+   152→        type: string
+   153→        fetched: boolean
+   154→        content_length: number
+   155→      }>
+   156→    } catch {
+   157→      return []
+   158→    }
+   159→  })()
+   160→
+   161→  const parsedEnrichedEmails = (() => {
+   162→    if (!lead.enrichedEmails) return null
+   163→    try {
+   164→      return JSON.parse(lead.enrichedEmails) as {
+   165→        decisionMakers: Array<{
+   166→          name: string
+   167→          title: string
+   168→          seniority: string
+   169→          email?: string
+   170→          linkedin?: string
+   171→          confidence: string
+   172→          email_source: string
+   173→          priority: number
+   174→          reason?: string
+   175→        }>
+   176→        companyEmailPattern?: string
+   177→        totalFound: number
+   178→        hasEmailCount: number
+   179→      }
+   180→    } catch {
+   181→      return null
+   182→    }
+   183→  })()
+   184→
+   185→  const handleResearch = async () => {
+   186→    setResearching(true)
+   187→    const ok = await researchLead(lead.id, extraContext, 'basic')
+   188→    setResearching(false)
+   189→    if (ok) toast.success('AI ResearchComplete！')
+   190→    else toast.error('研究Failed，請Confirm網站可存取')
+   191→  }
+   192→
+   193→  const handleDeepResearch = async () => {
+   194→    setDeepResearching(true)
+   195→    toast.info('深度研究Start中，AI 將同時抓取 LinkedIn / Crunchbase / 徵才頁 / 新聞，約需 30-60 秒...')
+   196→    const ok = await researchLead(lead.id, extraContext, 'deep')
+   197→    setDeepResearching(false)
+   198→    if (ok) toast.success('深度研究Complete！')
+   199→    else toast.error('深度研究Failed，請稍後再試')
+   200→  }
+   201→
+   202→  const handleGenerateEmail = async () => {
+   203→    setGenerating(true)
+   204→    const ok = await generateEmail(lead.id)
+   205→    setGenerating(false)
+   206→    if (ok) toast.success('冷EmailGenerated！')
+   207→    else toast.error('Email生成Failed')
+   208→  }
+   209→
+   210→  const handleSendEmail = async () => {
+   211→    if (!lead.email) {
+   212→      toast.error('此Leads缺少收件者 email')
+   213→      return
+   214→    }
+   215→    if (!confirm(`Confirm要透過 SMTP 直接Email到 ${lead.email}？\n\nSubject：${lead.emailSubject}`)) {
+   216→      return
+   217→    }
+   218→    setSendingEmail(true)
+   219→    const result = await sendEmail(lead.id)
+   220→    setSendingEmail(false)
+   221→    if (result.success) toast.success(`SentEmail到 ${lead.email}`)
+   222→    else toast.error(result.error ?? 'Send failed')
+   223→  }
+   224→
+   225→  const handleOpenSmartleadDialog = async () => {
+   226→    await fetchEmailConfig()
+   227→    await fetchSmartleadCampaigns()
+   228→    setSmartleadDialogOpen(true)
+   229→  }
+   230→
+   231→  const handlePushToSmartlead = async () => {
+   232→    if (!selectedCampaignId) {
+   233→      toast.error('請先選擇一個 Smartlead 行銷活動')
+   234→      return
+   235→    }
+   236→    setPushingSmartlead(true)
+   237→    const result = await pushToSmartlead(lead.id, selectedCampaignId)
+   238→    setPushingSmartlead(false)
+   239→    if (result.success) {
+   240→      toast.success(`已Push到 Smartlead Campaign #${selectedCampaignId}`)
+   241→      setSmartleadDialogOpen(false)
+   242→    } else {
+   243→      toast.error(result.error ?? 'PushFailed')
+   244→    }
+   245→  }
+   246→
+   247→  const handleEnrichEmail = async () => {
+   248→    if (!lead.website) {
+   249→      toast.error('此Leads缺少網址，無法萃取網域')
+   250→      return
+   251→    }
+   252→    setEnrichingEmail(true)
+   253→    toast.info('正在SearchDecision Maker email，約 30-60 秒...')
+   254→    const result = await enrichEmail(lead.id)
+   255→    setEnrichingEmail(false)
+   256→    if (result.success) {
+   257→      const count = result.result?.hasEmailCount ?? 0
+   258→      toast.success(`找到 ${result.result?.totalFound ?? 0} 位Decision Maker，其中 ${count} 位有 email`)
+   259→    } else {
+   260→      toast.error(result.error ?? 'Email enrichment Failed')
+   261→    }
+   262→  }
+   263→
+   264→  const handleUseDecisionMakerEmail = async (dm: {
+   265→    name: string
+   266→    title: string
+   267→    email?: string
+   268→  }) => {
+   269→    if (!dm.email) {
+   270→      toast.error('此人沒有 email')
+   271→      return
+   272→    }
+   273→    await updateLead(lead.id, {
+   274→      email: dm.email,
+   275→      contactName: dm.name,
+   276→      title: dm.title,
+   277→    })
+   278→    toast.success(`已設為收件者：${dm.name} <${dm.email}>`)
+   279→  }
+   280→
+   281→  const copyToClipboard = (text: string, label: string) => {
+   282→    navigator.clipboard.writeText(text)
+   283→    toast.success(`已Copy${label}`)
+   284→  }
+   285→
+   286→  const saveSubject = async () => {
+   287→    await updateLead(lead.id, { emailSubject: tempSubject })
+   288→    setEditingSubject(false)
+   289→    toast.success('Subject已更新')
+   290→  }
+   291→
+   292→  const saveBody = async () => {
+   293→    await updateLead(lead.id, { emailBody: tempBody })
+   294→    setEditingBody(false)
+   295→    toast.success('Email內容已更新')
+   296→  }
+   297→
+   298→  return (
+   299→    <Sheet open={open} onOpenChange={onOpenChange}>
+   300→      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+   301→        <SheetHeader>
+   302→          <div className="flex items-start justify-between gap-3 pr-6">
+   303→            <div className="min-w-0">
+   304→              <SheetTitle className="text-xl">{lead.company}</SheetTitle>
+   305→              <SheetDescription className="mt-1">
+   306→                {lead.contactName ? `${lead.contactName}` : 'ContactUnknown'}
+   307→                {lead.title ? ` · ${lead.title}` : ''}
+   308→              </SheetDescription>
+   309→            </div>
+   310→            <StatusBadge status={lead.status} />
+   311→          </div>
+   312→        </SheetHeader>
+   313→
+   314→        <div className="mt-4 space-y-5">
+   315→          {/* 基本資訊 */}
+   316→          <section className="grid grid-cols-2 gap-3 text-sm">
+   317→            {lead.website && (
+   318→              <div className="flex items-center gap-2 col-span-2">
+   319→                <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
+   320→                <a
+   321→                  href={lead.website}
+   322→                  target="_blank"
+   323→                  rel="noopener noreferrer"
+   324→                  className="text-emerald-600 dark:text-emerald-400 hover:underline truncate"
+   325→                >
+   326→                  {lead.website}
+   327→                </a>
+   328→              </div>
+   329→            )}
+   330→            {lead.email && (
+   331→              <div className="flex items-center gap-2">
+   332→                <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+   333→                <span className="truncate">{lead.email}</span>
+   334→              </div>
+   335→            )}
+   336→            {lead.industry && (
+   337→              <div className="flex items-center gap-2">
+   338→                <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+   339→                <span className="truncate">{lead.industry}</span>
+   340→              </div>
+   341→            )}
+   342→            {lead.companySize && (
+   343→              <div className="flex items-center gap-2">
+   344→                <User className="h-4 w-4 text-muted-foreground shrink-0" />
+   345→                <span>{lead.companySize} 人</span>
+   346→              </div>
+   347→            )}
+   348→            {lead.score != null && (
+   349→              <div className="flex items-center gap-2 col-span-2">
+   350→                <Target className="h-4 w-4 text-muted-foreground shrink-0" />
+   351→                <span className="text-muted-foreground">潛在客戶Score</span>
+   352→                <ScoreBadge score={lead.score} />
+   353→              </div>
+   354→            )}
+   355→          </section>
+   356→
+   357→          <Separator />
+   358→
+   359→          {/* AI Research */}
+   360→          <section className="space-y-3">
+   361→            <div className="flex items-center justify-between gap-2 flex-wrap">
+   362→              <h3 className="flex items-center gap-2 text-sm font-semibold">
+   363→                <Sparkles className="h-4 w-4 text-amber-500" />
+   364→                AI Company研究
+   365→                {lead.researchMode === 'deep' && (
+   366→                  <Badge variant="outline" className="ml-1 text-[10px] bg-violet-50 dark:bg-violet-950/40 border-violet-300 dark:border-violet-800 text-violet-700 dark:text-violet-300">
+   367→                    <Database className="mr-0.5 h-2.5 w-2.5" />
+   368→                    深度研究
+   369→                  </Badge>
+   370→                )}
+   371→              </h3>
+   372→              <div className="flex gap-2">
+   373→                <Button
+   374→                  size="sm"
+   375→                  variant="outline"
+   376→                  onClick={handleResearch}
+   377→                  disabled={researching || deepResearching || !lead.website}
+   378→                >
+   379→                  {researching ? (
+   380→                    <>
+   381→                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+   382→                      Researching...
+   383→                    </>
+   384→                  ) : (
+   385→                    <>
+   386→                      <Sparkles className="mr-1 h-3 w-3" />
+   387→                      基本研究
+   388→                    </>
+   389→                  )}
+   390→                </Button>
+   391→                <Button
+   392→                  size="sm"
+   393→                  onClick={handleDeepResearch}
+   394→                  disabled={researching || deepResearching || !lead.website}
+   395→                  className="bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700"
+   396→                >
+   397→                  {deepResearching ? (
+   398→                    <>
+   399→                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+   400→                      深度Researching...
+   401→                    </>
+   402→                  ) : (
+   403→                    <>
+   404→                      <Database className="mr-1 h-3 w-3" />
+   405→                      深度研究
+   406→                    </>
+   407→                  )}
+   408→                </Button>
+   409→              </div>
+   410→            </div>
+   411→
+   412→            <div className="text-[11px] text-muted-foreground bg-muted/40 rounded-md p-2 flex items-start gap-1.5">
+   413→              <Zap className="h-3 w-3 mt-0.5 shrink-0 text-amber-500" />
+   414→              <span>
+   415→                <b>基本研究</b>：只抓官網，10-15 秒。 <b>深度研究</b>：同時抓 LinkedIn / Crunchbase / 徵才頁 / 新聞，30-60 秒，輸出融資、Tech Stack、Competitors、Open Roles等 8 大維度。
+   416→              </span>
+   417→            </div>
+   418→
+   419→            {!lead.website && (
+   420→              <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/40 p-2 text-xs text-amber-700 dark:text-amber-300">
+   421→                <AlertCircle className="h-3 w-3" />
+   422→                需要先填寫Company網站才能Start AI Research
+   423→              </div>
+   424→            )}
+   425→
+   426→            <div className="space-y-1.5">
+   427→              <Label className="text-xs text-muted-foreground">
+   428→                額外研究指示（可選）
+   429→              </Label>
+   430→              <Input
+   431→                value={extraContext}
+   432→                onChange={(e) => setExtraContext(e.target.value)}
+   433→                placeholder="例如：他們最近在招募 AE，重點關注銷售流程痛點"
+   434→                className="text-xs"
+   435→              />
+   436→            </div>
+   437→
+   438→            {parsedResearch ? (
+   439→              <div className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-3">
+   440→                {parsedResearch.business_summary && (
+   441→                  <div>
+   442→                    <p className="text-xs font-medium text-muted-foreground mb-1">
+   443→                      Business Summary
+   444→                    </p>
+   445→                    <p className="text-sm">{parsedResearch.business_summary}</p>
+   446→                  </div>
+   447→                )}
+   448→                {parsedHiring.length > 0 && (
+   449→                  <div>
+   450→                    <p className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
+   451→                      <TrendingUp className="h-3 w-3" /> Hiring Signals
+   452→                    </p>
+   453→                    <div className="flex flex-wrap gap-1.5">
+   454→                      {parsedHiring.map((s, i) => (
+   455→                        <Badge
+   456→                          key={i}
+   457→                          variant="outline"
+   458→                          className="text-xs bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300"
+   459→                        >
+   460→                          {s}
+   461→                        </Badge>
+   462→                      ))}
+   463→                    </div>
+   464→                  </div>
+   465→                )}
+   466→                {parsedResearch.pain_points &&
+   467→                  parsedResearch.pain_points.length > 0 && (
+   468→                    <div>
+   469→                      <p className="text-xs font-medium text-muted-foreground mb-1">
+   470→                        Pain Points
+   471→                      </p>
+   472→                      <ul className="space-y-1.5">
+   473→                        {parsedResearch.pain_points.map((p, i) => (
+   474→                          <li key={i} className="text-sm flex gap-2">
+   475→                            <span className="text-rose-500 font-bold">•</span>
+   476→                            <span>{p}</span>
+   477→                          </li>
+   478→                        ))}
+   479→                      </ul>
+   480→                    </div>
+   481→                  )}
+   482→                {parsedResearch.buying_signals &&
+   483→                  parsedResearch.buying_signals.length > 0 && (
+   484→                    <div>
+   485→                      <p className="text-xs font-medium text-muted-foreground mb-1">
+   486→                        Buying Signals
+   487→                      </p>
+   488→                      <div className="flex flex-wrap gap-1.5">
+   489→                        {parsedResearch.buying_signals.map((s, i) => (
+   490→                          <Badge
+   491→                            key={i}
+   492→                            variant="outline"
+   493→                            className="text-xs bg-cyan-50 dark:bg-cyan-950/40 border-cyan-300 dark:border-cyan-800 text-cyan-800 dark:text-cyan-300"
+   494→                          >
+   495→                            {s}
+   496→                          </Badge>
+   497→                        ))}
+   498→                      </div>
+   499→                    </div>
+   500→                  )}
+   501→                {parsedResearch.outreach_angle && (
+   502→                  <div>
+   503→                    <p className="text-xs font-medium text-muted-foreground mb-1">
+   504→                      Suggested Angle
+   505→                    </p>
+   506→                    <p className="text-sm italic text-emerald-700 dark:text-emerald-400">
+   507→                      {parsedResearch.outreach_angle}
+   508→                    </p>
+   509→                  </div>
+   510→                )}
+   511→              </div>
+   512→            ) : (
+   513→              <div className="rounded-lg border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground">
+   514→                Click「基本研究」或「深度研究」Start AI 分析
+   515→              </div>
+   516→            )}
+   517→          </section>
+   518→
+   519→          {/* 深度研究結果 */}
+   520→          {parsedDeepResearch && (
+   521→            <>
+   522→              <Separator />
+   523→              <section className="space-y-3">
+   524→                <h3 className="flex items-center gap-2 text-sm font-semibold">
+   525→                  <Database className="h-4 w-4 text-violet-500" />
+   526→                  深度研究情報
+   527→                  <span className="text-[10px] font-normal text-muted-foreground">
+   528→                    （多源整合：{parsedSources.length} 個Source）
+   529→                  </span>
+   530→                </h3>
+   531→
+   532→                {/* 融資Status */}
+   533→                {parsedDeepResearch.funding && (
+   534→                  <div className="rounded-lg border border-border/60 bg-violet-50/40 dark:bg-violet-950/20 p-3">
+   535→                    <p className="text-xs font-medium text-violet-700 dark:text-violet-300 mb-2 flex items-center gap-1">
+   536→                      <DollarSign className="h-3 w-3" /> 融資Status
+   537→                    </p>
+   538→                    <div className="grid grid-cols-2 gap-2 text-xs">
+   539→                      {parsedDeepResearch.funding.last_round && (
+   540→                        <div>
+   541→                          <span className="text-muted-foreground">最近一輪：</span>
+   542→                          <span className="font-medium">{parsedDeepResearch.funding.last_round}</span>
+   543→                        </div>
+   544→                      )}
+   545→                      {parsedDeepResearch.funding.total_raised && (
+   546→                        <div>
+   547→                          <span className="text-muted-foreground">總募集：</span>
+   548→                          <span className="font-medium">{parsedDeepResearch.funding.total_raised}</span>
+   549→                        </div>
+   550→                      )}
+   551→                      {parsedDeepResearch.funding.valuation && (
+   552→                        <div>
+   553→                          <span className="text-muted-foreground">估值：</span>
+   554→                          <span className="font-medium">{parsedDeepResearch.funding.valuation}</span>
+   555→                        </div>
+   556→                      )}
+   557→                      {parsedDeepResearch.funding.last_funding_date && (
+   558→                        <div>
+   559→                          <span className="text-muted-foreground">融資Time：</span>
+   560→                          <span className="font-medium">{parsedDeepResearch.funding.last_funding_date}</span>
+   561→                        </div>
+   562→                      )}
+   563→                      {parsedDeepResearch.funding.lead_investors &&
+   564→                        parsedDeepResearch.funding.lead_investors.length > 0 && (
+   565→                          <div className="col-span-2">
+   566→                            <span className="text-muted-foreground">主要投資人：</span>
+   567→                            <span className="font-medium">
+   568→                              {parsedDeepResearch.funding.lead_investors.join('、')}
+   569→                            </span>
+   570→                          </div>
+   571→                        )}
+   572→                    </div>
+   573→                  </div>
+   574→                )}
+   575→
+   576→                {/* Tech Stack */}
+   577→                {parsedDeepResearch.tech_stack && parsedDeepResearch.tech_stack.length > 0 && (
+   578→                  <div>
+   579→                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+   580→                      <Layers className="h-3 w-3" /> Tech Stack
+   581→                    </p>
+   582→                    <div className="flex flex-wrap gap-1.5">
+   583→                      {parsedDeepResearch.tech_stack.map((tech, i) => (
+   584→                        <Badge
+   585→                          key={i}
+   586→                          variant="outline"
+   587→                          className="text-xs bg-slate-50 dark:bg-slate-900/40 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-mono"
+   588→                        >
+   589→                          {tech}
+   590→                        </Badge>
+   591→                      ))}
+   592→                    </div>
+   593→                  </div>
+   594→                )}
+   595→
+   596→                {/* Open Roles */}
+   597→                {parsedDeepResearch.open_roles && (
+   598→                  <div>
+   599→                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+   600→                      <Briefcase className="h-3 w-3" /> Open Roles（By Department）
+   601→                    </p>
+   602→                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+   603→                      {[
+   604→                        { label: '業務 Sales', roles: parsedDeepResearch.open_roles.sales, color: 'emerald' },
+   605→                        { label: '工程 Engineering', roles: parsedDeepResearch.open_roles.engineering, color: 'blue' },
+   606→                        { label: '產品 Product', roles: parsedDeepResearch.open_roles.product, color: 'purple' },
+   607→                        { label: '行銷 Marketing', roles: parsedDeepResearch.open_roles.marketing, color: 'pink' },
+   608→                      ].map(({ label, roles }) =>
+   609→                        roles && roles.length > 0 ? (
+   610→                          <div key={label} className="rounded-md bg-muted/40 p-2">
+   611→                            <p className="text-[11px] font-medium text-muted-foreground mb-1">{label}</p>
+   612→                            <div className="flex flex-wrap gap-1">
+   613→                              {roles.map((r, i) => (
+   614→                                <span key={i} className="text-[11px] px-1.5 py-0.5 rounded bg-background border border-border/60">
+   615→                                  {r}
+   616→                                </span>
+   617→                              ))}
+   618→                            </div>
+   619→                          </div>
+   620→                        ) : null
+   621→                      )}
+   622→                    </div>
+   623→                  </div>
+   624→                )}
+   625→
+   626→                {/* Competitors */}
+   627→                {parsedDeepResearch.competitors && parsedDeepResearch.competitors.length > 0 && (
+   628→                  <div>
+   629→                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+   630→                      <Swords className="h-3 w-3" /> Competitors
+   631→                    </p>
+   632→                    <ul className="space-y-1.5">
+   633→                      {parsedDeepResearch.competitors.map((c, i) => (
+   634→                        <li key={i} className="text-sm flex gap-2">
+   635→                          <span className="text-orange-500 font-bold">▸</span>
+   636→                          <div>
+   637→                            <span className="font-medium">{c.name}</span>
+   638→                            {c.differentiation && (
+   639→                              <span className="text-muted-foreground"> — {c.differentiation}</span>
+   640→                            )}
+   641→                          </div>
+   642→                        </li>
+   643→                      ))}
+   644→                    </ul>
+   645→                  </div>
+   646→                )}
+   647→
+   648→                {/* Recent News */}
+   649→                {parsedDeepResearch.recent_news && parsedDeepResearch.recent_news.length > 0 && (
+   650→                  <div>
+   651→                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+   652→                      <Newspaper className="h-3 w-3" /> Recent News
+   653→                    </p>
+   654→                    <ul className="space-y-2">
+   655→                      {parsedDeepResearch.recent_news.map((n, i) => (
+   656→                        <li key={i} className="text-sm border-l-2 border-cyan-400 pl-2">
+   657→                          <div className="flex items-center gap-2 flex-wrap">
+   658→                            <span className="font-medium">{n.title}</span>
+   659→                            {n.date && (
+   660→                              <span className="text-[10px] text-muted-foreground">{n.date}</span>
+   661→                            )}
+   662→                            {n.source && (
+   663→                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300">
+   664→                                {n.source}
+   665→                              </span>
+   666→                            )}
+   667→                          </div>
+   668→                          {n.summary && (
+   669→                            <p className="text-xs text-muted-foreground mt-0.5">{n.summary}</p>
+   670→                          )}
+   671→                        </li>
+   672→                      ))}
+   673→                    </ul>
+   674→                  </div>
+   675→                )}
+   676→
+   677→                {/* Key People */}
+   678→                {parsedDeepResearch.key_people && parsedDeepResearch.key_people.length > 0 && (
+   679→                  <div>
+   680→                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+   681→                      <Users className="h-3 w-3" /> Key People
+   682→                    </p>
+   683→                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+   684→                      {parsedDeepResearch.key_people.map((p, i) => (
+   685→                        <div key={i} className="text-xs flex items-center gap-2 rounded-md bg-muted/40 p-2">
+   686→                          <div className="h-6 w-6 rounded-full bg-gradient-to-br from-violet-400 to-fuchsia-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+   687→                            {p.name?.charAt(0) ?? '?'}
+   688→                          </div>
+   689→                          <div className="min-w-0">
+   690→                            <div className="font-medium truncate">{p.name}</div>
+   691→                            <div className="text-muted-foreground truncate">{p.title}</div>
+   692→                          </div>
+   693→                        </div>
+   694→                      ))}
+   695→                    </div>
+   696→                  </div>
+   697→                )}
+   698→
+   699→                {/* Growth Signals */}
+   700→                {parsedDeepResearch.growth_signals && parsedDeepResearch.growth_signals.length > 0 && (
+   701→                  <div>
+   702→                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+   703→                      <Rocket className="h-3 w-3" /> Growth Signals
+   704→                    </p>
+   705→                    <ul className="space-y-1.5">
+   706→                      {parsedDeepResearch.growth_signals.map((s, i) => (
+   707→                        <li key={i} className="text-sm flex gap-2">
+   708→                          <span className="text-emerald-500 font-bold">↑</span>
+   709→                          <span>{s}</span>
+   710→                        </li>
+   711→                      ))}
+   712→                    </ul>
+   713→                  </div>
+   714→                )}
+   715→
+   716→                {/* Strategic Initiatives */}
+   717→                {parsedDeepResearch.strategic_initiatives && parsedDeepResearch.strategic_initiatives.length > 0 && (
+   718→                  <div>
+   719→                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+   720→                      <Target className="h-3 w-3" /> Strategic Initiatives
+   721→                    </p>
+   722→                    <ul className="space-y-1.5">
+   723→                      {parsedDeepResearch.strategic_initiatives.map((s, i) => (
+   724→                        <li key={i} className="text-sm flex gap-2">
+   725→                          <span className="text-violet-500 font-bold">→</span>
+   726→                          <span>{s}</span>
+   727→                        </li>
+   728→                      ))}
+   729→                    </ul>
+   730→                  </div>
+   731→                )}
+   732→
+   733→                {/* 研究Source */}
+   734→                {parsedSources.length > 0 && (
+   735→                  <div>
+   736→                    <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+   737→                      <Link2 className="h-3 w-3" /> 研究Source（{parsedSources.length} 個）
+   738→                    </p>
+   739→                    <ul className="space-y-1">
+   740→                      {parsedSources.map((s, i) => (
+   741→                        <li key={i} className="text-[11px] flex items-center gap-1.5">
+   742→                          <span
+   743→                            className={`inline-block h-1.5 w-1.5 rounded-full ${
+   744→                              s.fetched ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
+   745→                            }`}
+   746→                          />
+   747→                          <a
+   748→                            href={s.url}
+   749→                            target="_blank"
+   750→                            rel="noopener noreferrer"
+   751→                            className="text-emerald-600 dark:text-emerald-400 hover:underline truncate max-w-[400px]"
+   752→                          >
+   753→                            {s.url}
+   754→                          </a>
+   755→                          <span className="text-muted-foreground text-[10px]">{s.type}</span>
+   756→                        </li>
+   757→                      ))}
+   758→                    </ul>
+   759→                  </div>
+   760→                )}
+   761→              </section>
+   762→            </>
+   763→          )}
+   764→
+   765→          <Separator />
+   766→
+   767→          {/* Email Enrichment */}
+   768→          <section className="space-y-3">
+   769→            <div className="flex items-center justify-between gap-2">
+   770→              <h3 className="flex items-center gap-2 text-sm font-semibold">
+   771→                <Crown className="h-4 w-4 text-amber-500" />
+   772→                Decision Maker Email
+   773→                {parsedEnrichedEmails && (
+   774→                  <Badge variant="outline" className="ml-1 text-[10px] bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300">
+   775→                    {parsedEnrichedEmails.hasEmailCount} / {parsedEnrichedEmails.totalFound} 有 email
+   776→                  </Badge>
+   777→                )}
+   778→              </h3>
+   779→              <Button
+   780→                size="sm"
+   781→                variant="outline"
+   782→                onClick={handleEnrichEmail}
+   783→                disabled={enrichingEmail || !lead.website}
+   784→              >
+   785→                {enrichingEmail ? (
+   786→                  <>
+   787→                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+   788→                    找 Email 中...
+   789→                  </>
+   790→                ) : (
+   791→                  <>
+   792→                    <Search className="mr-1 h-3 w-3" />
+   793→                    {parsedEnrichedEmails ? '重新找 Email' : '找出Decision Maker Email'}
+   794→                  </>
+   795→                )}
+   796→              </Button>
+   797→            </div>
+   798→
+   799→            {!lead.website && (
+   800→              <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/40 p-2 text-xs text-amber-700 dark:text-amber-300">
+   801→                <AlertCircle className="h-3 w-3" />
+   802→                需要有Company網址才能找Decision Maker email
+   803→              </div>
+   804→            )}
+   805→
+   806→            {parsedEnrichedEmails && parsedEnrichedEmails.decisionMakers.length > 0 ? (
+   807→              <div className="space-y-2">
+   808→                {parsedEnrichedEmails.decisionMakers.map((dm, i) => {
+   809→                  const isTop = i === 0
+   810→                  const confidenceColor =
+   811→                    dm.confidence === 'high'
+   812→                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
+   813→                      : dm.confidence === 'medium'
+   814→                      ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300'
+   815→                      : 'bg-slate-50 dark:bg-slate-900/40 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+   816→
+   817→                  const sourceLabel =
+   818→                    dm.email_source === 'hunter' ? 'Apollo 驗證' :
+   819→                    dm.email_source === 'ai_predicted' ? 'AI 預測' :
+   820→                    dm.email_source === 'web_search' ? '網路Search' : 'Unknown'
+   821→
+   822→                  return (
+   823→                    <div
+   824→                      key={i}
+   825→                      className={`rounded-lg border p-3 ${
+   826→                        isTop
+   827→                          ? 'border-amber-300 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/20'
+   828→                          : 'border-border/60 bg-muted/30'
+   829→                      }`}
+   830→                    >
+   831→                      <div className="flex items-start justify-between gap-2">
+   832→                        <div className="min-w-0 flex-1">
+   833→                          <div className="flex items-center gap-2 flex-wrap">
+   834→                            {isTop && (
+   835→                              <Badge variant="outline" className="text-[10px] bg-amber-100 dark:bg-amber-950/60 border-amber-400 dark:border-amber-700 text-amber-800 dark:text-amber-300">
+   836→                                <Crown className="mr-1 h-2.5 w-2.5" />
+   837→                                第一優先
+   838→                              </Badge>
+   839→                            )}
+   840→                            <span className="text-sm font-semibold truncate">{dm.name}</span>
+   841→                            <Badge variant="outline" className="text-[10px]">
+   842→                              {dm.title}
+   843→                            </Badge>
+   844→                          </div>
+   845→                          {dm.reason && (
+   846→                            <p className="text-[11px] text-muted-foreground mt-0.5">{dm.reason}</p>
+   847→                          )}
+   848→                          {dm.email && (
+   849→                            <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+   850→                              <a
+   851→                                href={`mailto:${dm.email}`}
+   852→                                className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline font-mono"
+   853→                              >
+   854→                                {dm.email}
+   855→                              </a>
+   856→                              <Badge
+   857→                                variant="outline"
+   858→                                className={`text-[10px] ${confidenceColor}`}
+   859→                              >
+   860→                                {sourceLabel} · {dm.confidence}
+   861→                              </Badge>
+   862→                            </div>
+   863→                          )}
+   864→                          {dm.linkedin && (
+   865→                            <a
+   866→                              href={dm.linkedin}
+   867→                              target="_blank"
+   868→                              rel="noopener noreferrer"
+   869→                              className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline block mt-1 truncate max-w-[400px]"
+   870→                            >
+   871→                              LinkedIn: {dm.linkedin.replace(/^[^/]+\/\/[^/]+\//, '')}
+   872→                            </a>
+   873→                          )}
+   874→                        </div>
+   875→                        {dm.email && (
+   876→                          <div className="flex flex-col gap-1 shrink-0">
+   877→                            <Button
+   878→                              size="sm"
+   879→                              variant="outline"
+   880→                              className="h-7 px-2 text-xs"
+   881→                              onClick={() => copyToClipboard(dm.email!, 'email')}
+   882→                            >
+   883→                              <Copy className="h-3 w-3" />
+   884→                            </Button>
+   885→                            {lead.email !== dm.email && (
+   886→                              <Button
+   887→                                size="sm"
+   888→                                variant="ghost"
+   889→                                className="h-7 px-2 text-xs"
+   890→                                onClick={() => handleUseDecisionMakerEmail(dm)}
+   891→                              >
+   892→                                設為收件者
+   893→                              </Button>
+   894→                            )}
+   895→                          </div>
+   896→                        )}
+   897→                      </div>
+   898→                    </div>
+   899→                  )
+   900→                })}
+   901→
+   902→                {parsedEnrichedEmails.companyEmailPattern && (
+   903→                  <p className="text-[11px] text-muted-foreground mt-1">
+   904→                    Company email 網域：{parsedEnrichedEmails.companyEmailPattern}
+   905→                  </p>
+   906→                )}
+   907→
+   908→                {!emailConfig?.hunterApiKey && (
+   909→                  <div className="rounded-md bg-cyan-50 dark:bg-cyan-950/30 p-2 text-[11px] text-cyan-700 dark:text-cyan-300 flex items-start gap-1.5">
+   910→                    <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+   911→                    <span>
+   912→                      目前用 <b>AI 預測模式</b>（信心度 medium）。Settings Apollo API Key 後，可取得已驗證的真實 email。
+   913→                    </span>
+   914→                  </div>
+   915→                )}
+   916→              </div>
+   917→            ) : parsedEnrichedEmails ? (
+   918→              <div className="rounded-lg border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground">
+   919→                未找到Decision Maker。可能是Company太小或 LinkedIn 上沒有公開資訊。建議手動到 LinkedIn Search。
+   920→              </div>
+   921→            ) : (
+   922→              <div className="rounded-lg border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground">
+   923→                Click「找出Decision Maker Email」讓 AI 找出 VP Sales / Director / CEO / Founder 的 email
+   924→              </div>
+   925→            )}
+   926→          </section>
+   927→
+   928→          <Separator />
+   929→
+   930→          {/* 冷Email */}
+   931→          <section className="space-y-3">
+   932→            <div className="flex items-center justify-between gap-2">
+   933→              <h3 className="flex items-center gap-2 text-sm font-semibold">
+   934→                <Mail className="h-4 w-4 text-emerald-500" />
+   935→                個人化冷Email
+   936→              </h3>
+   937→              <Button
+   938→                size="sm"
+   939→                onClick={handleGenerateEmail}
+   940→                disabled={generating || !parsedResearch}
+   941→              >
+   942→                {generating ? (
+   943→                  <>
+   944→                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+   945→                    生成中...
+   946→                  </>
+   947→                ) : (
+   948→                  <>
+   949→                    <Sparkles className="mr-1 h-3 w-3" />
+   950→                    {lead.emailBody ? 'Regenerate' : 'AI 生成Email'}
+   951→                  </>
+   952→                )}
+   953→              </Button>
+   954→            </div>
+   955→
+   956→            {!parsedResearch && (
+   957→              <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/40 p-2 text-xs text-amber-700 dark:text-amber-300">
+   958→                <AlertCircle className="h-3 w-3" />
+   959→                需要先Complete AI Research才能生成個人化Email
+   960→              </div>
+   961→            )}
+   962→
+   963→            {lead.emailBody ? (
+   964→              <div className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-3">
+   965→                <div>
+   966→                  <div className="flex items-center justify-between mb-1">
+   967→                    <Label className="text-xs text-muted-foreground">Subject</Label>
+   968→                    <div className="flex gap-1">
+   969→                      <Button
+   970→                        size="sm"
+   971→                        variant="ghost"
+   972→                        className="h-6 px-2 text-xs"
+   973→                        onClick={() => {
+   974→                          if (editingSubject) {
+   975→                            saveSubject()
+   976→                          } else {
+   977→                            setTempSubject(lead.emailSubject ?? '')
+   978→                            setEditingSubject(true)
+   979→                          }
+   980→                        }}
+   981→                      >
+   982→                        {editingSubject ? 'Save' : 'Edit'}
+   983→                      </Button>
+   984→                      <Button
+   985→                        size="sm"
+   986→                        variant="ghost"
+   987→                        className="h-6 px-2 text-xs"
+   988→                        onClick={() =>
+   989→                          copyToClipboard(lead.emailSubject ?? '', 'Subject')
+   990→                        }
+   991→                      >
+   992→                        <Copy className="h-3 w-3" />
+   993→                      </Button>
+   994→                    </div>
+   995→                  </div>
+   996→                  {editingSubject ? (
+   997→                    <Input
+   998→                      value={tempSubject}
+   999→                      onChange={(e) => setTempSubject(e.target.value)}
+  1000→                      className="text-sm"
+  1001→                    />
+  1002→                  ) : (
+  1003→                    <p className="text-sm font-medium">{lead.emailSubject}</p>
+  1004→                  )}
+  1005→                </div>
+  1006→
+  1007→                <div>
+  1008→                  <div className="flex items-center justify-between mb-1">
+  1009→                    <Label className="text-xs text-muted-foreground">Email內容</Label>
+  1010→                    <div className="flex gap-1">
+  1011→                      <Button
+  1012→                        size="sm"
+  1013→                        variant="ghost"
+  1014→                        className="h-6 px-2 text-xs"
+  1015→                        onClick={() => {
+  1016→                          if (editingBody) {
+  1017→                            saveBody()
+  1018→                          } else {
+  1019→                            setTempBody(lead.emailBody ?? '')
+  1020→                            setEditingBody(true)
+  1021→                          }
+  1022→                        }}
+  1023→                      >
+  1024→                        {editingBody ? 'Save' : 'Edit'}
+  1025→                      </Button>
+  1026→                      <Button
+  1027→                        size="sm"
+  1028→                        variant="ghost"
+  1029→                        className="h-6 px-2 text-xs"
+  1030→                        onClick={() => copyToClipboard(lead.emailBody ?? '', 'Email')}
+  1031→                      >
+  1032→                        <Copy className="h-3 w-3" />
+  1033→                      </Button>
+  1034→                    </div>
+  1035→                  </div>
+  1036→                  {editingBody ? (
+  1037→                    <Textarea
+  1038→                      value={tempBody}
+  1039→                      onChange={(e) => setTempBody(e.target.value)}
+  1040→                      rows={10}
+  1041→                      className="text-sm"
+  1042→                    />
+  1043→                  ) : (
+  1044→                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
+  1045→                      {lead.emailBody}
+  1046→                    </div>
+  1047→                  )}
+  1048→                </div>
+  1049→
+  1050→                {lead.icebreaker && (
+  1051→                  <div className="pt-2 border-t border-border/40">
+  1052→                    <p className="text-xs text-muted-foreground mb-1">Icebreaker（Icebreaker）</p>
+  1053→                    <p className="text-xs italic text-emerald-700 dark:text-emerald-400">
+  1054→                      &ldquo;{lead.icebreaker}&rdquo;
+  1055→                    </p>
+  1056→                  </div>
+  1057→                )}
+  1058→
+  1059→                {/* EmailActions區 */}
+  1060→                <div className="pt-3 border-t border-border/40 space-y-2">
+  1061→                  <p className="text-xs font-medium text-muted-foreground">SendEmail</p>
+  1062→
+  1063→                  {/* SMTP Email */}
+  1064→                  <div className="flex items-center gap-2">
+  1065→                    <Button
+  1066→                      size="sm"
+  1067→                      variant="outline"
+  1068→                      onClick={handleSendEmail}
+  1069→                      disabled={
+  1070→                        sendingEmail ||
+  1071→                        pushingSmartlead ||
+  1072→                        !lead.email ||
+  1073→                        !lead.emailBody ||
+  1074→                        !emailConfig?.smtpHost
+  1075→                      }
+  1076→                      className="flex-1 justify-start"
+  1077→                    >
+  1078→                      {sendingEmail ? (
+  1079→                        <>
+  1080→                          <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+  1081→                          Sending...
+  1082→                        </>
+  1083→                      ) : (
+  1084→                        <>
+  1085→                          <Server className="mr-2 h-3.5 w-3.5" />
+  1086→                          SMTP 直接Email
+  1087→                        </>
+  1088→                      )}
+  1089→                    </Button>
+  1090→                    {emailConfig?.smtpHost ? (
+  1091→                      <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs">
+  1092→                        <CheckCircle2 className="mr-1 h-3 w-3" />
+  1093→                        SMTP Configured
+  1094→                      </Badge>
+  1095→                    ) : (
+  1096→                      <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs">
+  1097→                        Not configured
+  1098→                      </Badge>
+  1099→                    )}
+  1100→                  </div>
+  1101→
+  1102→                  {/* Smartlead Push */}
+  1103→                  <div className="flex items-center gap-2">
+  1104→                    <Button
+  1105→                      size="sm"
+  1106→                      onClick={handleOpenSmartleadDialog}
+  1107→                      disabled={
+  1108→                        sendingEmail ||
+  1109→                        pushingSmartlead ||
+  1110→                        !lead.email ||
+  1111→                        !lead.emailBody ||
+  1112→                        !emailConfig?.smartleadApiKey
+  1113→                      }
+  1114→                      className="flex-1 justify-start bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700"
+  1115→                    >
+  1116→                      <Rocket className="mr-2 h-3.5 w-3.5" />
+  1117→                      Push到 Smartlead
+  1118→                    </Button>
+  1119→                    {emailConfig?.smartleadApiKey ? (
+  1120→                      <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs">
+  1121→                        <CheckCircle2 className="mr-1 h-3 w-3" />
+  1122→                        已連接
+  1123→                      </Badge>
+  1124→                    ) : (
+  1125→                      <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs">
+  1126→                        未連接
+  1127→                      </Badge>
+  1128→                    )}
+  1129→                  </div>
+  1130→
+  1131→                  {!lead.email && (
+  1132→                    <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/40 p-2 text-xs text-amber-700 dark:text-amber-300">
+  1133→                      <AlertCircle className="h-3 w-3" />
+  1134→                      此Leads缺少收件者 email，無法Email
+  1135→                    </div>
+  1136→                  )}
+  1137→
+  1138→                  {!emailConfig?.smtpHost && !emailConfig?.smartleadApiKey && (
+  1139→                    <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/40 p-2 text-xs text-amber-700 dark:text-amber-300">
+  1140→                      <AlertCircle className="h-3 w-3" />
+  1141→                      尚Not configuredEmail方式，請至「EmailSettings」分頁Settings SMTP 或 Smartlead
+  1142→                    </div>
+  1143→                  )}
+  1144→                </div>
+  1145→              </div>
+  1146→            ) : (
+  1147→              <div className="rounded-lg border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground">
+  1148→                Click「AI 生成Email」根據研究結果產出高Reply Rate的個人化Email
+  1149→              </div>
+  1150→            )}
+  1151→          </section>
+  1152→        </div>
+  1153→      </SheetContent>
+  1154→
+  1155→      {/* Smartlead Push對話框 */}
+  1156→      <Dialog open={smartleadDialogOpen} onOpenChange={setSmartleadDialogOpen}>
+  1157→        <DialogContent className="max-w-lg">
+  1158→          <DialogHeader>
+  1159→            <DialogTitle className="flex items-center gap-2">
+  1160→              <Rocket className="h-4 w-4 text-violet-600" />
+  1161→              Push到 Smartlead
+  1162→            </DialogTitle>
+  1163→            <DialogDescription>
+  1164→              選擇要Push到的 Smartlead 行銷活動。AI 生成的EmailSubject與內容會作為序章首emailsEmail。
+  1165→            </DialogDescription>
+  1166→          </DialogHeader>
+  1167→
+  1168→          <div className="space-y-3 py-2">
+  1169→            <div className="rounded-md bg-muted/40 p-3 text-xs space-y-1">
+  1170→              <div className="flex justify-between">
+  1171→                <span className="text-muted-foreground">收件者</span>
+  1172→                <span className="font-medium">{lead.email}</span>
+  1173→              </div>
+  1174→              <div className="flex justify-between">
+  1175→                <span className="text-muted-foreground">Subject</span>
+  1176→                <span className="font-medium truncate max-w-[300px]">{lead.emailSubject}</span>
+  1177→              </div>
+  1178→            </div>
+  1179→
+  1180→            <div>
+  1181→              <Label className="text-xs font-medium mb-2 block">選擇 Smartlead 行銷活動</Label>
+  1182→              {smartleadCampaigns.length === 0 ? (
+  1183→                <div className="rounded-md border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground">
+  1184→                  你的 Smartlead Username中沒有任何行銷活動。請先至 Smartlead 後台建立。
+  1185→                </div>
+  1186→              ) : (
+  1187→                <ScrollArea className="h-64 rounded-md border border-border/60">
+  1188→                  <div className="p-2 space-y-1">
+  1189→                    {smartleadCampaigns.map((c) => (
+  1190→                      <button
+  1191→                        key={c.id}
+  1192→                        onClick={() => setSelectedCampaignId(c.id)}
+  1193→                        className={`w-full text-left p-2 rounded-md transition-colors ${
+  1194→                          selectedCampaignId === c.id
+  1195→                            ? 'bg-violet-100 dark:bg-violet-950/40 border border-violet-400'
+  1196→                            : 'bg-background hover:bg-muted/60 border border-transparent'
+  1197→                        }`}
+  1198→                      >
+  1199→                        <div className="flex items-center justify-between gap-2">
+  1200→                          <div className="min-w-0">
+  1201→                            <p className="text-sm font-medium truncate">{c.name}</p>
+  1202→                            <p className="text-[11px] text-muted-foreground">
+  1203→                              ID: {c.id}
+  1204→                              {c.status && ` · ${c.status}`}
+  1205→                              {c.leadsCount != null && ` · ${c.leadsCount} Leads`}
+  1206→                              {c.sequenceSteps != null && ` · ${c.sequenceSteps} 步驟`}
+  1207→                            </p>
+  1208→                          </div>
+  1209→                          {selectedCampaignId === c.id && (
+  1210→                            <CheckCircle2 className="h-4 w-4 text-violet-600 shrink-0" />
+  1211→                          )}
+  1212→                        </div>
+  1213→                      </button>
+  1214→                    ))}
+  1215→                  </div>
+  1216→                </ScrollArea>
+  1217→              )}
+  1218→            </div>
+  1219→          </div>
+  1220→
+  1221→          <DialogFooter>
+  1222→            <Button variant="outline" onClick={() => setSmartleadDialogOpen(false)}>
+  1223→              Cancel
+  1224→            </Button>
+  1225→            <Button
+  1226→              onClick={handlePushToSmartlead}
+  1227→              disabled={pushingSmartlead || !selectedCampaignId || smartleadCampaigns.length === 0}
+  1228→              className="bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700"
+  1229→            >
+  1230→              {pushingSmartlead ? (
+  1231→                <>
+  1232→                  <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+  1233→                  Push中...
+  1234→                </>
+  1235→              ) : (
+  1236→                <>
+  1237→                  <Send className="mr-1 h-3.5 w-3.5" />
+  1238→                  ConfirmPush
+  1239→                </>
+  1240→              )}
+  1241→            </Button>
+  1242→          </DialogFooter>
+  1243→        </DialogContent>
+  1244→      </Dialog>
+  1245→    </Sheet>
+  1246→  )
+  1247→}
+  1248→
