@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     const result = await enrichEmail({
       companyName: lead.company,
       website: lead.website,
-      apolloApiKey: config?.apolloApiKey ?? undefined,
+      hunterApiKey: config?.hunterApiKey ?? undefined,
       existingKeyPeople,
     })
 

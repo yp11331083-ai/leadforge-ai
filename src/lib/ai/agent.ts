@@ -974,7 +974,7 @@ export interface DecisionMaker {
   email?: string
   linkedin?: string
   confidence: 'high' | 'medium' | 'low'  // email 信心度
-  email_source: 'apollo' | 'ai_predicted' | 'web_search' | 'unknown'
+  email_source: 'hunter' | 'ai_predicted' | 'web_search' | 'unknown'
   priority: number  // 1=最高優先
   reason?: string  // 為什麼這個人是對的聯絡人
 }
@@ -1088,69 +1088,62 @@ export function extractDomain(url: string): string | null {
 }
 
 /**
- * 透過 Apollo API 找人
+ * 透過 Hunter.io API 找人 (Domain Search)
+ * Free tier: 25 searches/month, $34/mo for 500 searches
  */
-async function findPeopleWithApollo(params: {
-  apolloApiKey: string
-  companyName: string
+async function findPeopleWithHunter(params: {
+  hunterApiKey: string
   domain: string
-  targetTitles: string[]
 }): Promise<DecisionMaker[]> {
-  const { apolloApiKey, companyName, domain, targetTitles } = params
+  const { hunterApiKey, domain } = params
 
   try {
-    // Apollo People Search API
-    // 文件：https://apolloio.github.io/apollo-api-docs/?shell#get-people-search-information
-    const body = {
-      api_key: apolloApiKey,
-      q_organization_domains: domain,
-      page: 1,
-      per_page: 25,
-      person_titles: targetTitles,
-    }
-
-    const res = await fetch('https://api.apollo.io/v1/people/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
+    // Hunter.io Domain Search API
+    // Returns all public emails found for a domain
+    const res = await fetch(
+      `https://api.hunter.io/v2/domain-search?domain=${domain}&api_key=${hunterApiKey}&limit=20`,
+      { method: 'GET' }
+    )
 
     if (!res.ok) {
-      console.error('Apollo API failed:', res.status, await res.text())
+      console.error('Hunter.io API failed:', res.status)
       return []
     }
 
     const data = await res.json() as {
-      people?: Array<{
-        first_name?: string
-        last_name?: string
-        name?: string
-        title?: string
-        email?: string
-        linkedin_url?: string
-        email_status?: string
-      }>
+      data?: {
+        emails?: Array<{
+          value?: string
+          first_name?: string
+          last_name?: string
+          position?: string
+          confidence?: number
+          linkedin?: string
+          type?: string
+        }>
+      }
     }
 
-    const people = data.people ?? []
-    return people.map((p) => {
-      const name = p.name ?? [p.first_name, p.last_name].filter(Boolean).join(' ')
-      const title = p.title ?? ''
+    const emails = data.data?.emails ?? []
+    return emails.map((p) => {
+      const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Unknown'
+      const title = p.position ?? ''
       const rank = rankTitle(title)
+      const confScore = p.confidence ?? 0
       return {
         name,
         title,
         seniority: rank.seniority,
-        email: p.email && p.email !== 'email_not_found@不定.com' ? p.email : undefined,
-        linkedin: p.linkedin_url,
-        confidence: p.email ? 'high' as const : 'low' as const,
-        email_source: p.email ? 'apollo' as const : 'unknown' as const,
+        email: p.value,
+        linkedin: p.linkedin,
+        confidence: confScore >= 80 ? 'high' as const : confScore >= 50 ? 'medium' as const : 'low' as const,
+        email_source: p.value ? 'hunter' as const : 'unknown' as const,
         priority: rank.priority,
         reason: rank.reason,
       }
     })
   } catch (e) {
-    console.error('Apollo API error:', e)
+    console.error('Hunter.io API error:', e)
     return []
   }
 }
@@ -1300,23 +1293,23 @@ async function findPeopleWithAI(params: {
 export async function enrichEmail(params: {
   companyName: string
   website: string
-  apolloApiKey?: string
+  hunterApiKey?: string
   existingKeyPeople?: Array<{ name: string; title: string; linkedin?: string }>
 }): Promise<{
   success: boolean
   result: EnrichEmailResult | null
   error?: string
 }> {
-  const { companyName, website, apolloApiKey, existingKeyPeople } = params
+  const { companyName, website, hunterApiKey, existingKeyPeople } = params
 
   const domain = extractDomain(website)
   if (!domain) {
-    return { success: false, result: null, error: '無法從網址萃取網域' }
+    return { success: false, result: null, error: 'Unable to extract domain from URL' }
   }
 
   let decisionMakers: DecisionMaker[] = []
 
-  // 策略 0（最優先）：用深度研究裡的 key_people（已存在，不消耗 web_search 配額）
+  // Strategy 0: Use key_people from deep research (no API cost)
   if (existingKeyPeople && existingKeyPeople.length > 0) {
     for (const p of existingKeyPeople.slice(0, 8)) {
       const rank = rankTitle(p.title)
@@ -1336,38 +1329,27 @@ export async function enrichEmail(params: {
         confidence: 'medium',
         email_source: 'ai_predicted',
         priority: rank.priority,
-        reason: `${rank.reason}（從深度研究取得）`,
+        reason: `${rank.reason} (from deep research)`,
       })
     }
   }
 
-  // 策略 1：Apollo API（如果有 API key 且還沒足夠決策者）
-  if (apolloApiKey && decisionMakers.length < 3) {
-    const targetTitles = [
-      'VP of Sales', 'VP Sales', 'Vice President of Sales',
-      'Sales Director', 'Director of Sales',
-      'Chief Revenue Officer', 'CRO',
-      'CEO', 'Chief Executive Officer',
-      'Founder', 'Co-Founder',
-      'Head of Sales', 'Head of Revenue',
-      'CMO', 'COO',
-    ]
-    const apolloPeople = await findPeopleWithApollo({
-      apolloApiKey,
-      companyName,
+  // Strategy 1: Hunter.io API (if API key provided and not enough decision makers)
+  if (hunterApiKey && decisionMakers.length < 3) {
+    const hunterPeople = await findPeopleWithHunter({
+      hunterApiKey,
       domain,
-      targetTitles,
     })
-    // 合併，避免重複
+    // Merge, avoid duplicates
     const existingNames = new Set(decisionMakers.map((d) => d.name.toLowerCase()))
-    for (const p of apolloPeople) {
+    for (const p of hunterPeople) {
       if (!existingNames.has(p.name.toLowerCase())) {
         decisionMakers.push(p)
       }
     }
   }
 
-  // 策略 2：AI web_search（如果還是沒結果）
+  // Strategy 2: AI web_search (if still no results)
   if (decisionMakers.length === 0) {
     decisionMakers = await findPeopleWithAI({ companyName, domain })
   }

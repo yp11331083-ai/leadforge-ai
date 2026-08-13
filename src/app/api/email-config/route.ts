@@ -36,7 +36,7 @@ export async function PUT(req: NextRequest) {
       smtpSecure: body.smtpSecure ?? true,
       smartleadApiKey: body.smartleadApiKey ?? null,
       smartleadDefaultCampaignId: body.smartleadDefaultCampaignId ?? null,
-      apolloApiKey: body.apolloApiKey ?? null,
+      hunterApiKey: body.hunterApiKey ?? null,
       calComApiKey: body.calComApiKey ?? null,
       stripeSecretKey: body.stripeSecretKey ?? null,
       stripeMeteredPriceId: body.stripeMeteredPriceId ?? null,
@@ -113,17 +113,17 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    if (action === 'test-apollo') {
-      if (!config?.apolloApiKey) {
-        return NextResponse.json({ error: 'Apollo API Key 尚未設定' }, { status: 400 })
+    if (action === 'test-hunter') {
+      if (!config?.hunterApiKey) {
+        return NextResponse.json({ error: 'Hunter.io API Key 尚未設定' }, { status: 400 })
       }
       const res = await fetch('https://api.apollo.io/v1/auth/health', {
-        headers: { 'X-Api-Key': config.apolloApiKey },
+        headers: { 'X-Api-Key': config.hunterApiKey },
       })
       if (!res.ok) {
         return NextResponse.json({ error: `Apollo API 失敗: ${res.status}` }, { status: 502 })
       }
-      return NextResponse.json({ success: true, message: 'Apollo API Key 有效！' })
+      return NextResponse.json({ success: true, message: 'Hunter.io API Key 有效！' })
     }
 
     if (action === 'test-calcom') {
@@ -156,8 +156,8 @@ function maskSecrets(config: any) {
     smartleadApiKey: config.smartleadApiKey
       ? config.smartleadApiKey.slice(0, 4) + '••••' + config.smartleadApiKey.slice(-4)
       : null,
-    apolloApiKey: config.apolloApiKey
-      ? config.apolloApiKey.slice(0, 4) + '••••' + config.apolloApiKey.slice(-4)
+    hunterApiKey: config.hunterApiKey
+      ? config.hunterApiKey.slice(0, 4) + '••••' + config.hunterApiKey.slice(-4)
       : null,
     calComApiKey: config.calComApiKey
       ? config.calComApiKey.slice(0, 4) + '••••' + config.calComApiKey.slice(-4)

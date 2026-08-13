@@ -31,7 +31,6 @@ import {
   Zap,
   Shield,
   Settings2,
-  Copy,
   Sparkles,
 } from 'lucide-react'
 import { useLeadStore } from '@/store/lead-store'
@@ -97,12 +96,6 @@ export function EmailSendingPanel() {
     setSmtpOk(result.success)
     if (result.success) toast.success(result.message ?? 'SMTP connection successful')
     else toast.error(result.error ?? 'SMTP connection failed')
-  }
-
-  const handleCopyWebhook = () => {
-    const webhookUrl = `${window.location.origin}/api/webhooks/calcom`
-    navigator.clipboard.writeText(webhookUrl)
-    toast.success('Webhook URL copied!')
   }
 
   const smtpConfigured = !!(emailConfig?.smtpHost && emailConfig?.smtpUser && emailConfig?.smtpPass && emailConfig?.smtpFromEmail)
@@ -278,7 +271,7 @@ export function EmailSendingPanel() {
 
       <Separator />
 
-      {/* ===== 3. Lead Credits (Apollo — Platform-managed) ===== */}
+      {/* ===== 3. Lead Credits (Hunter.io — Platform-managed) ===== */}
       <Card className="p-5 space-y-3 border-cyan-200 dark:border-cyan-900 bg-cyan-50/30 dark:bg-cyan-950/10">
         <div className="flex items-center gap-2">
           <div className="rounded-lg bg-cyan-100 dark:bg-cyan-950/50 p-2">
@@ -306,48 +299,71 @@ export function EmailSendingPanel() {
         </div>
       </Card>
 
-      {/* ===== 4. Cal.com Meeting Tracking (Platform-provided URL) ===== */}
+      {/* ===== 4. Cal.com Meeting Tracking (OAuth one-click) ===== */}
       <Card className="p-5 space-y-4">
         <div className="flex items-center gap-2">
           <div className="rounded-lg bg-rose-100 dark:bg-rose-950/50 p-2">
             <Calendar className="h-4 w-4 text-rose-600 dark:text-rose-400" />
           </div>
           <div>
-            <h2 className="text-base font-semibold">Cal.com Meeting Tracking</h2>
-            <p className="text-xs text-muted-foreground">Track meetings booked by your prospects automatically</p>
+            <h2 className="text-base font-semibold flex items-center gap-2">
+              Cal.com Meeting Tracking
+              {calComConfigured ? (
+                <Badge variant="outline" className="text-xs bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
+                  <CheckCircle2 className="mr-1 h-3 w-3" /> Connected
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-xs bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300">
+                  Not connected
+                </Badge>
+              )}
+            </h2>
+            <p className="text-xs text-muted-foreground">One-click OAuth — automatically tracks meetings booked by prospects</p>
           </div>
         </div>
 
-        <div className="space-y-3">
-          {/* Copy Webhook URL */}
-          <div className="rounded-lg border border-border/60 p-3">
-            <Label className="text-xs text-muted-foreground mb-1.5 block">Your Webhook URL (copy this)</Label>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 text-xs font-mono bg-muted/40 px-2 py-1.5 rounded truncate">
-                {typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/calcom` : '/api/webhooks/calcom'}
-              </code>
-              <Button size="sm" variant="outline" onClick={handleCopyWebhook} className="shrink-0">
-                <Copy className="h-3.5 w-3.5" />
-              </Button>
+        <div className={`rounded-lg border p-4 transition-all ${
+          calComConfigured
+            ? 'border-emerald-300 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-950/20'
+            : 'border-border/60 hover:border-rose-300 dark:hover:border-rose-800'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Calendar className="h-8 w-8 text-rose-500 shrink-0" />
+              <div>
+                <p className="text-sm font-medium">
+                  {calComConfigured ? 'Cal.com is connected' : 'Connect your Cal.com account'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {calComConfigured
+                    ? 'Webhook auto-registered. Meetings will appear in Analytics automatically.'
+                    : 'Click connect → authorize → webhook auto-created. Zero manual setup.'}
+                </p>
+              </div>
             </div>
+            {calComConfigured ? (
+              <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+            ) : (
+              <a href="/api/auth/calcom/connect">
+                <Button size="sm" className="bg-rose-600 hover:bg-rose-700">
+                  <Plug className="mr-1.5 h-3.5 w-3.5" /> Connect
+                </Button>
+              </a>
+            )}
           </div>
+        </div>
 
-          {/* Instructions */}
-          <div className="rounded-md bg-rose-50 dark:bg-rose-950/30 p-3 text-xs space-y-1.5 text-rose-700 dark:text-rose-300">
-            <p className="font-medium">Setup instructions:</p>
+        {!calComConfigured && (
+          <div className="rounded-md bg-rose-50 dark:bg-rose-950/30 p-3 text-xs space-y-1 text-rose-700 dark:text-rose-300">
+            <p className="font-medium">How it works:</p>
             <ol className="list-decimal ml-4 space-y-0.5">
-              <li>Log in to your <a href="https://app.cal.com/settings/webhooks" target="_blank" rel="noopener noreferrer" className="underline">Cal.com Webhooks settings</a></li>
-              <li>Click "Add Webhook"</li>
-              <li>Paste the URL above into "Endpoint URL"</li>
-              <li>Select events: <code className="px-1 bg-rose-100 dark:bg-rose-950/60 rounded">booking.created</code> and <code className="px-1 bg-rose-100 dark:bg-rose-950/60 rounded">booking.cancelled</code></li>
-              <li>Save — meetings will auto-appear in your Analytics</li>
+              <li>Click "Connect" → redirects to Cal.com authorization</li>
+              <li>Authorize Forge AI to read your bookings</li>
+              <li>Webhook auto-registered (booking.created + booking.cancelled)</li>
+              <li>Meetings appear in Analytics dashboard automatically</li>
             </ol>
           </div>
-
-          <a href="https://app.cal.com/settings/webhooks" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-rose-600 dark:text-rose-400 hover:underline">
-            <ExternalLink className="h-3 w-3" /> Open Cal.com Webhook Settings
-          </a>
-        </div>
+        )}
       </Card>
 
       {/* ===== 5. Smartlead (Optional / Advanced) ===== */}

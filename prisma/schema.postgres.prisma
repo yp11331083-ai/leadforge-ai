@@ -166,7 +166,7 @@ model EmailConfig {
   smartleadWebhookSecret      String?  // 驗證 webhook 用
 
   // Apollo.io
-  apolloApiKey      String?
+  hunterApiKey      String?
 
   // Cal.com（會議追蹤）
   calComApiKey      String?

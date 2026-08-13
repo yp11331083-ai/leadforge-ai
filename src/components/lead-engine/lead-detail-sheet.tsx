@@ -815,7 +815,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                       : 'bg-slate-50 dark:bg-slate-900/40 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
 
                   const sourceLabel =
-                    dm.email_source === 'apollo' ? 'Apollo 驗證' :
+                    dm.email_source === 'hunter' ? 'Apollo 驗證' :
                     dm.email_source === 'ai_predicted' ? 'AI 預測' :
                     dm.email_source === 'web_search' ? '網路Search' : 'Unknown'
 
@@ -905,7 +905,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                   </p>
                 )}
 
-                {!emailConfig?.apolloApiKey && (
+                {!emailConfig?.hunterApiKey && (
                   <div className="rounded-md bg-cyan-50 dark:bg-cyan-950/30 p-2 text-[11px] text-cyan-700 dark:text-cyan-300 flex items-start gap-1.5">
                     <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
                     <span>

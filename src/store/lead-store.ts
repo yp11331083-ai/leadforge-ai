@@ -63,7 +63,7 @@ export interface EmailConfig {
   smtpSecure: boolean
   smartleadApiKey: string | null
   smartleadDefaultCampaignId: string | null
-  apolloApiKey: string | null
+  hunterApiKey: string | null
   calComApiKey: string | null
   stripeSecretKey: string | null
   stripeMeteredPriceId: string | null
