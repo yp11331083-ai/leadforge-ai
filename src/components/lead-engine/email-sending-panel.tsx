@@ -100,6 +100,7 @@ export function EmailSendingPanel() {
 
   const smtpConfigured = !!(emailConfig?.smtpHost && emailConfig?.smtpUser && emailConfig?.smtpPass && emailConfig?.smtpFromEmail)
   const smartleadConfigured = !!emailConfig?.smartleadApiKey
+  const calComConfigured = !!emailConfig?.calComApiKey
 
   return (
     <div className="space-y-5">
