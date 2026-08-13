@@ -186,40 +186,40 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
     setResearching(true)
     const ok = await researchLead(lead.id, extraContext, 'basic')
     setResearching(false)
-    if (ok) toast.success('AI 研究完成！')
-    else toast.error('研究失敗，請確認網站可存取')
+    if (ok) toast.success('AI ResearchComplete！')
+    else toast.error('研究Failed，請Confirm網站可存取')
   }
 
   const handleDeepResearch = async () => {
     setDeepResearching(true)
-    toast.info('深度研究啟動中，AI 將同時抓取 LinkedIn / Crunchbase / 徵才頁 / 新聞，約需 30-60 秒...')
+    toast.info('深度研究Start中，AI 將同時抓取 LinkedIn / Crunchbase / 徵才頁 / 新聞，約需 30-60 秒...')
     const ok = await researchLead(lead.id, extraContext, 'deep')
     setDeepResearching(false)
-    if (ok) toast.success('深度研究完成！')
-    else toast.error('深度研究失敗，請稍後再試')
+    if (ok) toast.success('深度研究Complete！')
+    else toast.error('深度研究Failed，請稍後再試')
   }
 
   const handleGenerateEmail = async () => {
     setGenerating(true)
     const ok = await generateEmail(lead.id)
     setGenerating(false)
-    if (ok) toast.success('冷郵件已生成！')
-    else toast.error('郵件生成失敗')
+    if (ok) toast.success('冷EmailGenerated！')
+    else toast.error('Email生成Failed')
   }
 
   const handleSendEmail = async () => {
     if (!lead.email) {
-      toast.error('此名單缺少收件者 email')
+      toast.error('此Leads缺少收件者 email')
       return
     }
-    if (!confirm(`確定要透過 SMTP 直接發信到 ${lead.email}？\n\n主旨：${lead.emailSubject}`)) {
+    if (!confirm(`Confirm要透過 SMTP 直接Email到 ${lead.email}？\n\nSubject：${lead.emailSubject}`)) {
       return
     }
     setSendingEmail(true)
     const result = await sendEmail(lead.id)
     setSendingEmail(false)
-    if (result.success) toast.success(`已發送郵件到 ${lead.email}`)
-    else toast.error(result.error ?? '發信失敗')
+    if (result.success) toast.success(`SentEmail到 ${lead.email}`)
+    else toast.error(result.error ?? 'Send failed')
   }
 
   const handleOpenSmartleadDialog = async () => {
@@ -237,27 +237,27 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
     const result = await pushToSmartlead(lead.id, selectedCampaignId)
     setPushingSmartlead(false)
     if (result.success) {
-      toast.success(`已推送到 Smartlead Campaign #${selectedCampaignId}`)
+      toast.success(`已Push到 Smartlead Campaign #${selectedCampaignId}`)
       setSmartleadDialogOpen(false)
     } else {
-      toast.error(result.error ?? '推送失敗')
+      toast.error(result.error ?? 'PushFailed')
     }
   }
 
   const handleEnrichEmail = async () => {
     if (!lead.website) {
-      toast.error('此名單缺少網址，無法萃取網域')
+      toast.error('此Leads缺少網址，無法萃取網域')
       return
     }
     setEnrichingEmail(true)
-    toast.info('正在搜尋決策者 email，約 30-60 秒...')
+    toast.info('正在SearchDecision Maker email，約 30-60 秒...')
     const result = await enrichEmail(lead.id)
     setEnrichingEmail(false)
     if (result.success) {
       const count = result.result?.hasEmailCount ?? 0
-      toast.success(`找到 ${result.result?.totalFound ?? 0} 位決策者，其中 ${count} 位有 email`)
+      toast.success(`找到 ${result.result?.totalFound ?? 0} 位Decision Maker，其中 ${count} 位有 email`)
     } else {
-      toast.error(result.error ?? 'Email enrichment 失敗')
+      toast.error(result.error ?? 'Email enrichment Failed')
     }
   }
 
@@ -280,19 +280,19 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text)
-    toast.success(`已複製${label}`)
+    toast.success(`已Copy${label}`)
   }
 
   const saveSubject = async () => {
     await updateLead(lead.id, { emailSubject: tempSubject })
     setEditingSubject(false)
-    toast.success('主旨已更新')
+    toast.success('Subject已更新')
   }
 
   const saveBody = async () => {
     await updateLead(lead.id, { emailBody: tempBody })
     setEditingBody(false)
-    toast.success('郵件內容已更新')
+    toast.success('Email內容已更新')
   }
 
   return (
@@ -303,7 +303,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
             <div className="min-w-0">
               <SheetTitle className="text-xl">{lead.company}</SheetTitle>
               <SheetDescription className="mt-1">
-                {lead.contactName ? `${lead.contactName}` : '聯絡人未知'}
+                {lead.contactName ? `${lead.contactName}` : 'ContactUnknown'}
                 {lead.title ? ` · ${lead.title}` : ''}
               </SheetDescription>
             </div>
@@ -348,7 +348,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
             {lead.score != null && (
               <div className="flex items-center gap-2 col-span-2">
                 <Target className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="text-muted-foreground">潛在客戶分數</span>
+                <span className="text-muted-foreground">潛在客戶Score</span>
                 <ScoreBadge score={lead.score} />
               </div>
             )}
@@ -356,12 +356,12 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
 
           <Separator />
 
-          {/* AI 研究 */}
+          {/* AI Research */}
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <h3 className="flex items-center gap-2 text-sm font-semibold">
                 <Sparkles className="h-4 w-4 text-amber-500" />
-                AI 公司研究
+                AI Company研究
                 {lead.researchMode === 'deep' && (
                   <Badge variant="outline" className="ml-1 text-[10px] bg-violet-50 dark:bg-violet-950/40 border-violet-300 dark:border-violet-800 text-violet-700 dark:text-violet-300">
                     <Database className="mr-0.5 h-2.5 w-2.5" />
@@ -379,7 +379,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                   {researching ? (
                     <>
                       <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                      研究中...
+                      Researching...
                     </>
                   ) : (
                     <>
@@ -397,7 +397,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                   {deepResearching ? (
                     <>
                       <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                      深度研究中...
+                      深度Researching...
                     </>
                   ) : (
                     <>
@@ -412,14 +412,14 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
             <div className="text-[11px] text-muted-foreground bg-muted/40 rounded-md p-2 flex items-start gap-1.5">
               <Zap className="h-3 w-3 mt-0.5 shrink-0 text-amber-500" />
               <span>
-                <b>基本研究</b>：只抓官網，10-15 秒。 <b>深度研究</b>：同時抓 LinkedIn / Crunchbase / 徵才頁 / 新聞，30-60 秒，輸出融資、技術堆疊、競爭對手、開放職位等 8 大維度。
+                <b>基本研究</b>：只抓官網，10-15 秒。 <b>深度研究</b>：同時抓 LinkedIn / Crunchbase / 徵才頁 / 新聞，30-60 秒，輸出融資、Tech Stack、Competitors、Open Roles等 8 大維度。
               </span>
             </div>
 
             {!lead.website && (
               <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/40 p-2 text-xs text-amber-700 dark:text-amber-300">
                 <AlertCircle className="h-3 w-3" />
-                需要先填寫公司網站才能啟動 AI 研究
+                需要先填寫Company網站才能Start AI Research
               </div>
             )}
 
@@ -440,7 +440,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                 {parsedResearch.business_summary && (
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-1">
-                      核心業務
+                      Business Summary
                     </p>
                     <p className="text-sm">{parsedResearch.business_summary}</p>
                   </div>
@@ -448,7 +448,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                 {parsedHiring.length > 0 && (
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
-                      <TrendingUp className="h-3 w-3" /> 徵才訊號
+                      <TrendingUp className="h-3 w-3" /> Hiring Signals
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {parsedHiring.map((s, i) => (
@@ -467,7 +467,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                   parsedResearch.pain_points.length > 0 && (
                     <div>
                       <p className="text-xs font-medium text-muted-foreground mb-1">
-                        核心痛點
+                        Pain Points
                       </p>
                       <ul className="space-y-1.5">
                         {parsedResearch.pain_points.map((p, i) => (
@@ -483,7 +483,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                   parsedResearch.buying_signals.length > 0 && (
                     <div>
                       <p className="text-xs font-medium text-muted-foreground mb-1">
-                        採購訊號
+                        Buying Signals
                       </p>
                       <div className="flex flex-wrap gap-1.5">
                         {parsedResearch.buying_signals.map((s, i) => (
@@ -501,7 +501,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                 {parsedResearch.outreach_angle && (
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-1">
-                      建議切入點
+                      Suggested Angle
                     </p>
                     <p className="text-sm italic text-emerald-700 dark:text-emerald-400">
                       {parsedResearch.outreach_angle}
@@ -511,7 +511,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground">
-                點擊「基本研究」或「深度研究」啟動 AI 分析
+                Click「基本研究」或「深度研究」Start AI 分析
               </div>
             )}
           </section>
@@ -525,15 +525,15 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                   <Database className="h-4 w-4 text-violet-500" />
                   深度研究情報
                   <span className="text-[10px] font-normal text-muted-foreground">
-                    （多源整合：{parsedSources.length} 個來源）
+                    （多源整合：{parsedSources.length} 個Source）
                   </span>
                 </h3>
 
-                {/* 融資狀態 */}
+                {/* 融資Status */}
                 {parsedDeepResearch.funding && (
                   <div className="rounded-lg border border-border/60 bg-violet-50/40 dark:bg-violet-950/20 p-3">
                     <p className="text-xs font-medium text-violet-700 dark:text-violet-300 mb-2 flex items-center gap-1">
-                      <DollarSign className="h-3 w-3" /> 融資狀態
+                      <DollarSign className="h-3 w-3" /> 融資Status
                     </p>
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       {parsedDeepResearch.funding.last_round && (
@@ -556,7 +556,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                       )}
                       {parsedDeepResearch.funding.last_funding_date && (
                         <div>
-                          <span className="text-muted-foreground">融資時間：</span>
+                          <span className="text-muted-foreground">融資Time：</span>
                           <span className="font-medium">{parsedDeepResearch.funding.last_funding_date}</span>
                         </div>
                       )}
@@ -573,11 +573,11 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                   </div>
                 )}
 
-                {/* 技術堆疊 */}
+                {/* Tech Stack */}
                 {parsedDeepResearch.tech_stack && parsedDeepResearch.tech_stack.length > 0 && (
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                      <Layers className="h-3 w-3" /> 技術堆疊
+                      <Layers className="h-3 w-3" /> Tech Stack
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {parsedDeepResearch.tech_stack.map((tech, i) => (
@@ -593,11 +593,11 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                   </div>
                 )}
 
-                {/* 開放職位 */}
+                {/* Open Roles */}
                 {parsedDeepResearch.open_roles && (
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                      <Briefcase className="h-3 w-3" /> 開放職位（按部門）
+                      <Briefcase className="h-3 w-3" /> Open Roles（By Department）
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {[
@@ -623,11 +623,11 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                   </div>
                 )}
 
-                {/* 競爭對手 */}
+                {/* Competitors */}
                 {parsedDeepResearch.competitors && parsedDeepResearch.competitors.length > 0 && (
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                      <Swords className="h-3 w-3" /> 競爭對手
+                      <Swords className="h-3 w-3" /> Competitors
                     </p>
                     <ul className="space-y-1.5">
                       {parsedDeepResearch.competitors.map((c, i) => (
@@ -645,11 +645,11 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                   </div>
                 )}
 
-                {/* 近期新聞 */}
+                {/* Recent News */}
                 {parsedDeepResearch.recent_news && parsedDeepResearch.recent_news.length > 0 && (
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                      <Newspaper className="h-3 w-3" /> 近期新聞
+                      <Newspaper className="h-3 w-3" /> Recent News
                     </p>
                     <ul className="space-y-2">
                       {parsedDeepResearch.recent_news.map((n, i) => (
@@ -674,11 +674,11 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                   </div>
                 )}
 
-                {/* 關鍵人物 */}
+                {/* Key People */}
                 {parsedDeepResearch.key_people && parsedDeepResearch.key_people.length > 0 && (
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                      <Users className="h-3 w-3" /> 關鍵人物
+                      <Users className="h-3 w-3" /> Key People
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                       {parsedDeepResearch.key_people.map((p, i) => (
@@ -696,11 +696,11 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                   </div>
                 )}
 
-                {/* 成長訊號 */}
+                {/* Growth Signals */}
                 {parsedDeepResearch.growth_signals && parsedDeepResearch.growth_signals.length > 0 && (
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                      <Rocket className="h-3 w-3" /> 成長訊號
+                      <Rocket className="h-3 w-3" /> Growth Signals
                     </p>
                     <ul className="space-y-1.5">
                       {parsedDeepResearch.growth_signals.map((s, i) => (
@@ -713,11 +713,11 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                   </div>
                 )}
 
-                {/* 戰略倡議 */}
+                {/* Strategic Initiatives */}
                 {parsedDeepResearch.strategic_initiatives && parsedDeepResearch.strategic_initiatives.length > 0 && (
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                      <Target className="h-3 w-3" /> 戰略倡議
+                      <Target className="h-3 w-3" /> Strategic Initiatives
                     </p>
                     <ul className="space-y-1.5">
                       {parsedDeepResearch.strategic_initiatives.map((s, i) => (
@@ -730,11 +730,11 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                   </div>
                 )}
 
-                {/* 研究來源 */}
+                {/* 研究Source */}
                 {parsedSources.length > 0 && (
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                      <Link2 className="h-3 w-3" /> 研究來源（{parsedSources.length} 個）
+                      <Link2 className="h-3 w-3" /> 研究Source（{parsedSources.length} 個）
                     </p>
                     <ul className="space-y-1">
                       {parsedSources.map((s, i) => (
@@ -769,7 +769,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
             <div className="flex items-center justify-between gap-2">
               <h3 className="flex items-center gap-2 text-sm font-semibold">
                 <Crown className="h-4 w-4 text-amber-500" />
-                決策者 Email
+                Decision Maker Email
                 {parsedEnrichedEmails && (
                   <Badge variant="outline" className="ml-1 text-[10px] bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300">
                     {parsedEnrichedEmails.hasEmailCount} / {parsedEnrichedEmails.totalFound} 有 email
@@ -790,7 +790,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                 ) : (
                   <>
                     <Search className="mr-1 h-3 w-3" />
-                    {parsedEnrichedEmails ? '重新找 Email' : '找出決策者 Email'}
+                    {parsedEnrichedEmails ? '重新找 Email' : '找出Decision Maker Email'}
                   </>
                 )}
               </Button>
@@ -799,7 +799,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
             {!lead.website && (
               <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/40 p-2 text-xs text-amber-700 dark:text-amber-300">
                 <AlertCircle className="h-3 w-3" />
-                需要有公司網址才能找決策者 email
+                需要有Company網址才能找Decision Maker email
               </div>
             )}
 
@@ -817,7 +817,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                   const sourceLabel =
                     dm.email_source === 'apollo' ? 'Apollo 驗證' :
                     dm.email_source === 'ai_predicted' ? 'AI 預測' :
-                    dm.email_source === 'web_search' ? '網路搜尋' : '未知'
+                    dm.email_source === 'web_search' ? '網路Search' : 'Unknown'
 
                   return (
                     <div
@@ -901,7 +901,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
 
                 {parsedEnrichedEmails.companyEmailPattern && (
                   <p className="text-[11px] text-muted-foreground mt-1">
-                    公司 email 網域：{parsedEnrichedEmails.companyEmailPattern}
+                    Company email 網域：{parsedEnrichedEmails.companyEmailPattern}
                   </p>
                 )}
 
@@ -909,30 +909,30 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                   <div className="rounded-md bg-cyan-50 dark:bg-cyan-950/30 p-2 text-[11px] text-cyan-700 dark:text-cyan-300 flex items-start gap-1.5">
                     <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
                     <span>
-                      目前用 <b>AI 預測模式</b>（信心度 medium）。設定 Apollo API Key 後，可取得已驗證的真實 email。
+                      目前用 <b>AI 預測模式</b>（信心度 medium）。Settings Apollo API Key 後，可取得已驗證的真實 email。
                     </span>
                   </div>
                 )}
               </div>
             ) : parsedEnrichedEmails ? (
               <div className="rounded-lg border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground">
-                未找到決策者。可能是公司太小或 LinkedIn 上沒有公開資訊。建議手動到 LinkedIn 搜尋。
+                未找到Decision Maker。可能是Company太小或 LinkedIn 上沒有公開資訊。建議手動到 LinkedIn Search。
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground">
-                點擊「找出決策者 Email」讓 AI 找出 VP Sales / Director / CEO / Founder 的 email
+                Click「找出Decision Maker Email」讓 AI 找出 VP Sales / Director / CEO / Founder 的 email
               </div>
             )}
           </section>
 
           <Separator />
 
-          {/* 冷郵件 */}
+          {/* 冷Email */}
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-2">
               <h3 className="flex items-center gap-2 text-sm font-semibold">
                 <Mail className="h-4 w-4 text-emerald-500" />
-                個人化冷郵件
+                個人化冷Email
               </h3>
               <Button
                 size="sm"
@@ -947,7 +947,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                 ) : (
                   <>
                     <Sparkles className="mr-1 h-3 w-3" />
-                    {lead.emailBody ? '重新生成' : 'AI 生成郵件'}
+                    {lead.emailBody ? 'Regenerate' : 'AI 生成Email'}
                   </>
                 )}
               </Button>
@@ -956,7 +956,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
             {!parsedResearch && (
               <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/40 p-2 text-xs text-amber-700 dark:text-amber-300">
                 <AlertCircle className="h-3 w-3" />
-                需要先完成 AI 研究才能生成個人化郵件
+                需要先Complete AI Research才能生成個人化Email
               </div>
             )}
 
@@ -964,7 +964,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
               <div className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-3">
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <Label className="text-xs text-muted-foreground">主旨</Label>
+                    <Label className="text-xs text-muted-foreground">Subject</Label>
                     <div className="flex gap-1">
                       <Button
                         size="sm"
@@ -979,14 +979,14 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                           }
                         }}
                       >
-                        {editingSubject ? '儲存' : '編輯'}
+                        {editingSubject ? 'Save' : 'Edit'}
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
                         className="h-6 px-2 text-xs"
                         onClick={() =>
-                          copyToClipboard(lead.emailSubject ?? '', '主旨')
+                          copyToClipboard(lead.emailSubject ?? '', 'Subject')
                         }
                       >
                         <Copy className="h-3 w-3" />
@@ -1006,7 +1006,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <Label className="text-xs text-muted-foreground">郵件內容</Label>
+                    <Label className="text-xs text-muted-foreground">Email內容</Label>
                     <div className="flex gap-1">
                       <Button
                         size="sm"
@@ -1021,13 +1021,13 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                           }
                         }}
                       >
-                        {editingBody ? '儲存' : '編輯'}
+                        {editingBody ? 'Save' : 'Edit'}
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
                         className="h-6 px-2 text-xs"
-                        onClick={() => copyToClipboard(lead.emailBody ?? '', '郵件')}
+                        onClick={() => copyToClipboard(lead.emailBody ?? '', 'Email')}
                       >
                         <Copy className="h-3 w-3" />
                       </Button>
@@ -1049,18 +1049,18 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
 
                 {lead.icebreaker && (
                   <div className="pt-2 border-t border-border/40">
-                    <p className="text-xs text-muted-foreground mb-1">開場白（Icebreaker）</p>
+                    <p className="text-xs text-muted-foreground mb-1">Icebreaker（Icebreaker）</p>
                     <p className="text-xs italic text-emerald-700 dark:text-emerald-400">
                       &ldquo;{lead.icebreaker}&rdquo;
                     </p>
                   </div>
                 )}
 
-                {/* 發信動作區 */}
+                {/* EmailActions區 */}
                 <div className="pt-3 border-t border-border/40 space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">發送郵件</p>
+                  <p className="text-xs font-medium text-muted-foreground">SendEmail</p>
 
-                  {/* SMTP 發信 */}
+                  {/* SMTP Email */}
                   <div className="flex items-center gap-2">
                     <Button
                       size="sm"
@@ -1078,28 +1078,28 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                       {sendingEmail ? (
                         <>
                           <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                          發送中...
+                          Sending...
                         </>
                       ) : (
                         <>
                           <Server className="mr-2 h-3.5 w-3.5" />
-                          SMTP 直接發信
+                          SMTP 直接Email
                         </>
                       )}
                     </Button>
                     {emailConfig?.smtpHost ? (
                       <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs">
                         <CheckCircle2 className="mr-1 h-3 w-3" />
-                        SMTP 已設定
+                        SMTP Configured
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs">
-                        未設定
+                        Not configured
                       </Badge>
                     )}
                   </div>
 
-                  {/* Smartlead 推送 */}
+                  {/* Smartlead Push */}
                   <div className="flex items-center gap-2">
                     <Button
                       size="sm"
@@ -1114,7 +1114,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                       className="flex-1 justify-start bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700"
                     >
                       <Rocket className="mr-2 h-3.5 w-3.5" />
-                      推送到 Smartlead
+                      Push到 Smartlead
                     </Button>
                     {emailConfig?.smartleadApiKey ? (
                       <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs">
@@ -1131,37 +1131,37 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                   {!lead.email && (
                     <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/40 p-2 text-xs text-amber-700 dark:text-amber-300">
                       <AlertCircle className="h-3 w-3" />
-                      此名單缺少收件者 email，無法發信
+                      此Leads缺少收件者 email，無法Email
                     </div>
                   )}
 
                   {!emailConfig?.smtpHost && !emailConfig?.smartleadApiKey && (
                     <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/40 p-2 text-xs text-amber-700 dark:text-amber-300">
                       <AlertCircle className="h-3 w-3" />
-                      尚未設定發信方式，請至「發信設定」分頁設定 SMTP 或 Smartlead
+                      尚Not configuredEmail方式，請至「EmailSettings」分頁Settings SMTP 或 Smartlead
                     </div>
                   )}
                 </div>
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground">
-                點擊「AI 生成郵件」根據研究結果產出高回覆率的個人化郵件
+                Click「AI 生成Email」根據研究結果產出高Reply Rate的個人化Email
               </div>
             )}
           </section>
         </div>
       </SheetContent>
 
-      {/* Smartlead 推送對話框 */}
+      {/* Smartlead Push對話框 */}
       <Dialog open={smartleadDialogOpen} onOpenChange={setSmartleadDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Rocket className="h-4 w-4 text-violet-600" />
-              推送到 Smartlead
+              Push到 Smartlead
             </DialogTitle>
             <DialogDescription>
-              選擇要推送到的 Smartlead 行銷活動。AI 生成的郵件主旨與內容會作為序章首封郵件。
+              選擇要Push到的 Smartlead 行銷活動。AI 生成的EmailSubject與內容會作為序章首emailsEmail。
             </DialogDescription>
           </DialogHeader>
 
@@ -1172,7 +1172,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                 <span className="font-medium">{lead.email}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">主旨</span>
+                <span className="text-muted-foreground">Subject</span>
                 <span className="font-medium truncate max-w-[300px]">{lead.emailSubject}</span>
               </div>
             </div>
@@ -1181,7 +1181,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
               <Label className="text-xs font-medium mb-2 block">選擇 Smartlead 行銷活動</Label>
               {smartleadCampaigns.length === 0 ? (
                 <div className="rounded-md border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground">
-                  你的 Smartlead 帳號中沒有任何行銷活動。請先至 Smartlead 後台建立。
+                  你的 Smartlead Username中沒有任何行銷活動。請先至 Smartlead 後台建立。
                 </div>
               ) : (
                 <ScrollArea className="h-64 rounded-md border border-border/60">
@@ -1202,7 +1202,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                             <p className="text-[11px] text-muted-foreground">
                               ID: {c.id}
                               {c.status && ` · ${c.status}`}
-                              {c.leadsCount != null && ` · ${c.leadsCount} 名單`}
+                              {c.leadsCount != null && ` · ${c.leadsCount} Leads`}
                               {c.sequenceSteps != null && ` · ${c.sequenceSteps} 步驟`}
                             </p>
                           </div>
@@ -1220,7 +1220,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setSmartleadDialogOpen(false)}>
-              取消
+              Cancel
             </Button>
             <Button
               onClick={handlePushToSmartlead}
@@ -1230,12 +1230,12 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
               {pushingSmartlead ? (
                 <>
                   <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                  推送中...
+                  Push中...
                 </>
               ) : (
                 <>
                   <Send className="mr-1 h-3.5 w-3.5" />
-                  確認推送
+                  ConfirmPush
                 </>
               )}
             </Button>

@@ -61,7 +61,7 @@ export function EmailSendingPanel() {
     fetchEmailConfig()
   }, [fetchEmailConfig])
 
-  // 同步 DB 設定到表單（只在 emailConfig.updatedAt 改變時執行，避免覆蓋使用者輸入）
+  // 同步 DB Settings到表單（只在 emailConfig.updatedAt 改變時執行，避免覆蓋使用者輸入）
   const configKey = emailConfig?.updatedAt ?? ''
   if (emailConfig && configKey !== lastSyncedAt) {
     setLastSyncedAt(configKey)
@@ -89,7 +89,7 @@ export function EmailSendingPanel() {
     setSaving(true)
     await saveEmailConfig(form)
     setSaving(false)
-    toast.success('設定已儲存')
+    toast.success('Settings saved')
   }
 
   const handleTestSmtp = async () => {
@@ -101,8 +101,8 @@ export function EmailSendingPanel() {
     const result = await testEmailConfig('test-smtp')
     setTestingSmtp(false)
     setSmtpOk(result.success)
-    if (result.success) toast.success(result.message ?? 'SMTP 連線成功')
-    else toast.error(result.error ?? 'SMTP 連線失敗')
+    if (result.success) toast.success(result.message ?? 'SMTP connection successful')
+    else toast.error(result.error ?? 'SMTP connection failed')
   }
 
   const handleTestSmartlead = async () => {
@@ -114,8 +114,8 @@ export function EmailSendingPanel() {
     const result = await testEmailConfig('test-smartlead')
     setTestingSmartlead(false)
     setSmartleadOk(result.success)
-    if (result.success) toast.success(result.message ?? 'Smartlead 連線成功')
-    else toast.error(result.error ?? 'Smartlead 連線失敗')
+    if (result.success) toast.success(result.message ?? 'Smartlead connection successful')
+    else toast.error(result.error ?? 'Smartlead connection failed')
   }
 
   const handleTestApollo = async () => {
@@ -127,8 +127,8 @@ export function EmailSendingPanel() {
     const result = await testEmailConfig('test-apollo')
     setTestingApollo(false)
     setApolloOk(result.success)
-    if (result.success) toast.success(result.message ?? 'Apollo API Key 有效')
-    else toast.error(result.error ?? 'Apollo 測試失敗')
+    if (result.success) toast.success(result.message ?? 'Apollo API Key valid')
+    else toast.error(result.error ?? 'Apollo TestFailed')
   }
 
   const handleTestCalCom = async () => {
@@ -140,8 +140,8 @@ export function EmailSendingPanel() {
     const result = await testEmailConfig('test-calcom' as any)
     setTestingCalCom(false)
     setCalComOk(result.success)
-    if (result.success) toast.success(result.message ?? 'Cal.com API Key 有效')
-    else toast.error(result.error ?? 'Cal.com 測試失敗')
+    if (result.success) toast.success(result.message ?? 'Cal.com API Key valid')
+    else toast.error(result.error ?? 'Cal.com TestFailed')
   }
 
   const smtpConfigured = !!(emailConfig?.smtpHost && emailConfig?.smtpUser && emailConfig?.smtpPass && emailConfig?.smtpFromEmail)
@@ -161,21 +161,21 @@ export function EmailSendingPanel() {
             </div>
             <div>
               <h2 className="text-base font-semibold flex items-center gap-2">
-                SMTP 內建發信
+                SMTP Built-in Sending
                 {smtpConfigured ? (
                   <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs">
                     <CheckCircle2 className="mr-1 h-3 w-3" />
-                    已設定
+                    Configured
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs">
                     <AlertCircle className="mr-1 h-3 w-3" />
-                    未設定
+                    Not configured
                   </Badge>
                 )}
               </h2>
               <p className="text-xs text-muted-foreground">
-                適合測試 / 少量發信（每天 &lt; 50 封）。直接透過你的 SMTP 伺服器寄出。
+                適合Test / 少量Email（每天 &lt; 50 emails）。直接透過你的 SMTP 伺服器寄出。
               </p>
             </div>
           </div>
@@ -206,20 +206,20 @@ export function EmailSendingPanel() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="smtp-user">帳號</Label>
+              <Label htmlFor="smtp-user">Username</Label>
               <Input
                 id="smtp-user"
                 value={form.smtpUser}
                 onChange={(e) => setForm((f) => ({ ...f, smtpUser: e.target.value }))}
-                placeholder="your@gmail.com 或 apikey"
+                placeholder="your@gmail.com or apikey"
               />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="smtp-pass">
-                密碼 / API Key
+                Password / API Key
                 {emailConfig?.smtpPass && (
                   <span className="ml-1 text-xs text-muted-foreground">
-                    （目前：{emailConfig.smtpPass}）
+                    (current: {emailConfig.smtpPass}）
                   </span>
                 )}
               </Label>
@@ -228,14 +228,14 @@ export function EmailSendingPanel() {
                 type="password"
                 value={form.smtpPass}
                 onChange={(e) => setForm((f) => ({ ...f, smtpPass: e.target.value }))}
-                placeholder={emailConfig?.smtpPass ? '••••••••（留空不變更）' : '輸入密碼或 API Key'}
+                placeholder={emailConfig?.smtpPass ? '••••••••(leave empty to keep current)' : '輸入Passwordor API Key'}
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="smtp-from-name">寄件人名稱</Label>
+              <Label htmlFor="smtp-from-name">SenderName</Label>
               <Input
                 id="smtp-from-name"
                 value={form.smtpFromName}
@@ -244,7 +244,7 @@ export function EmailSendingPanel() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="smtp-from-email">寄件人 Email</Label>
+              <Label htmlFor="smtp-from-email">Sender Email</Label>
               <Input
                 id="smtp-from-email"
                 type="email"
@@ -263,7 +263,7 @@ export function EmailSendingPanel() {
                 onCheckedChange={(v) => setForm((f) => ({ ...f, smtpSecure: v }))}
               />
               <Label htmlFor="smtp-secure" className="text-sm cursor-pointer">
-                使用 SSL/TLS（Port 465 通常要勾選；587 通常不勾）
+                Use SSL/TLS (Port 465 usually needs this; 587 usually does not)
               </Label>
             </div>
           </div>
@@ -277,25 +277,25 @@ export function EmailSendingPanel() {
               }`}
             >
               {smtpOk ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
-              {smtpOk ? 'SMTP 連線測試通過！可以開始發信。' : 'SMTP 連線失敗，請檢查設定。'}
+              {smtpOk ? 'SMTP connection successful! Ready to send.' : 'SMTP connection failed. Please check settings.'}
             </div>
           )}
 
           <div className="flex gap-2">
             <Button onClick={handleSave} disabled={saving} variant="outline" size="sm">
               {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-              儲存設定
+              Save Settings
             </Button>
             <Button onClick={handleTestSmtp} disabled={testingSmtp} size="sm">
               {testingSmtp ? (
                 <>
                   <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                  測試連線中...
+                  Testing connection...
                 </>
               ) : (
                 <>
                   <Plug className="mr-1 h-3.5 w-3.5" />
-                  測試 SMTP 連線
+                  Test SMTP Connection
                 </>
               )}
             </Button>
@@ -303,10 +303,10 @@ export function EmailSendingPanel() {
 
           <div className="rounded-md bg-blue-50 dark:bg-blue-950/30 p-3 text-xs space-y-1.5 text-blue-700 dark:text-blue-300">
             <p className="font-medium flex items-center gap-1">
-              <Mail className="h-3 w-3" /> 常見 SMTP 服務設定
+              <Mail className="h-3 w-3" /> Common SMTP Services
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 font-mono">
-              <span>• Gmail: smtp.gmail.com:587（需 App Password）</span>
+              <span>• Gmail: smtp.gmail.com:587(needs App Password)</span>
               <span>• SendGrid: smtp.sendgrid.net:587（user: apikey）</span>
               <span>• Mailgun: smtp.mailgun.org:587</span>
               <span>• AWS SES: email-smtp.us-east-1.amazonaws.com:587</span>
@@ -325,21 +325,21 @@ export function EmailSendingPanel() {
           </div>
           <div>
             <h2 className="text-base font-semibold flex items-center gap-2">
-              Smartlead 推送
+              Smartlead Push
               {smartleadConfigured ? (
                 <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs">
                   <CheckCircle2 className="mr-1 h-3 w-3" />
-                  已設定
+                  Configured
                 </Badge>
               ) : (
                 <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs">
                   <AlertCircle className="mr-1 h-3 w-3" />
-                  未設定
+                  Not configured
                 </Badge>
               )}
             </h2>
             <p className="text-xs text-muted-foreground">
-              適合規模化正式發信。推送名單與 AI 文案到 Smartlead，由他們代發（含 IP 預熱、追蹤、A/B 測試）。
+              For scaled production sending. Pushes leads and AI content to Smartlead for professional delivery (IP warmup, tracking, A/B testing).
             </p>
           </div>
         </div>
@@ -350,7 +350,7 @@ export function EmailSendingPanel() {
               <KeyRound className="h-3 w-3" /> Smartlead API Key
               {emailConfig?.smartleadApiKey && (
                 <span className="text-xs text-muted-foreground">
-                  （目前：{emailConfig.smartleadApiKey}）
+                  (current: {emailConfig.smartleadApiKey}）
                 </span>
               )}
             </Label>
@@ -359,7 +359,7 @@ export function EmailSendingPanel() {
               type="password"
               value={form.smartleadApiKey}
               onChange={(e) => setForm((f) => ({ ...f, smartleadApiKey: e.target.value }))}
-              placeholder={emailConfig?.smartleadApiKey ? '••••••••（留空不變更）' : '至 Smartlead 後台 → API → 複製 API Key'}
+              placeholder={emailConfig?.smartleadApiKey ? '••••••••(leave empty to keep current)' : 'Go to Smartlead dashboard → API → Copy API Key'}
             />
           </div>
 
@@ -372,7 +372,7 @@ export function EmailSendingPanel() {
               }`}
             >
               {smartleadOk ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
-              {smartleadOk ? 'Smartlead 連線測試通過！可以推送名單。' : 'Smartlead 連線失敗，請檢查 API Key。'}
+              {smartleadOk ? 'Smartlead connection successful! Ready to push leads.' : 'Smartlead connection failed. Please check API Key.'}
             </div>
           )}
 
@@ -381,12 +381,12 @@ export function EmailSendingPanel() {
               {testingSmartlead ? (
                 <>
                   <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                  測試連線中...
+                  Testing connection...
                 </>
               ) : (
                 <>
                   <Plug className="mr-1 h-3.5 w-3.5" />
-                  測試 Smartlead 連線
+                  Test Smartlead Connection
                 </>
               )}
             </Button>
@@ -399,7 +399,7 @@ export function EmailSendingPanel() {
             className="inline-flex items-center gap-1 text-xs text-violet-600 dark:text-violet-400 hover:underline"
           >
             <ExternalLink className="h-3 w-3" />
-            前往 Smartlead 取得 API Key
+            Get Smartlead API Key
           </a>
         </div>
       </Card>
@@ -416,17 +416,17 @@ export function EmailSendingPanel() {
               {apolloConfigured ? (
                 <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs">
                   <CheckCircle2 className="mr-1 h-3 w-3" />
-                  已設定
+                  Configured
                 </Badge>
               ) : (
                 <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs">
                   <AlertCircle className="mr-1 h-3 w-3" />
-                  未設定（將用 AI 預測）
+                  Not configured（將用 AI 預測）
                 </Badge>
               )}
             </h2>
             <p className="text-xs text-muted-foreground">
-              找出 VP Sales / Director / CEO / Founder 等決策者的驗證 email。未設定時自動切換 AI 模式。
+              找出 VP Sales / Director / CEO / Founder 等Decision Maker的驗證 email。Not configured時自動切換 AI 模式。
             </p>
           </div>
         </div>
@@ -437,7 +437,7 @@ export function EmailSendingPanel() {
               <KeyRound className="h-3 w-3" /> Apollo API Key
               {emailConfig?.apolloApiKey && (
                 <span className="text-xs text-muted-foreground">
-                  （目前：{emailConfig.apolloApiKey}）
+                  (current: {emailConfig.apolloApiKey}）
                 </span>
               )}
             </Label>
@@ -446,7 +446,7 @@ export function EmailSendingPanel() {
               type="password"
               value={form.apolloApiKey}
               onChange={(e) => setForm((f) => ({ ...f, apolloApiKey: e.target.value }))}
-              placeholder={emailConfig?.apolloApiKey ? '••••••••（留空不變更）' : '至 Apollo → Settings → API Keys 取得'}
+              placeholder={emailConfig?.apolloApiKey ? '••••••••(leave empty to keep current)' : '至 Apollo → Settings → API Keys 取得'}
             />
           </div>
 
@@ -459,7 +459,7 @@ export function EmailSendingPanel() {
               }`}
             >
               {apolloOk ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
-              {apolloOk ? 'Apollo API Key 有效！可以使用 Apollo 找 email。' : 'Apollo API Key 無效或測試失敗。'}
+              {apolloOk ? 'Apollo API Key valid！可以使用 Apollo 找 email。' : 'Apollo API Key invalidorTestFailed。'}
             </div>
           )}
 
@@ -473,23 +473,23 @@ export function EmailSendingPanel() {
               {testingApollo ? (
                 <>
                   <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                  測試中...
+                  Testing...
                 </>
               ) : (
                 <>
                   <Plug className="mr-1 h-3.5 w-3.5" />
-                  測試 Apollo API
+                  Test Apollo API
                 </>
               )}
             </Button>
           </div>
 
           <div className="rounded-md bg-cyan-50 dark:bg-cyan-950/30 p-3 text-xs space-y-1.5 text-cyan-700 dark:text-cyan-300">
-            <p className="font-medium">未設定 Apollo 時怎麼運作？</p>
+            <p className="font-medium">Not configured Apollo 時怎麼運作？</p>
             <ul className="space-y-0.5 ml-3 list-disc text-cyan-700 dark:text-cyan-400">
-              <li>AI 透過 LinkedIn 搜尋找出 VP Sales / Director / CEO 等決策者</li>
-              <li>從姓名 + 公司網域預測 email 格式（first.last@company.com 等 8 種常見格式）</li>
-              <li>信心度標為 medium（建議後續用 Apollo 驗證）</li>
+              <li>AI 透過 LinkedIn Search找出 VP Sales / Director / CEO 等Decision Maker</li>
+              <li>從姓名 + Company網域預測 email 格式（first.last@company.com 等 8 種常見格式）</li>
+              <li>Confidence is medium (recommend Apollo verification)</li>
             </ul>
           </div>
 
@@ -500,7 +500,7 @@ export function EmailSendingPanel() {
             className="inline-flex items-center gap-1 text-xs text-cyan-600 dark:text-cyan-400 hover:underline"
           >
             <ExternalLink className="h-3 w-3" />
-            前往 Apollo 取得 API Key
+            Get Apollo API Key
           </a>
         </div>
       </Card>
@@ -513,19 +513,19 @@ export function EmailSendingPanel() {
           </div>
           <div>
             <h2 className="text-base font-semibold flex items-center gap-2">
-              Cal.com 會議追蹤
+              Cal.com meetings追蹤
               {calComConfigured ? (
                 <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs">
-                  <CheckCircle2 className="mr-1 h-3 w-3" />已設定
+                  <CheckCircle2 className="mr-1 h-3 w-3" />Configured
                 </Badge>
               ) : (
                 <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs">
-                  <AlertCircle className="mr-1 h-3 w-3" />未設定
+                  <AlertCircle className="mr-1 h-3 w-3" />Not configured
                 </Badge>
               )}
             </h2>
             <p className="text-xs text-muted-foreground">
-              自動追蹤潛在客戶預約的會議，串接 webhook 後「約到會議」KPI 自動 +1
+              Automatically track meetings booked by prospects，after connecting webhook「Meetings Booked」KPI 自動 +1
             </p>
           </div>
         </div>
@@ -535,7 +535,7 @@ export function EmailSendingPanel() {
             <Label htmlFor="calcom-key" className="flex items-center gap-1.5">
               <KeyRound className="h-3 w-3" /> Cal.com API Key
               {emailConfig?.calComApiKey && (
-                <span className="text-xs text-muted-foreground">（目前：{emailConfig.calComApiKey}）</span>
+                <span className="text-xs text-muted-foreground">(current: {emailConfig.calComApiKey}）</span>
               )}
             </Label>
             <Input
@@ -543,7 +543,7 @@ export function EmailSendingPanel() {
               type="password"
               value={form.calComApiKey}
               onChange={(e) => setForm((f) => ({ ...f, calComApiKey: e.target.value }))}
-              placeholder={emailConfig?.calComApiKey ? '••••••••（留空不變更）' : '至 Cal.com → Settings → API 取得'}
+              placeholder={emailConfig?.calComApiKey ? '••••••••(leave empty to keep current)' : '至 Cal.com → Settings → API 取得'}
             />
           </div>
 
@@ -553,14 +553,14 @@ export function EmailSendingPanel() {
                       : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300'
             }`}>
               {calComOk ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
-              {calComOk ? 'Cal.com API Key 有效！' : 'Cal.com API Key 無效。'}
+              {calComOk ? 'Cal.com API Key valid！' : 'Cal.com API Key invalid。'}
             </div>
           )}
 
           <div className="rounded-md bg-rose-50 dark:bg-rose-950/30 p-3 text-xs space-y-1.5 text-rose-700 dark:text-rose-300">
-            <p className="font-medium">設定 webhook 接收會議事件</p>
+            <p className="font-medium">Settings webhook 接收meetings事件</p>
             <p className="font-mono text-[11px]">URL: https://your-domain.com/api/webhooks/calcom</p>
-            <p className="text-rose-700 dark:text-rose-400">訂閱事件：booking.created, booking.cancelled</p>
+            <p className="text-rose-700 dark:text-rose-400">Subscribe to events:booking.created, booking.cancelled</p>
           </div>
 
           <a
@@ -570,7 +570,7 @@ export function EmailSendingPanel() {
             className="inline-flex items-center gap-1 text-xs text-rose-600 dark:text-rose-400 hover:underline"
           >
             <ExternalLink className="h-3 w-3" />
-            前往 Cal.com 取得 API Key
+            Get Cal.com API Key
           </a>
         </div>
       </Card>
@@ -586,16 +586,16 @@ export function EmailSendingPanel() {
               Stripe 計費
               {stripeConfigured ? (
                 <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs">
-                  <CheckCircle2 className="mr-1 h-3 w-3" />已設定
+                  <CheckCircle2 className="mr-1 h-3 w-3" />Configured
                 </Badge>
               ) : (
                 <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs">
-                  <AlertCircle className="mr-1 h-3 w-3" />未設定
+                  <AlertCircle className="mr-1 h-3 w-3" />Not configured
                 </Badge>
               )}
             </h2>
             <p className="text-xs text-muted-foreground">
-              Metered billing：依發送郵件數計費，Stripe 月底自動扣款
+              Metered billing：依SendEmail數計費，Stripe auto-charges at month end
             </p>
           </div>
         </div>
@@ -605,7 +605,7 @@ export function EmailSendingPanel() {
             <Label htmlFor="stripe-key" className="flex items-center gap-1.5">
               <KeyRound className="h-3 w-3" /> Stripe Secret Key
               {emailConfig?.stripeSecretKey && (
-                <span className="text-xs text-muted-foreground">（目前：{emailConfig.stripeSecretKey}）</span>
+                <span className="text-xs text-muted-foreground">(current: {emailConfig.stripeSecretKey}）</span>
               )}
             </Label>
             <Input
@@ -613,7 +613,7 @@ export function EmailSendingPanel() {
               type="password"
               value={form.stripeSecretKey}
               onChange={(e) => setForm((f) => ({ ...f, stripeSecretKey: e.target.value }))}
-              placeholder={emailConfig?.stripeSecretKey ? '••••••••（留空不變更）' : 'sk_live_... 或 sk_test_...'}
+              placeholder={emailConfig?.stripeSecretKey ? '••••••••(leave empty to keep current)' : 'sk_live_... or sk_test_...'}
             />
           </div>
 
@@ -628,7 +628,7 @@ export function EmailSendingPanel() {
           </div>
 
           <div className="rounded-md bg-indigo-50 dark:bg-indigo-950/30 p-3 text-xs space-y-1.5 text-indigo-700 dark:text-indigo-300">
-            <p className="font-medium">Stripe Webhook 設定</p>
+            <p className="font-medium">Stripe Webhook Settings</p>
             <p className="font-mono text-[11px]">URL: https://your-domain.com/api/webhooks/stripe</p>
             <p className="text-indigo-700 dark:text-indigo-400">訂閱：customer.subscription.created/updated/deleted, invoice.payment_succeeded/failed</p>
           </div>
@@ -640,7 +640,7 @@ export function EmailSendingPanel() {
             className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
           >
             <ExternalLink className="h-3 w-3" />
-            前往 Stripe 設定 Webhook
+            前往 Stripe Settings Webhook
           </a>
         </div>
       </Card>
@@ -652,24 +652,24 @@ export function EmailSendingPanel() {
         <div className="flex items-start gap-3">
           <Send className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
           <div className="text-sm space-y-2">
-            <p className="font-medium text-amber-800 dark:text-amber-300">兩種發信方式怎麼選？</p>
+            <p className="font-medium text-amber-800 dark:text-amber-300">兩種Email方式怎麼選？</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-amber-700 dark:text-amber-400">
               <div>
-                <p className="font-semibold mb-1">▸ SMTP 內建發信</p>
+                <p className="font-semibold mb-1">▸ SMTP Built-in Sending</p>
                 <ul className="space-y-0.5 ml-3 list-disc">
-                  <li>零成本，立即可用</li>
-                  <li>每天 50 封以下最適合</li>
-                  <li>無 IP 預熱、無追蹤</li>
-                  <li>容易被 spam filter 擋</li>
+                  <li>Zero cost, ready to use</li>
+                  <li>每天 50 emails以下最適合</li>
+                  <li>No IP warmup, no tracking</li>
+                  <li>Easily blocked by spam filters</li>
                 </ul>
               </div>
               <div>
-                <p className="font-semibold mb-1">▸ Smartlead 推送</p>
+                <p className="font-semibold mb-1">▸ Smartlead Push</p>
                 <ul className="space-y-0.5 ml-3 list-disc">
-                  <li>月費 $39 起跳</li>
-                  <li>每週數千封也 OK</li>
-                  <li>自動 IP 預熱 + 追蹤</li>
-                  <li>支援 A/B 測試、多信箱輪詢</li>
+                  <li>Starts at $39/month</li>
+                  <li>每週數千emails也 OK</li>
+                  <li>Auto IP warmup + tracking</li>
+                  <li>A/B testing, multi-mailbox rotation</li>
                 </ul>
               </div>
             </div>

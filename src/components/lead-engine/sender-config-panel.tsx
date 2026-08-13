@@ -25,9 +25,9 @@ export function SenderConfigPanel() {
           <User className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
         </div>
         <div>
-          <h2 className="text-base font-semibold">寄件人設定</h2>
+          <h2 className="text-base font-semibold">SenderSettings</h2>
           <p className="text-xs text-muted-foreground">
-            AI 生成郵件時會自動帶入這些資訊作為發信脈絡
+            AI 生成Email時會自動帶入這些資訊作為Email脈絡
           </p>
         </div>
       </div>
@@ -35,7 +35,7 @@ export function SenderConfigPanel() {
       <div className="grid gap-3">
         <div className="grid gap-1.5">
           <Label htmlFor="sender-name" className="flex items-center gap-1.5">
-            <User className="h-3 w-3" /> 寄件人姓名
+            <User className="h-3 w-3" /> Sender姓名
           </Label>
           <Input
             id="sender-name"
@@ -47,13 +47,13 @@ export function SenderConfigPanel() {
 
         <div className="grid gap-1.5">
           <Label htmlFor="sender-company" className="flex items-center gap-1.5">
-            <Building2 className="h-3 w-3" /> 寄件公司
+            <Building2 className="h-3 w-3" /> 寄件Company
           </Label>
           <Input
             id="sender-company"
             value={senderConfig.senderCompany}
             onChange={(e) => setSenderConfig({ senderCompany: e.target.value })}
-            placeholder="你的公司"
+            placeholder="你的Company"
           />
         </div>
 
@@ -92,7 +92,7 @@ export function SenderConfigPanel() {
             </Select>
           </div>
           <div className="grid gap-1.5">
-            <Label>郵件語言</Label>
+            <Label>Email語言</Label>
             <Select
               value={senderConfig.language}
               onValueChange={(v) =>

@@ -94,7 +94,7 @@ export function LeadsTable() {
       },
       {
         accessorKey: 'company',
-        header: '公司',
+        header: 'Company',
         size: 180,
         cell: ({ row }) => {
           const lead = row.original
@@ -124,7 +124,7 @@ export function LeadsTable() {
       },
       {
         accessorKey: 'contactName',
-        header: '聯絡人',
+        header: 'Contact',
         size: 140,
         cell: ({ row }) => (
           <div>
@@ -141,7 +141,7 @@ export function LeadsTable() {
       },
       {
         accessorKey: 'industry',
-        header: '產業',
+        header: 'Industry',
         size: 110,
         cell: ({ row }) => (
           <span className="text-sm text-muted-foreground">
@@ -151,28 +151,28 @@ export function LeadsTable() {
       },
       {
         accessorKey: 'score',
-        header: '分數',
+        header: 'Score',
         size: 100,
         cell: ({ row }) => <ScoreBadge score={row.original.score} />,
       },
       {
         accessorKey: 'status',
-        header: '狀態',
+        header: 'Status',
         size: 110,
         cell: ({ row }) => <StatusBadge status={row.original.status} />,
       },
       {
         accessorKey: 'emailBody',
-        header: '郵件',
+        header: 'Email',
         size: 80,
         cell: ({ row }) =>
           row.original.emailBody ? (
             <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="h-3.5 w-3.5" />
-              已生成
+              Generated
             </span>
           ) : (
-            <span className="text-xs text-muted-foreground">未生成</span>
+            <span className="text-xs text-muted-foreground">Not generated</span>
           ),
       },
       {
@@ -188,11 +188,11 @@ export function LeadsTable() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuLabel>動作</DropdownMenuLabel>
+                <DropdownMenuLabel>Actions</DropdownMenuLabel>
                 <DropdownMenuItem
                   onClick={() => setSelectedLeadId(lead.id)}
                 >
-                  檢視詳情
+                  View Details
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -202,31 +202,31 @@ export function LeadsTable() {
                     toast.info(`正在研究 ${lead.company}...`)
                     const ok = await researchLead(lead.id)
                     setActionLoading(null)
-                    if (ok) toast.success('研究完成')
-                    else toast.error('研究失敗')
+                    if (ok) toast.success('研究Complete')
+                    else toast.error('研究Failed')
                   }}
                 >
                   <Sparkles className="mr-2 h-3.5 w-3.5" />
-                  AI 研究
+                  AI Research
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={!lead.painPoints || actionLoading === lead.id}
                   onClick={async () => {
                     setActionLoading(lead.id)
-                    toast.info(`正在生成郵件...`)
+                    toast.info(`正在生成Email...`)
                     const ok = await generateEmail(lead.id)
                     setActionLoading(null)
-                    if (ok) toast.success('郵件已生成')
-                    else toast.error('生成失敗')
+                    if (ok) toast.success('EmailGenerated')
+                    else toast.error('生成Failed')
                   }}
                 >
                   <Mail className="mr-2 h-3.5 w-3.5" />
-                  生成郵件
+                  生成Email
                 </DropdownMenuItem>
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
                     <Send className="mr-2 h-3.5 w-3.5" />
-                    變更狀態
+                    變更Status
                   </DropdownMenuSubTrigger>
                   <DropdownMenuPortal>
                     <DropdownMenuSubContent>
@@ -250,14 +250,14 @@ export function LeadsTable() {
                 <DropdownMenuItem
                   className="text-rose-600 dark:text-rose-400 focus:text-rose-700 dark:focus:text-rose-300"
                   onClick={() => {
-                    if (confirm(`確定刪除 ${lead.company}？`)) {
+                    if (confirm(`ConfirmDelete ${lead.company}？`)) {
                       deleteLead(lead.id)
-                      toast.success('已刪除')
+                      toast.success('已Delete')
                     }
                   }}
                 >
                   <Trash2 className="mr-2 h-3.5 w-3.5" />
-                  刪除
+                  Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -284,25 +284,25 @@ export function LeadsTable() {
 
   const handleBulkResearch = async () => {
     if (!allHaveWebsite) {
-      toast.error('所選名單中部分缺少網站，無法研究')
+      toast.error('所選Leads中部分缺少網站，無法研究')
       return
     }
-    toast.info(`開始批次研究 ${selectedRows.length} 筆名單...`)
+    toast.info(`開始batch次研究 ${selectedRows.length} leads...`)
     for (const row of selectedRows) {
       await researchLead(row.original.id)
     }
-    toast.success('批次研究完成')
+    toast.success('batch次研究Complete')
     setRowSelection({})
   }
 
   return (
     <div className="space-y-3">
-      {/* 篩選與搜尋 */}
+      {/* Filter與Search */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[200px] max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="搜尋公司、聯絡人..."
+            placeholder="Search companies, contacts..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-8"
@@ -312,9 +312,9 @@ export function LeadsTable() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm">
-              狀態：
+              Status:
               <span className="ml-1 font-medium">
-                {filterStatus === 'all' ? '全部' : STATUS_LABELS[filterStatus]}
+                {filterStatus === 'all' ? 'All' : STATUS_LABELS[filterStatus]}
               </span>
               <ChevronDown className="ml-1 h-3.5 w-3.5" />
             </Button>
@@ -324,7 +324,7 @@ export function LeadsTable() {
               value={filterStatus}
               onValueChange={(v) => setFilterStatus(v as typeof filterStatus)}
             >
-              <DropdownMenuRadioItem value="all">全部</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
               {ALL_STATUSES.map((s) => (
                 <DropdownMenuRadioItem key={s} value={s}>
                   {STATUS_LABELS[s]}
@@ -341,7 +341,7 @@ export function LeadsTable() {
         {selectedRows.length > 0 && (
           <div className="ml-auto flex items-center gap-2">
             <span className="text-sm text-muted-foreground">
-              已選 {selectedRows.length} 筆
+              Selected {selectedRows.length} 
             </span>
             <Button
               size="sm"
@@ -350,7 +350,7 @@ export function LeadsTable() {
               disabled={!allHaveWebsite}
             >
               <Sparkles className="mr-1 h-3.5 w-3.5" />
-              批次研究
+              batch次研究
             </Button>
           </div>
         )}
@@ -397,7 +397,7 @@ export function LeadsTable() {
                     colSpan={columns.length}
                     className="h-32 text-center text-muted-foreground"
                   >
-                    尚無名單。點擊右上角「新增名單」開始建立你的潛在客戶資料庫。
+                    尚無Leads。Click右上角「Add Lead」to start building your lead database。
                   </TableCell>
                 </TableRow>
               ) : (

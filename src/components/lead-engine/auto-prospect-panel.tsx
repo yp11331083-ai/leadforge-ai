@@ -64,7 +64,7 @@ export function AutoProspectPanel() {
     fetchServiceOffering()
   }, [fetchServiceOffering])
 
-  // 同步 DB 設定到表單
+  // 同步 DB Settings到表單
   const configKey = serviceOffering?.updatedAt ?? ''
   if (serviceOffering && configKey !== lastSyncedAt) {
     setLastSyncedAt(configKey)
@@ -82,24 +82,24 @@ export function AutoProspectPanel() {
 
   const handleSave = async () => {
     if (!form.serviceName.trim() || !form.description.trim()) {
-      toast.error('服務名稱與描述為必填')
+      toast.error('服務Name與Description為Required')
       return
     }
     setSaving(true)
     await saveServiceOffering(form)
     setSaving(false)
-    toast.success('服務設定已儲存')
+    toast.success('服務Settings saved')
   }
 
   const handleRun = async () => {
     if (!form.serviceName.trim() || !form.description.trim()) {
-      toast.error('請先填寫服務名稱與描述')
+      toast.error('請先填寫服務Name與Description')
       return
     }
-    // 先儲存再執行
+    // 先Save再執行
     await saveServiceOffering(form)
     setAddedIds(new Set())
-    toast.info('AI 自動開發啟動中，預計 2-4 分鐘...')
+    toast.info('AI Auto-ProspectStart中，預計 2-4 分鐘...')
     const result = await runAutoProspect({
       serviceName: form.serviceName,
       description: form.description,
@@ -114,7 +114,7 @@ export function AutoProspectPanel() {
     if (result.success) {
       toast.success(`找到 ${prospectResult?.candidates.length ?? 0} 家潛在客戶！`)
     } else {
-      toast.error(result.error ?? '自動開發失敗')
+      toast.error(result.error ?? 'Auto-ProspectFailed')
     }
   }
 
@@ -124,7 +124,7 @@ export function AutoProspectPanel() {
       website: c.website,
       industry: c.industry,
       status: 'new',
-      tags: `AI自動開發,fit:${c.fit_score}`,
+      tags: `AIAuto-Prospect,fit:${c.fit_score}`,
       researchRaw: JSON.stringify({
         ai_prospect_evaluation: {
           fit_score: c.fit_score,
@@ -146,26 +146,26 @@ export function AutoProspectPanel() {
     if (!prospectResult) return
     const toAdd = prospectResult.candidates.filter((c) => !addedIds.has(c.website))
     if (toAdd.length === 0) {
-      toast.info('已全部加入')
+      toast.info('已All加入')
       return
     }
-    toast.info(`正在加入 ${toAdd.length} 家公司...`)
+    toast.info(`正在加入 ${toAdd.length} 家Company...`)
     for (const c of toAdd) {
       await handleAddOne(c)
     }
-    toast.success('全部加入完成！')
+    toast.success('All加入Complete！')
   }
 
   return (
     <div className="space-y-5">
-      {/* 服務設定 */}
+      {/* 服務Settings */}
       <Card className="p-5 space-y-4">
         <div className="flex items-center gap-2">
           <div className="rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 p-2 shadow-md">
             <Wand2 className="h-4 w-4 text-white" />
           </div>
           <div>
-            <h2 className="text-base font-semibold">AI 自動開發引擎</h2>
+            <h2 className="text-base font-semibold">AI Auto-Prospect引擎</h2>
             <p className="text-xs text-muted-foreground">
               輸入你的服務，AI 自動找出 10 家最需要你服務的企業
             </p>
@@ -174,7 +174,7 @@ export function AutoProspectPanel() {
 
         <div className="grid gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="service-name">服務/產品名稱 *</Label>
+            <Label htmlFor="service-name">服務/產品Name *</Label>
             <Input
               id="service-name"
               value={form.serviceName}
@@ -184,23 +184,23 @@ export function AutoProspectPanel() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="service-desc">服務描述 *</Label>
+            <Label htmlFor="service-desc">服務Description *</Label>
             <Textarea
               id="service-desc"
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              placeholder="詳細說明你的服務做什麼、解決什麼問題、目標客戶是誰。AI 會根據這段描述設計搜尋策略。"
+              placeholder="詳細說明你的服務做什麼、解決什麼問題、目標客戶是誰。AI 會根據這段Description設計Search策略。"
               rows={4}
               className="text-sm"
             />
             <p className="text-[11px] text-muted-foreground">
-              描述越具體，AI 找出的名單越精準。建議包含：核心功能、解決的痛點、與競品的差異。
+              Description越具體，AI 找出的Leads越精準。建議包含：核心功能、解決的痛點、與競品的差異。
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="target-industries">目標產業</Label>
+              <Label htmlFor="target-industries">目標Industry</Label>
               <Input
                 id="target-industries"
                 value={form.targetIndustries}
@@ -209,7 +209,7 @@ export function AutoProspectPanel() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="target-size">目標公司規模</Label>
+              <Label htmlFor="target-size">目標Company規模</Label>
               <Input
                 id="target-size"
                 value={form.targetCompanySize}
@@ -218,7 +218,7 @@ export function AutoProspectPanel() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="target-location">目標地區</Label>
+              <Label htmlFor="target-location">目標Location</Label>
               <Input
                 id="target-location"
                 value={form.targetLocation}
@@ -234,7 +234,7 @@ export function AutoProspectPanel() {
               id="key-benefits"
               value={form.keyBenefits}
               onChange={(e) => setForm((f) => ({ ...f, keyBenefits: e.target.value }))}
-              placeholder="幫客戶省 80% 業務研究時間、提升 3 倍回覆率"
+              placeholder="幫客戶省 80% 業務研究Time、提升 3 倍Reply Rate"
             />
           </div>
 
@@ -266,7 +266,7 @@ export function AutoProspectPanel() {
           <div className="flex gap-2 pt-2">
             <Button onClick={handleSave} disabled={saving} variant="outline" size="sm">
               {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-              儲存設定
+              Save Settings
             </Button>
             <Button
               onClick={handleRun}
@@ -281,7 +281,7 @@ export function AutoProspectPanel() {
               ) : (
                 <>
                   <Rocket className="mr-2 h-4 w-4" />
-                  啟動 AI 自動開發
+                  Start AI Auto-Prospect
                 </>
               )}
             </Button>
@@ -334,12 +334,12 @@ export function AutoProspectPanel() {
             {/* 6 步驟清單 */}
             <div className="space-y-1.5">
               {[
-                { n: 1, label: '生成搜尋策略', desc: 'AI 設計 8 組精準查詢', icon: Wand2 },
-                { n: 2, label: '搜尋候選公司', desc: 'Google 搜尋 ~40 個結果', icon: Search },
-                { n: 3, label: '篩選公司網址', desc: '過濾並萃取公司網站', icon: ListChecks },
+                { n: 1, label: '生成Search策略', desc: 'AI 設計 8 組精準查詢', icon: Wand2 },
+                { n: 2, label: 'Search候選Company', desc: 'Google Search ~40 個結果', icon: Search },
+                { n: 3, label: 'FilterCompany網址', desc: '過濾並萃取Company網站', icon: ListChecks },
                 { n: 4, label: '抓取網站內容', desc: 'page_reader 抓取每家官網', icon: Zap },
                 { n: 5, label: 'AI 評估契合度', desc: '5 維度評分，輸出 fit_score', icon: Target },
-                { n: 6, label: '排序回傳', desc: '依分數排序，取 Top N', icon: Sparkles },
+                { n: 6, label: 'Sort回傳', desc: '依ScoreSort，取 Top N', icon: Sparkles },
               ].map(({ n, label, desc, icon: Icon }) => {
                 const done = prospectStep > n
                 const current = prospectStep === n
@@ -383,13 +383,13 @@ export function AutoProspectPanel() {
             </div>
 
             <p className="text-[10px] text-violet-700/70 dark:text-violet-400/60 text-center">
-              預計 2-4 分鐘完成 · 視目標數量與網路速度而定 · 可以切到其他分頁做別的事
+              預計 2-4 分鐘Complete · 視目標數量與網路速度而定 · 可以切到其他分頁做別的事
             </p>
           </div>
         </Card>
       )}
 
-      {/* 失敗顯示 */}
+      {/* Failed顯示 */}
       {!prospectLoading && prospectError && (
         <Card className={`p-5 ${
           rateLimitedAt
@@ -421,23 +421,23 @@ export function AutoProspectPanel() {
               {rateLimitedAt && (
                 <div className="space-y-2 mt-3">
                   <div className="rounded-md bg-amber-100 dark:bg-amber-950/60 p-2.5 text-[11px] text-amber-800 dark:text-amber-300 space-y-1">
-                    <p className="font-medium">⏳ 預估恢復時間</p>
+                    <p className="font-medium">⏳ 預估恢復Time</p>
                     <ul className="ml-3 list-disc space-y-0.5 text-amber-700 dark:text-amber-400">
                       <li>短期限流：等 5-30 分鐘</li>
-                      <li>每日配額：等到明天 UTC 0:00（台灣時間早上 8:00）</li>
+                      <li>每日配額：等到明天 UTC 0:00（台灣Time早上 8:00）</li>
                       <li>目前無法精確預測，建議 1-2 小時後再試一次</li>
                     </ul>
                   </div>
                   <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/40 p-2.5 text-[11px] text-emerald-700 dark:text-emerald-300">
                     <p className="font-medium">✅ 不受影響的功能</p>
-                    <p className="mt-0.5">已儲存的名單、研究結果、AI 生成的郵件、發信設定都不受影響。你可以繼續編輯、複製郵件、發信。</p>
+                    <p className="mt-0.5">已Save的Leads、研究結果、AI 生成的Email、EmailSettings都不受影響。你可以繼續Edit、CopyEmail、Email。</p>
                   </div>
                 </div>
               )}
 
               {!rateLimitedAt && (
                 <p className="text-[11px] text-rose-600/70 dark:text-rose-400/70 mt-2">
-                  建議：減少目標數量、簡化服務描述、或稍後再試。
+                  建議：減少目標數量、簡化服務Description、或稍後再試。
                 </p>
               )}
             </div>
@@ -448,7 +448,7 @@ export function AutoProspectPanel() {
       {/* 結果 */}
       {prospectResult && !prospectLoading && (
         <>
-          {/* 統計與動作 */}
+          {/* 統計與Actions */}
           <Card className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border-emerald-200 dark:border-emerald-900">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -470,12 +470,12 @@ export function AutoProspectPanel() {
                 className="bg-emerald-600 hover:bg-emerald-700"
               >
                 <Plus className="mr-1 h-3.5 w-3.5" />
-                全部加入名單
+                All加入Leads
               </Button>
             </div>
           </Card>
 
-          {/* 候選名單卡片 */}
+          {/* 候選Leads卡片 */}
           <div className="space-y-3">
             {prospectResult.candidates.map((c, i) => (
               <ProspectCard
@@ -488,12 +488,12 @@ export function AutoProspectPanel() {
             ))}
           </div>
 
-          {/* AI 搜尋策略透明化 */}
+          {/* AI Search策略透明化 */}
           <Card className="p-4">
             <details>
               <summary className="cursor-pointer text-xs font-medium text-muted-foreground flex items-center gap-1">
                 <ListChecks className="h-3 w-3" />
-                AI 生成的搜尋策略（{prospectResult.ai_search_queries.length} 組查詢）
+                AI 生成的Search策略（{prospectResult.ai_search_queries.length} 組查詢）
               </summary>
               <ul className="mt-3 space-y-1">
                 {prospectResult.ai_search_queries.map((q, i) => (
@@ -507,7 +507,7 @@ export function AutoProspectPanel() {
         </>
       )}
 
-      {/* 空狀態 */}
+      {/* 空Status */}
       {!prospectResult && !prospectLoading && (
         <Card className="p-8 border-dashed border-violet-200 dark:border-violet-800">
           <div className="text-center space-y-3">
@@ -517,7 +517,7 @@ export function AutoProspectPanel() {
             <div>
               <p className="text-sm font-medium">輸入你的服務，讓 AI 幫你找客戶</p>
               <p className="text-xs text-muted-foreground mt-1">
-                AI 會自動搜尋、瀏覽、評估數十家公司，回傳最契合的前 10 名
+                AI 會自動Search、瀏覽、評估數十家Company，回傳最契合的前 10 名
               </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 max-w-2xl mx-auto text-xs">
@@ -528,13 +528,13 @@ export function AutoProspectPanel() {
               </div>
               <div className="rounded-md bg-muted/40 p-3">
                 <Sparkles className="h-4 w-4 mx-auto mb-1 text-amber-500" />
-                <p className="font-medium">建議切入點</p>
+                <p className="font-medium">Suggested Angle</p>
                 <p className="text-muted-foreground mt-0.5">每家附上為什麼需要你服務</p>
               </div>
               <div className="rounded-md bg-muted/40 p-3">
                 <Plus className="h-4 w-4 mx-auto mb-1 text-emerald-500" />
                 <p className="font-medium">一鍵加入</p>
-                <p className="text-muted-foreground mt-0.5">直接匯入名單試算表</p>
+                <p className="text-muted-foreground mt-0.5">直接ImportLeads試算表</p>
               </div>
             </div>
           </div>
@@ -574,7 +574,7 @@ function ProspectCard({
   return (
     <Card className="p-4 hover:shadow-md transition-shadow">
       <div className="space-y-3">
-        {/* Header: 排名 + 公司名 + 分數 */}
+        {/* Header: 排名 + Company名 + Score */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0 flex-1">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-400 to-fuchsia-500 text-white text-xs font-bold">
@@ -634,7 +634,7 @@ function ProspectCard({
         {candidate.suggested_angle && (
           <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/30 p-2.5 border border-emerald-200 dark:border-emerald-900">
             <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 mb-1 flex items-center gap-1">
-              <Lightbulb className="h-3 w-3" /> 建議切入點
+              <Lightbulb className="h-3 w-3" /> Suggested Angle
             </p>
             <p className="text-sm italic">{candidate.suggested_angle}</p>
           </div>
@@ -677,7 +677,7 @@ function ProspectCard({
             ) : (
               <>
                 <Plus className="mr-1 h-3.5 w-3.5" />
-                加入名單
+                加入Leads
               </>
             )}
           </Button>

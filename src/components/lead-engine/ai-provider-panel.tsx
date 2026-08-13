@@ -74,7 +74,7 @@ export function AiProviderPanel() {
     setSaving(true)
     await saveEmailConfig(form)
     setSaving(false)
-    toast.success('AI 提供者設定已儲存')
+    toast.success('AI ProviderSettings saved')
   }
 
   const zaiConfigured = true  // Z.ai 永遠可用
@@ -93,23 +93,23 @@ export function AiProviderPanel() {
           <Cpu className="h-5 w-5 text-violet-600 dark:text-violet-400 shrink-0 mt-0.5" />
           <div className="text-sm space-y-2">
             <p className="font-medium text-violet-800 dark:text-violet-300">
-              AI 提供者多備援機制
+              AI Provider多備援機制
             </p>
             <p className="text-xs text-violet-700 dark:text-violet-400">
-              當 Z.ai 配額用完（429）時，系統會自動依優先順序切換到其他 AI 服務。建議至少設定 1 個替代提供者，避免限流中斷。
+              當 Z.ai 配額用完（429）時，系統會自動依Priority切換到其他 AI 服務。建議至少Settings 1 個替代Provider，避免限流中斷。
             </p>
             <div className="grid grid-cols-3 gap-2 mt-2 text-[11px]">
               <div className="rounded-md bg-white/60 dark:bg-violet-950/40 p-1.5">
                 <p className="font-medium text-violet-800 dark:text-violet-300">💬 Chat</p>
-                <p className="text-violet-700 dark:text-violet-400 mt-0.5">研究、郵件生成、自動開發</p>
+                <p className="text-violet-700 dark:text-violet-400 mt-0.5">研究、Email生成、Auto-Prospect</p>
               </div>
               <div className="rounded-md bg-white/60 dark:bg-violet-950/40 p-1.5">
                 <p className="font-medium text-violet-800 dark:text-violet-300">🔍 Search</p>
-                <p className="text-violet-700 dark:text-violet-400 mt-0.5">公司搜尋、找決策者</p>
+                <p className="text-violet-700 dark:text-violet-400 mt-0.5">CompanySearch、找Decision Maker</p>
               </div>
               <div className="rounded-md bg-white/60 dark:bg-violet-950/40 p-1.5">
                 <p className="font-medium text-violet-800 dark:text-violet-300">📄 Page Reader</p>
-                <p className="text-violet-700 dark:text-violet-400 mt-0.5">抓取公司官網內容</p>
+                <p className="text-violet-700 dark:text-violet-400 mt-0.5">抓取Company官網內容</p>
               </div>
             </div>
           </div>
@@ -127,7 +127,7 @@ export function AiProviderPanel() {
               <h3 className="text-sm font-semibold flex items-center gap-2">
                 Z.ai（預設）
                 <Badge variant="outline" className="text-xs bg-emerald-100 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-                  內建 · 免設定
+                  內建 · 免Settings
                 </Badge>
               </h3>
               <p className="text-xs text-muted-foreground">透過 z-ai-web-dev-sdk，免費但有每日配額限制</p>
@@ -139,15 +139,15 @@ export function AiProviderPanel() {
         </div>
       </Card>
 
-      {/* Chat 提供者 */}
+      {/* Chat Provider */}
       <Card className="p-5 space-y-4">
         <div className="flex items-center gap-2">
           <div className="rounded-lg bg-teal-100 dark:bg-teal-950/50 p-2">
             <Cpu className="h-4 w-4 text-teal-600 dark:text-teal-400" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold">Chat 提供者</h3>
-            <p className="text-xs text-muted-foreground">用於 AI 研究、郵件生成、自動開發</p>
+            <h3 className="text-sm font-semibold">Chat Provider</h3>
+            <p className="text-xs text-muted-foreground">用於 AI Research、Email生成、Auto-Prospect</p>
           </div>
         </div>
 
@@ -158,11 +158,11 @@ export function AiProviderPanel() {
               OpenAI
               {openaiConfigured ? (
                 <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 className="mr-1 h-2.5 w-2.5" />已設定
+                  <CheckCircle2 className="mr-1 h-2.5 w-2.5" />Configured
                 </Badge>
               ) : (
                 <Badge variant="outline" className="text-[10px] bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300">
-                  未設定
+                  Not configured
                 </Badge>
               )}
             </Label>
@@ -195,11 +195,11 @@ export function AiProviderPanel() {
               Anthropic Claude
               {anthropicConfigured ? (
                 <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 className="mr-1 h-2.5 w-2.5" />已設定
+                  <CheckCircle2 className="mr-1 h-2.5 w-2.5" />Configured
                 </Badge>
               ) : (
                 <Badge variant="outline" className="text-[10px] bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300">
-                  未設定
+                  Not configured
                 </Badge>
               )}
             </Label>
@@ -232,11 +232,11 @@ export function AiProviderPanel() {
               Google Gemini
               {geminiConfigured ? (
                 <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 className="mr-1 h-2.5 w-2.5" />已設定
+                  <CheckCircle2 className="mr-1 h-2.5 w-2.5" />Configured
                 </Badge>
               ) : (
                 <Badge variant="outline" className="text-[10px] bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300">
-                  未設定
+                  Not configured
                 </Badge>
               )}
             </Label>
@@ -263,7 +263,7 @@ export function AiProviderPanel() {
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-xs">Chat 提供者優先順序（逗號分隔，第一個失敗自動切換下一個）</Label>
+          <Label className="text-xs">Chat ProviderPriority（逗號分隔，第一個Failed自動切換下一個）</Label>
           <Input
             value={form.chatProviderOrder}
             onChange={(e) => setForm((f) => ({ ...f, chatProviderOrder: e.target.value }))}
@@ -273,15 +273,15 @@ export function AiProviderPanel() {
         </div>
       </Card>
 
-      {/* Search 提供者 */}
+      {/* Search Provider */}
       <Card className="p-5 space-y-4">
         <div className="flex items-center gap-2">
           <div className="rounded-lg bg-amber-100 dark:bg-amber-950/50 p-2">
             <Search className="h-4 w-4 text-amber-600 dark:text-amber-400" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold">Search 提供者</h3>
-            <p className="text-xs text-muted-foreground">用於公司搜尋、找決策者、自動開發</p>
+            <h3 className="text-sm font-semibold">Search Provider</h3>
+            <p className="text-xs text-muted-foreground">用於CompanySearch、找Decision Maker、Auto-Prospect</p>
           </div>
         </div>
 
@@ -291,11 +291,11 @@ export function AiProviderPanel() {
               Tavily
               {tavilyConfigured ? (
                 <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 className="mr-1 h-2.5 w-2.5" />已設定
+                  <CheckCircle2 className="mr-1 h-2.5 w-2.5" />Configured
                 </Badge>
               ) : (
                 <Badge variant="outline" className="text-[10px] bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300">
-                  未設定
+                  Not configured
                 </Badge>
               )}
             </Label>
@@ -309,11 +309,11 @@ export function AiProviderPanel() {
             onChange={(e) => setForm((f) => ({ ...f, tavilyApiKey: e.target.value }))}
             placeholder={tavilyConfigured ? `••••••••（目前：${emailConfig?.tavilyApiKey}）` : 'tvly-...'}
           />
-          <p className="text-[10px] text-muted-foreground">專為 AI 設計的搜尋 API，免費 1000 次/月</p>
+          <p className="text-[10px] text-muted-foreground">專為 AI 設計的Search API，免費 1000 次/月</p>
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-xs">Search 提供者優先順序</Label>
+          <Label className="text-xs">Search ProviderPriority</Label>
           <Input
             value={form.searchProviderOrder}
             onChange={(e) => setForm((f) => ({ ...f, searchProviderOrder: e.target.value }))}
@@ -323,15 +323,15 @@ export function AiProviderPanel() {
         </div>
       </Card>
 
-      {/* Page Reader 提供者 */}
+      {/* Page Reader Provider */}
       <Card className="p-5 space-y-4">
         <div className="flex items-center gap-2">
           <div className="rounded-lg bg-rose-100 dark:bg-rose-950/50 p-2">
             <FileText className="h-4 w-4 text-rose-600 dark:text-rose-400" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold">Page Reader 提供者</h3>
-            <p className="text-xs text-muted-foreground">用於抓取公司官網內容做研究</p>
+            <h3 className="text-sm font-semibold">Page Reader Provider</h3>
+            <p className="text-xs text-muted-foreground">用於抓取Company官網內容做研究</p>
           </div>
         </div>
 
@@ -341,7 +341,7 @@ export function AiProviderPanel() {
               Jina Reader
               {jinaConfigured ? (
                 <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 className="mr-1 h-2.5 w-2.5" />已設定
+                  <CheckCircle2 className="mr-1 h-2.5 w-2.5" />Configured
                 </Badge>
               ) : (
                 <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
@@ -368,11 +368,11 @@ export function AiProviderPanel() {
               Firecrawl
               {firecrawlConfigured ? (
                 <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 className="mr-1 h-2.5 w-2.5" />已設定
+                  <CheckCircle2 className="mr-1 h-2.5 w-2.5" />Configured
                 </Badge>
               ) : (
                 <Badge variant="outline" className="text-[10px] bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300">
-                  未設定
+                  Not configured
                 </Badge>
               )}
             </Label>
@@ -390,7 +390,7 @@ export function AiProviderPanel() {
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-xs">Page Reader 提供者優先順序</Label>
+          <Label className="text-xs">Page Reader ProviderPriority</Label>
           <Input
             value={form.pageReaderProviderOrder}
             onChange={(e) => setForm((f) => ({ ...f, pageReaderProviderOrder: e.target.value }))}
@@ -402,9 +402,9 @@ export function AiProviderPanel() {
 
       <Button onClick={handleSave} disabled={saving} className="w-full bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700">
         {saving ? (
-          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />儲存中...</>
+          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
         ) : (
-          <><Zap className="mr-2 h-4 w-4" />儲存 AI 提供者設定</>
+          <><Zap className="mr-2 h-4 w-4" />Save AI ProviderSettings</>
         )}
       </Button>
     </div>

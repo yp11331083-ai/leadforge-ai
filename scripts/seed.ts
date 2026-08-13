@@ -8,12 +8,12 @@ async function main() {
 
   // 建立 demo tenant
   const tenant = await db.tenant.upsert({
-    where: { slug: 'leadforge-demo' },
+    where: { slug: 'forge-demo' },
     update: {},
     create: {
       id: 'tenant_demo',
-      name: 'LeadForge Demo Inc.',
-      slug: 'leadforge-demo',
+      name: 'Forge Demo Inc.',
+      slug: 'forge-demo',
       plan: 'pro',
       status: 'active',
     },
@@ -25,10 +25,10 @@ async function main() {
   const hash = await bcrypt.hash(password, 10)
 
   const admin = await db.user.upsert({
-    where: { email: 'admin@leadforge.ai' },
+    where: { email: 'admin@forge.ai' },
     update: {},
     create: {
-      email: 'admin@leadforge.ai',
+      email: 'admin@forge.ai',
       name: 'Sarah Chen',
       passwordHash: hash,
       role: 'admin',
@@ -38,10 +38,10 @@ async function main() {
   console.log(`✅ Admin: ${admin.email} (${admin.role})`)
 
   const manager = await db.user.upsert({
-    where: { email: 'manager@leadforge.ai' },
+    where: { email: 'manager@forge.ai' },
     update: {},
     create: {
-      email: 'manager@leadforge.ai',
+      email: 'manager@forge.ai',
       name: 'Marcus Wu',
       passwordHash: hash,
       role: 'sales_manager',
@@ -51,10 +51,10 @@ async function main() {
   console.log(`✅ Manager: ${manager.email} (${manager.role})`)
 
   const sdr = await db.user.upsert({
-    where: { email: 'sdr@leadforge.ai' },
+    where: { email: 'sdr@forge.ai' },
     update: {},
     create: {
-      email: 'sdr@leadforge.ai',
+      email: 'sdr@forge.ai',
       name: 'Alex Chen',
       passwordHash: hash,
       role: 'sdr',
@@ -312,9 +312,9 @@ Monite 的 embedded finance 平台正在快速成長。我們幫助像 Monite �
 
   console.log('\n🎉 Seed 完成！')
   console.log('\n📋 登入資訊：')
-  console.log('  Admin:    admin@leadforge.ai / demo1234')
-  console.log('  Manager:  manager@leadforge.ai / demo1234')
-  console.log('  SDR:      sdr@leadforge.ai / demo1234')
+  console.log('  Admin:    admin@forge.ai / demo1234')
+  console.log('  Manager:  manager@forge.ai / demo1234')
+  console.log('  SDR:      sdr@forge.ai / demo1234')
 }
 
 main()

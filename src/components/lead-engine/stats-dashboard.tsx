@@ -12,7 +12,7 @@ export function StatsDashboard() {
     () => [
       {
         key: 'total',
-        label: '總名單數',
+        label: 'Total Leads',
         value: stats.total,
         icon: Users,
         color: 'text-slate-600 dark:text-slate-300',
@@ -20,7 +20,7 @@ export function StatsDashboard() {
       },
       {
         key: 'researched',
-        label: '已完成研究',
+        label: 'Researched',
         value: stats.researched,
         icon: Sparkles,
         color: 'text-cyan-600 dark:text-cyan-400',
@@ -28,7 +28,7 @@ export function StatsDashboard() {
       },
       {
         key: 'ready',
-        label: '待發送',
+        label: 'Queued',
         value: stats.ready,
         icon: Zap,
         color: 'text-emerald-600 dark:text-emerald-400',
@@ -36,7 +36,7 @@ export function StatsDashboard() {
       },
       {
         key: 'sent',
-        label: '已發送',
+        label: 'Sent',
         value: stats.sent,
         icon: MailCheck,
         color: 'text-teal-600 dark:text-teal-400',
@@ -44,7 +44,7 @@ export function StatsDashboard() {
       },
       {
         key: 'replied',
-        label: '已回覆',
+        label: 'Replied',
         value: stats.replied,
         icon: MessageSquareReply,
         color: 'text-rose-600 dark:text-rose-400',
@@ -52,7 +52,7 @@ export function StatsDashboard() {
       },
       {
         key: 'rate',
-        label: '回覆率',
+        label: 'Reply Rate',
         value:
           stats.sent + stats.replied > 0
             ? `${Math.round((stats.replied / (stats.sent + stats.replied)) * 100)}%`

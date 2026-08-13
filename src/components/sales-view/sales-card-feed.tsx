@@ -42,7 +42,7 @@ export function SalesCardFeed({ onEditLead }: SalesCardFeedProps) {
   const [sending, setSending] = useState<string | null>(null)
   const [sentQueue, setSentQueue] = useState<Array<{ lead: Lead; at: number }>>([])
 
-  // 只顯示有 email 內容但還沒發送的名單
+  // 只顯示有 email 內容但還沒Send的Leads
   const queue = useMemo(() => {
     return leads.filter(
       (l) => l.emailBody && l.emailSubject && l.status !== 'sent' && l.status !== 'replied'
@@ -61,7 +61,7 @@ export function SalesCardFeed({ onEditLead }: SalesCardFeedProps) {
   const handleSend = async () => {
     if (!current) return
     if (!current.email) {
-      toast.error('此名單缺少收件者 email')
+      toast.error('此Leads缺少收件者 email')
       onEditLead(current.id)
       return
     }
@@ -71,11 +71,11 @@ export function SalesCardFeed({ onEditLead }: SalesCardFeedProps) {
     if (result.success) {
       setSentQueue((q) => [...q, { lead: current, at: Date.now() }])
       setCurrentIdx((i) => Math.min(i + 1, queue.length - 1))
-      toast.success(`已發送：${current.company}`, {
+      toast.success(`Sent：${current.company}`, {
         description: `寄到 ${current.email}`,
       })
     } else {
-      toast.error(result.error ?? '發信失敗')
+      toast.error(result.error ?? 'Send failed')
     }
   }
 
@@ -99,14 +99,14 @@ export function SalesCardFeed({ onEditLead }: SalesCardFeedProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold tabular-nums">{queue.length - safeIdx}</span>
-            <span className="text-sm text-muted-foreground">/ {queue.length} 待發送</span>
+            <span className="text-sm text-muted-foreground">/ {queue.length} Queued</span>
           </div>
           <Progress value={progress} className="mt-1 h-1.5" />
         </div>
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900">
           <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
           <div>
-            <p className="text-xs text-muted-foreground">今日已發送</p>
+            <p className="text-xs text-muted-foreground">今日Sent</p>
             <p className="text-lg font-bold tabular-nums text-emerald-700 dark:text-emerald-400">{sentToday}</p>
           </div>
         </div>
@@ -140,7 +140,7 @@ export function SalesCardFeed({ onEditLead }: SalesCardFeedProps) {
       {sentQueue.length > 0 && (
         <div className="pt-2">
           <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-            <Clock className="h-3 w-3" /> 本次發送紀錄
+            <Clock className="h-3 w-3" /> 本次Send紀錄
           </p>
           <div className="space-y-1.5">
             {sentQueue.slice(-3).reverse().map((s, i) => (
@@ -262,16 +262,16 @@ function SalesCard({
         {/* Quick stats row */}
         <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
           <div className="rounded-md bg-white/10 backdrop-blur-sm p-1.5 border border-white/20">
-            <p className="opacity-70 text-[10px]">聯絡人</p>
+            <p className="opacity-70 text-[10px]">Contact</p>
             <p className="font-medium truncate">{lead.contactName ?? '—'}</p>
           </div>
           <div className="rounded-md bg-white/10 backdrop-blur-sm p-1.5 border border-white/20">
-            <p className="opacity-70 text-[10px]">職稱</p>
+            <p className="opacity-70 text-[10px]">Title</p>
             <p className="font-medium truncate">{lead.title ?? '—'}</p>
           </div>
           <div className="rounded-md bg-white/10 backdrop-blur-sm p-1.5 border border-white/20">
             <p className="opacity-70 text-[10px]">收件</p>
-            <p className="font-medium truncate">{lead.email ? '✓ 已確認' : '未填'}</p>
+            <p className="font-medium truncate">{lead.email ? '✓ 已Confirm' : '未填'}</p>
           </div>
         </div>
       </div>
@@ -290,7 +290,7 @@ function SalesCard({
                   <span className="text-sm font-semibold truncate">{parsedEnriched.name}</span>
                   {parsedEnriched.priority === 1 && (
                     <Badge variant="outline" className="text-[10px] bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300">
-                      <Crown className="mr-1 h-2.5 w-2.5" /> 第一聯絡人
+                      <Crown className="mr-1 h-2.5 w-2.5" /> 第一Contact
                     </Badge>
                   )}
                 </div>
@@ -307,7 +307,7 @@ function SalesCard({
         {parsedResearch?.pain_points && parsedResearch.pain_points.length > 0 && (
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-              <Target className="h-3 w-3" /> 核心痛點
+              <Target className="h-3 w-3" /> Pain Points
             </p>
             <ul className="space-y-1">
               {parsedResearch.pain_points.slice(0, 3).map((p, i) => (
@@ -324,10 +324,10 @@ function SalesCard({
         <div className="rounded-lg border border-emerald-200 dark:border-emerald-900 bg-gradient-to-br from-emerald-50/50 to-teal-50/50 dark:from-emerald-950/20 dark:to-teal-950/20 p-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
-              <Sparkles className="h-3 w-3" /> AI 個人化郵件
+              <Sparkles className="h-3 w-3" /> AI 個人化Email
             </p>
             <Button variant="ghost" size="sm" onClick={onEdit} className="h-6 px-2 text-xs">
-              <Edit3 className="mr-1 h-3 w-3" /> 編輯
+              <Edit3 className="mr-1 h-3 w-3" /> Edit
             </Button>
           </div>
           <div className="space-y-1.5">
@@ -348,7 +348,7 @@ function SalesCard({
             className="flex-1"
           >
             <SkipForward className="mr-2 h-4 w-4" />
-            稍後再說
+            Skip
           </Button>
           <Button
             size="lg"
@@ -359,12 +359,12 @@ function SalesCard({
             {sending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                發送中...
+                Sending...
               </>
             ) : (
               <>
                 <Send className="mr-2 h-4 w-4" />
-                一鍵發送
+                Send Now
               </>
             )}
           </Button>
@@ -373,13 +373,13 @@ function SalesCard({
         {!lead.email && (
           <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/40 p-2 text-xs text-amber-700 dark:text-amber-300">
             <AlertCircle className="h-3 w-3" />
-            缺少收件者 email，點「編輯」先找 Email
+            缺少收件者 email，點「Edit」先找 Email
           </div>
         )}
         {!smtpReady && (
           <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/40 p-2 text-xs text-amber-700 dark:text-amber-300">
             <AlertCircle className="h-3 w-3" />
-            尚未設定 SMTP 或 Smartlead，請先到後台「發信」設定
+            尚Not configured SMTP 或 Smartlead，請先到後台「Email」Settings
           </div>
         )}
       </div>
@@ -395,17 +395,17 @@ function EmptyState() {
           <CheckCircle2 className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
         </div>
         <div>
-          <p className="text-lg font-semibold">收件匣空了 🎉</p>
+          <p className="text-lg font-semibold">Inbox Clear 🎉</p>
           <p className="text-sm text-muted-foreground mt-1">
-            所有待發送的開發信都已處理完畢。
+            所有Queued的開Email都已處理完畢。
           </p>
         </div>
         <div className="pt-2 text-xs text-muted-foreground space-y-1">
           <p className="flex items-center justify-center gap-1">
-            <Mail className="h-3 w-3" /> 提示：可以到「自動開發」分頁讓 AI 找更多潛在客戶
+            <Mail className="h-3 w-3" /> 提示：可以到「Auto-Prospect」分頁讓 AI 找更多潛在客戶
           </p>
           <p className="flex items-center justify-center gap-1">
-            <TrendingUp className="h-3 w-3" /> VP 可以切到「數據儀表板」看開信率與回覆率
+            <TrendingUp className="h-3 w-3" /> VP 可以切到「數據儀表板」看Open Rate與Reply Rate
           </p>
         </div>
       </div>

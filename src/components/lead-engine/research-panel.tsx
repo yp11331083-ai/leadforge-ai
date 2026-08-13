@@ -49,19 +49,19 @@ export function ResearchPanel() {
 
   const handleResearch = async () => {
     if (!website.trim()) {
-      toast.error('請輸入公司網站')
+      toast.error('Please enterCompany網站')
       return
     }
     setLoading(true)
     setResult(null)
     try {
-      // 先建立一個暫存名單，再觸發研究，最後可選擇保留或刪除
+      // 先建立一個暫存Leads，再觸發研究，最後可選擇保留或Delete
       const lead = await createLead({
         company: company || website.replace(/^https?:\/\//, '').split('/')[0],
         website: website.startsWith('http') ? website : `https://${website}`,
       })
       if (!lead) {
-        toast.error('建立名單失敗')
+        toast.error('建立LeadsFailed')
         setLoading(false)
         return
       }
@@ -86,15 +86,15 @@ export function ResearchPanel() {
           },
           score: data.score ?? 0,
         })
-        toast.success('研究完成！結果已存入資料庫')
+        toast.success('研究Complete！結果已存入資料庫')
         await fetchLeads()
       } else {
-        toast.error('研究失敗，可能是網站無法存取')
+        toast.error('研究Failed，可能是網站無法存取')
       }
     } catch (e) {
       console.error(e)
       setLoading(false)
-      toast.error('研究過程發生錯誤')
+      toast.error('研究過程發生Error')
     }
   }
 
@@ -105,16 +105,16 @@ export function ResearchPanel() {
           <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
         </div>
         <div>
-          <h2 className="text-base font-semibold">Claygent AI 研究引擎</h2>
+          <h2 className="text-base font-semibold">Claygent AI Research引擎</h2>
           <p className="text-xs text-muted-foreground">
-            輸入公司網站，AI 會自動瀏覽官網並整理出痛點、徵才訊號、採購意圖
+            輸入Company網站，AI 會自動瀏覽官網並整理出痛點、Hiring Signals、採購意圖
           </p>
         </div>
       </div>
 
       <div className="grid gap-3">
         <div className="grid gap-1.5">
-          <Label htmlFor="research-company">公司名稱（可選）</Label>
+          <Label htmlFor="research-company">CompanyName（可選）</Label>
           <Input
             id="research-company"
             value={company}
@@ -123,7 +123,7 @@ export function ResearchPanel() {
           />
         </div>
         <div className="grid gap-1.5">
-          <Label htmlFor="research-website">公司網站 *</Label>
+          <Label htmlFor="research-website">Company網站 *</Label>
           <Input
             id="research-website"
             value={website}
@@ -140,7 +140,7 @@ export function ResearchPanel() {
             id="research-context"
             value={extraContext}
             onChange={(e) => setExtraContext(e.target.value)}
-            placeholder="例如：他們最近完成 C 輪融資，重點關注擴編痛點"
+            placeholder="例如：他們最近Complete C 輪融資，重點關注擴編痛點"
             rows={2}
             className="text-sm"
           />
@@ -158,7 +158,7 @@ export function ResearchPanel() {
           ) : (
             <>
               <Sparkles className="mr-2 h-4 w-4" />
-              啟動 AI 研究
+              Start AI Research
             </>
           )}
         </Button>
@@ -177,13 +177,13 @@ export function ResearchPanel() {
                 variant="outline"
                 className="bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
               >
-                分數 {result.score}
+                Score {result.score}
               </Badge>
             </div>
 
             {result.research.business_summary && (
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">核心業務</p>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Business Summary</p>
                 <p className="text-sm">{result.research.business_summary}</p>
               </div>
             )}
@@ -191,7 +191,7 @@ export function ResearchPanel() {
             {result.research.hiring_signals.length > 0 && (
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                  <TrendingUp className="h-3 w-3" /> 徵才訊號
+                  <TrendingUp className="h-3 w-3" /> Hiring Signals
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {result.research.hiring_signals.map((s, i) => (
@@ -210,7 +210,7 @@ export function ResearchPanel() {
             {result.research.pain_points.length > 0 && (
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" /> 核心痛點
+                  <AlertCircle className="h-3 w-3" /> Pain Points
                 </p>
                 <ul className="space-y-1.5">
                   {result.research.pain_points.map((p, i) => (
@@ -226,7 +226,7 @@ export function ResearchPanel() {
             {result.research.buying_signals.length > 0 && (
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                  <Target className="h-3 w-3" /> 採購訊號
+                  <Target className="h-3 w-3" /> Buying Signals
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {result.research.buying_signals.map((s, i) => (
@@ -245,7 +245,7 @@ export function ResearchPanel() {
             {result.research.outreach_angle && (
               <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/30 p-3 border border-emerald-200 dark:border-emerald-900">
                 <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 mb-1 flex items-center gap-1">
-                  <Lightbulb className="h-3 w-3" /> 建議切入點
+                  <Lightbulb className="h-3 w-3" /> Suggested Angle
                 </p>
                 <p className="text-sm italic">{result.research.outreach_angle}</p>
               </div>
@@ -253,7 +253,7 @@ export function ResearchPanel() {
 
             <div className="rounded-md bg-muted/40 p-2 text-xs text-muted-foreground flex items-center gap-1.5">
               <Plus className="h-3 w-3" />
-              此名單已自動加入資料庫，可在「名單試算表」分頁查看與生成郵件
+              此Leads已自動加入資料庫，可在「Leads試算表」分頁View與生成Email
             </div>
           </div>
         </>

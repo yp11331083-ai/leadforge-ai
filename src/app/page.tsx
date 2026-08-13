@@ -117,7 +117,7 @@ export default function Home() {
     }
   }, [session, setCurrentUser])
 
-  // 未登入 → 導向 /login
+  // 未Sign In → 導向 /login
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/login')
@@ -138,7 +138,7 @@ export default function Home() {
     if (status === 'authenticated') fetchLeads()
   }, [filterStatus, fetchLeads, status])
 
-  // 確認 role 能存取當前 view，不能就切到 sales
+  // Confirm role 能存取當前 view，不能就切到 sales
   useEffect(() => {
     if (currentUser) {
       const access = ROLE_VIEW_ACCESS[currentUser.role]
@@ -159,7 +159,7 @@ export default function Home() {
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg mb-3 animate-pulse">
             <Rocket className="h-6 w-6 text-white" />
           </div>
-          <p className="text-sm text-muted-foreground">載入中...</p>
+          <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
     )
@@ -201,16 +201,16 @@ export default function Home() {
           {/* View switcher */}
           <div className="hidden md:flex items-center gap-1 p-1 rounded-lg bg-muted/60 border border-border/60">
             {access.admin && (
-              <ViewSwitcherBtn active={viewMode === 'admin'} onClick={() => setViewMode('admin')} icon={LayoutDashboard} label="後台" />
+              <ViewSwitcherBtn active={viewMode === 'admin'} onClick={() => setViewMode('admin')} icon={LayoutDashboard} label="Admin" />
             )}
             {access.sales && (
-              <ViewSwitcherBtn active={viewMode === 'sales'} onClick={() => setViewMode('sales')} icon={Send} label="業務前台" />
+              <ViewSwitcherBtn active={viewMode === 'sales'} onClick={() => setViewMode('sales')} icon={Send} label="Sales" />
             )}
             {access.analytics && (
-              <ViewSwitcherBtn active={viewMode === 'analytics'} onClick={() => setViewMode('analytics')} icon={BarChart3} label="數據儀表板" />
+              <ViewSwitcherBtn active={viewMode === 'analytics'} onClick={() => setViewMode('analytics')} icon={BarChart3} label="Analytics" />
             )}
             {access.billing && (
-              <ViewSwitcherBtn active={viewMode === 'billing'} onClick={() => setViewMode('billing')} icon={CreditCard} label="計費" />
+              <ViewSwitcherBtn active={viewMode === 'billing'} onClick={() => setViewMode('billing')} icon={CreditCard} label="Billing" />
             )}
           </div>
 
@@ -220,11 +220,11 @@ export default function Home() {
               <>
                 <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
                   <Upload className="mr-1.5 h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">批次匯入</span>
+                  <span className="hidden sm:inline">Import</span>
                 </Button>
                 <Button size="sm" onClick={() => setAddOpen(true)}>
                   <Plus className="mr-1.5 h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">新增名單</span>
+                  <span className="hidden sm:inline">Add Lead</span>
                 </Button>
               </>
             )}
@@ -254,7 +254,7 @@ export default function Home() {
                       <span className="text-xs">{ROLE_LABELS[user.role]}</span>
                     </div>
                     <div className="text-[10px] text-muted-foreground pt-0.5">
-                      租戶：{user.tenantName}
+                      Workspace: {user.tenantName}
                     </div>
                   </div>
                 </DropdownMenuLabel>
@@ -264,7 +264,7 @@ export default function Home() {
                   className="text-rose-600 dark:text-rose-400 focus:text-rose-700 dark:focus:text-rose-300"
                 >
                   <LogOut className="mr-2 h-3.5 w-3.5" />
-                  登出
+                  Sign Out
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -274,16 +274,16 @@ export default function Home() {
         {/* Mobile view switcher */}
         <div className="md:hidden border-t border-border/60 px-4 py-2 flex items-center gap-1 overflow-x-auto">
           {access.admin && (
-            <ViewSwitcherBtn active={viewMode === 'admin'} onClick={() => setViewMode('admin')} icon={LayoutDashboard} label="後台" mobile />
+            <ViewSwitcherBtn active={viewMode === 'admin'} onClick={() => setViewMode('admin')} icon={LayoutDashboard} label="Admin" mobile />
           )}
           {access.sales && (
-            <ViewSwitcherBtn active={viewMode === 'sales'} onClick={() => setViewMode('sales')} icon={Send} label="業務" mobile />
+            <ViewSwitcherBtn active={viewMode === 'sales'} onClick={() => setViewMode('sales')} icon={Send} label="Sales" mobile />
           )}
           {access.analytics && (
-            <ViewSwitcherBtn active={viewMode === 'analytics'} onClick={() => setViewMode('analytics')} icon={BarChart3} label="數據" mobile />
+            <ViewSwitcherBtn active={viewMode === 'analytics'} onClick={() => setViewMode('analytics')} icon={BarChart3} label="Analytics" mobile />
           )}
           {access.billing && (
-            <ViewSwitcherBtn active={viewMode === 'billing'} onClick={() => setViewMode('billing')} icon={CreditCard} label="計費" mobile />
+            <ViewSwitcherBtn active={viewMode === 'billing'} onClick={() => setViewMode('billing')} icon={CreditCard} label="Billing" mobile />
           )}
         </div>
       </header>
@@ -295,30 +295,30 @@ export default function Home() {
             <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0 text-sm">
               <p className="font-semibold text-amber-800 dark:text-amber-300">
-                AI 服務配額暫時用完（429 Too Many Requests）
+                AI Service Quota Exhausted (429 Too Many Requests)
               </p>
               <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-                AI 研究、自動開發、郵件生成、找 Email 等功能暫時無法使用。已儲存的名單、研究結果、郵件內容都不受影響，可繼續編輯與發信。
+                AI research, auto-prospecting, email generation, and email enrichment are temporarily unavailable. Saved leads, research results, and email content are not affected — you can still edit and send emails.
               </p>
             </div>
-            <button onClick={() => setRateBannerDismissed(true)} className="text-amber-600 dark:text-amber-400 shrink-0" aria-label="關閉">
+            <button onClick={() => setRateBannerDismissed(true)} className="text-amber-600 dark:text-amber-400 shrink-0" aria-label="Close">
               <X className="h-4 w-4" />
             </button>
           </div>
         )}
 
-        {/* === Admin 後台 === */}
+        {/* === Admin Admin === */}
         {viewMode === 'admin' && access.admin && (
           <>
             <StatsDashboard />
             <Tabs defaultValue="leads" className="w-full">
               <TabsList className="grid w-full max-w-2xl grid-cols-6">
-                <TabsTrigger value="leads"><Table2 className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">名單</span></TabsTrigger>
-                <TabsTrigger value="prospect"><Wand2 className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">自動開發</span></TabsTrigger>
-                <TabsTrigger value="research"><Sparkles className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">AI 研究</span></TabsTrigger>
-                <TabsTrigger value="settings"><Settings className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">寄件人</span></TabsTrigger>
-                <TabsTrigger value="email"><Mail className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">發信</span></TabsTrigger>
-                <TabsTrigger value="providers"><Cpu className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">AI 提供者</span></TabsTrigger>
+                <TabsTrigger value="leads"><Table2 className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">Leads</span></TabsTrigger>
+                <TabsTrigger value="prospect"><Wand2 className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">Prospect</span></TabsTrigger>
+                <TabsTrigger value="research"><Sparkles className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">Research</span></TabsTrigger>
+                <TabsTrigger value="settings"><Settings className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">Sender</span></TabsTrigger>
+                <TabsTrigger value="email"><Mail className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">Email</span></TabsTrigger>
+                <TabsTrigger value="providers"><Cpu className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">AI Providers</span></TabsTrigger>
               </TabsList>
               <TabsContent value="leads" className="mt-4"><LeadsTable /></TabsContent>
               <TabsContent value="prospect" className="mt-4"><AutoProspectPanel /></TabsContent>
@@ -328,10 +328,10 @@ export default function Home() {
                   <Card className="p-5">
                     <div className="flex items-center gap-2 mb-3">
                       <div className="rounded-lg bg-cyan-100 dark:bg-cyan-950/50 p-2"><Database className="h-4 w-4 text-cyan-600 dark:text-cyan-400" /></div>
-                      <div><h2 className="text-base font-semibold">工作流程</h2><p className="text-xs text-muted-foreground">從研究到發信的完整 4 步驟</p></div>
+                      <div><h2 className="text-base font-semibold">Workflow</h2><p className="text-xs text-muted-foreground">From research to sending in 4 steps</p></div>
                     </div>
                     <ol className="space-y-3">
-                      {[{n:'1',t:'建立名單',d:'手動新增、CSV/JSON 批次匯入，或直接從研究面板輸入網站由 AI 自動建立'},{n:'2',t:'AI 公司研究',d:'Claygent 引擎透過 page_reader 抓取官網，AI 整理出痛點、徵才訊號、採購意圖、切入點'},{n:'3',t:'AI 生成冷郵件',d:'根據研究結果，AI 撰寫個人化主旨、開場白、價值主張、行動呼籲'},{n:'4',t:'發送郵件',d:'透過 SMTP 直接發信，或推送到 Smartlead 由專業發信平台代發，自動追蹤成效'}].map((step) => (
+                      {[{n:'1',t:'Create Leads',d:'Manually add, bulk import CSV/JSON, or let AI auto-create from a website URL'},{n:'2',t:'AI Company Research',d:'Claygent engine scrapes the website and AI extracts pain points, hiring signals, buying intent, and outreach angles'},{n:'3',t:'AI Generate Cold Email',d:'Based on research, AI writes a personalized subject, icebreaker, value proposition, and CTA'},{n:'4',t:'Send Email',d:'Send via SMTP directly, or push to Smartlead for professional delivery with tracking'}].map((step) => (
                         <li key={step.n} className="flex gap-3">
                           <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-xs font-bold text-emerald-700 dark:text-emerald-400">{step.n}</div>
                           <div><p className="text-sm font-medium">{step.t}</p><p className="text-xs text-muted-foreground mt-0.5">{step.d}</p></div>
@@ -348,17 +348,17 @@ export default function Home() {
           </>
         )}
 
-        {/* === Sales 業務前台 === */}
+        {/* === Sales Sales === */}
         {viewMode === 'sales' && access.sales && (
           <SalesCardFeed onEditLead={(id) => setSelectedLeadId(id)} />
         )}
 
-        {/* === Analytics 數據儀表板 === */}
+        {/* === Analytics Analytics === */}
         {viewMode === 'analytics' && access.analytics && (
           <AnalyticsDashboard />
         )}
 
-        {/* === Billing 計費 === */}
+        {/* === Billing Billing === */}
         {viewMode === 'billing' && access.billing && (
           <BillingPanel />
         )}
@@ -368,7 +368,7 @@ export default function Home() {
       <footer className="mt-auto border-t border-border/60 py-4">
         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 flex items-center justify-between text-xs text-muted-foreground">
           <span>
-            Powered by Z.ai · {leads.length} 筆名單
+            Powered by Z.ai · {leads.length} leads
             <span className="ml-2 px-1.5 py-0.5 rounded bg-muted/60">{ROLE_LABELS[user.role]}</span>
           </span>
           <a href="https://chat.z.ai" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-foreground transition-colors">

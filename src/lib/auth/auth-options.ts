@@ -82,9 +82,9 @@ export const authOptions: NextAuthOptions = {
 export type Role = 'admin' | 'sales_manager' | 'sdr'
 
 export const ROLE_LABELS: Record<Role, string> = {
-  admin: '管理員',
-  sales_manager: '業務主管',
-  sdr: '業務員',
+  admin: 'Admin',
+  sales_manager: 'Sales Manager',
+  sdr: 'Sales Rep',
 }
 
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {

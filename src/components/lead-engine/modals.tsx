@@ -47,17 +47,17 @@ export function AddLeadModal({ open, onOpenChange }: AddLeadModalProps) {
 
   const handleSubmit = async () => {
     if (!form.company.trim()) {
-      toast.error('公司名稱為必填')
+      toast.error('CompanyName為Required')
       return
     }
     setSubmitting(true)
     const result = await createLead(form)
     setSubmitting(false)
     if (result) {
-      toast.success(`已新增名單：${form.company}`)
+      toast.success(`已Add Lead：${form.company}`)
       handleClose(false)
     } else {
-      toast.error('新增失敗，請重試')
+      toast.error('AddFailed，please retry')
     }
   }
 
@@ -65,15 +65,15 @@ export function AddLeadModal({ open, onOpenChange }: AddLeadModalProps) {
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>新增潛在客戶</DialogTitle>
+          <DialogTitle>Add Lead</DialogTitle>
           <DialogDescription>
-            手動新增一筆名單。新增後可直接在試算表中觸發 AI 研究與郵件生成。
+            手動Add一leads。Add後可直接在試算表中觸發 AI Research與Email生成。
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-2 gap-4 py-2">
           <div className="col-span-2 space-y-1.5">
-            <Label htmlFor="company">公司名稱 *</Label>
+            <Label htmlFor="company">CompanyName *</Label>
             <Input
               id="company"
               value={form.company}
@@ -82,7 +82,7 @@ export function AddLeadModal({ open, onOpenChange }: AddLeadModalProps) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="website">公司網站</Label>
+            <Label htmlFor="website">Company網站</Label>
             <Input
               id="website"
               value={form.website}
@@ -91,7 +91,7 @@ export function AddLeadModal({ open, onOpenChange }: AddLeadModalProps) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="industry">產業</Label>
+            <Label htmlFor="industry">Industry</Label>
             <Input
               id="industry"
               value={form.industry}
@@ -100,7 +100,7 @@ export function AddLeadModal({ open, onOpenChange }: AddLeadModalProps) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="contactName">聯絡人姓名</Label>
+            <Label htmlFor="contactName">Contact姓名</Label>
             <Input
               id="contactName"
               value={form.contactName}
@@ -109,7 +109,7 @@ export function AddLeadModal({ open, onOpenChange }: AddLeadModalProps) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="title">職稱</Label>
+            <Label htmlFor="title">Title</Label>
             <Input
               id="title"
               value={form.title}
@@ -137,7 +137,7 @@ export function AddLeadModal({ open, onOpenChange }: AddLeadModalProps) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="companySize">公司規模</Label>
+            <Label htmlFor="companySize">Company規模</Label>
             <Input
               id="companySize"
               value={form.companySize}
@@ -146,7 +146,7 @@ export function AddLeadModal({ open, onOpenChange }: AddLeadModalProps) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="location">地區</Label>
+            <Label htmlFor="location">Location</Label>
             <Input
               id="location"
               value={form.location}
@@ -158,10 +158,10 @@ export function AddLeadModal({ open, onOpenChange }: AddLeadModalProps) {
 
         <DialogFooter>
           <Button variant="outline" onClick={() => handleClose(false)}>
-            取消
+            Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={submitting}>
-            {submitting ? '儲存中...' : '新增名單'}
+            {submitting ? 'Saving...' : 'Add Lead'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -217,16 +217,16 @@ export function ImportModal({ open, onOpenChange }: ImportModalProps) {
       })
       const data = await res.json()
       if (res.ok) {
-        toast.success(`成功匯入 ${data.count} 筆名單`)
+        toast.success(`SuccessImport ${data.count} leads`)
         onOpenChange(false)
         setText('')
         // 重新載入
         window.location.reload()
       } else {
-        toast.error('匯入失敗')
+        toast.error('ImportFailed')
       }
     } catch {
-      toast.error('解析失敗，請檢查格式')
+      toast.error('解析Failed，please check format')
     } finally {
       setSubmitting(false)
     }
@@ -236,7 +236,7 @@ export function ImportModal({ open, onOpenChange }: ImportModalProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>批次匯入名單</DialogTitle>
+          <DialogTitle>ImportLeads</DialogTitle>
           <DialogDescription>
             貼上 JSON 陣列或帶標頭的 CSV。支援欄位：company, contactName, title, email,
             linkedinUrl, website, industry, companySize, location
@@ -256,10 +256,10 @@ JSON 範例：
         />
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            取消
+            Cancel
           </Button>
           <Button onClick={handleImport} disabled={submitting}>
-            {submitting ? '匯入中...' : '開始匯入'}
+            {submitting ? 'Import中...' : '開始Import'}
           </Button>
         </DialogFooter>
       </DialogContent>
