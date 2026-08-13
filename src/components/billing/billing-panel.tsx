@@ -38,36 +38,44 @@ interface UsageData {
 
 const PLANS = [
   {
-    id: 'trial',
-    name: 'Trial',
+    id: 'freemium',
+    name: 'Freemium',
     price: 0,
-    description: 'Free trial, 14 days per tenant',
-    features: ['100 emails / month', '1 user', 'Basic AI research', 'SMTP sending'],
+    credits: 100,
+    seats: 1,
+    description: 'Get started free, no credit card required',
+    features: ['100 AI credits', '1 seat', 'Basic AI research', 'SMTP sending', '1 mailbox'],
     color: 'from-slate-400 to-slate-500',
   },
   {
     id: 'starter',
     name: 'Starter',
     price: 49,
-    description: 'Starter plan for small teams',
-    features: ['2,000 emails / month', '3 users', 'Basic + deep research', 'SMTP + Smartlead', 'Email enrichment', 'Open tracking webhook'],
+    credits: 1500,
+    seats: 1,
+    description: 'For solo founders',
+    features: ['1,500 AI credits', '1 seat', 'Deep research', 'SMTP + Smartlead', 'Email enrichment', 'Follow-up sequence', '3 mailboxes'],
     color: 'from-emerald-500 to-teal-600',
   },
   {
-    id: 'pro',
-    name: 'Pro',
-    price: 99,
-    description: 'Popular for growing teams',
-    features: ['10,000 emails / month', '10 users', 'All research features', 'Apollo + Cal.com integration', 'Meeting tracking', 'Team leaderboard', 'API access'],
+    id: 'growth',
+    name: 'Growth',
+    price: 149,
+    credits: 5000,
+    seats: 5,
+    description: 'For small teams',
+    features: ['5,000 AI credits', '5 seats', 'Manager dashboard', 'Analytics + team leaderboard', 'Multi-mailbox rotation', 'Cal.com meeting tracking', 'Priority support'],
     color: 'from-violet-500 to-fuchsia-600',
     popular: true,
   },
   {
-    id: 'enterprise',
-    name: 'Enterprise',
-    price: 299,
-    description: 'For large sales teams',
-    features: ['Unlimited emails', 'Unlimited users', 'Dedicated success manager', 'SSO/SAML', 'Custom integrations', 'Priority support', 'SLA guarantee'],
+    id: 'agency',
+    name: 'Agency',
+    price: 399,
+    credits: 20000,
+    seats: 3,
+    description: 'For agencies & sales teams',
+    features: ['20,000 AI credits', '3 SDR seats included', 'Role-based access control', 'White-label option', 'API access', 'Dedicated success manager', 'Extra seats: $30/mo each'],
     color: 'from-amber-500 to-orange-600',
   },
 ]
@@ -115,15 +123,18 @@ export function BillingPanel() {
   }
 
   const currentPlan = PLANS.find((p) => p.id === currentUser?.tenantPlan) ?? PLANS[0]
-  const emailsUsed = usage?.stats?.sent ?? 0
+  const creditsUsed = usage?.stats?.sent ?? 0
   const planLimit: Record<string, number> = {
+    freemium: 100,
     trial: 100,
-    starter: 2000,
-    pro: 10000,
-    enterprise: 100000,
+    starter: 1500,
+    growth: 5000,
+    pro: 5000,
+    agency: 20000,
+    enterprise: 20000,
   }
   const limit = planLimit[currentPlan.id] ?? 100
-  const usagePercent = Math.min(100, (emailsUsed / limit) * 100)
+  const usagePercent = Math.min(100, (creditsUsed / limit) * 100)
 
   return (
     <div className="space-y-5">
@@ -156,7 +167,7 @@ export function BillingPanel() {
             <p className="text-sm opacity-90 mt-1">{currentPlan.description}</p>
           </div>
           <div className="text-right">
-            <p className="text-xs uppercase tracking-wider opacity-80">Monthly</p>
+            <p className="text-xs uppercase tracking-wider opacity-80">/mo</p>
             <p className="text-3xl font-bold">${currentPlan.price}</p>
           </div>
         </div>
@@ -164,9 +175,9 @@ export function BillingPanel() {
         {/* 用量進度 */}
         <div className="mt-4 pt-4 border-t border-white/20">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs uppercase tracking-wider opacity-80">Sent This Month</span>
+            <span className="text-xs uppercase tracking-wider opacity-80">Credits Used</span>
             <span className="text-sm font-medium">
-              {emailsUsed} / {limit} emails
+              {creditsUsed} / {limit} credits
             </span>
           </div>
           <div className="h-2 rounded-full bg-white/20 overflow-hidden">
