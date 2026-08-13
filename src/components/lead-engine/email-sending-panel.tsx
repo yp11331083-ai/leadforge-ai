@@ -31,6 +31,8 @@ import {
   Zap,
   Shield,
   Settings2,
+  Copy,
+  Sparkles,
 } from 'lucide-react'
 import { useLeadStore } from '@/store/lead-store'
 import { toast } from 'sonner'
@@ -50,10 +52,6 @@ export function EmailSendingPanel() {
     smtpFromEmail: '',
     smtpSecure: false,
     smartleadApiKey: '',
-    apolloApiKey: '',
-    calComApiKey: '',
-    stripeSecretKey: '',
-    stripeMeteredPriceId: '',
   })
   const [saving, setSaving] = useState(false)
   const [testingSmtp, setTestingSmtp] = useState(false)
@@ -77,10 +75,6 @@ export function EmailSendingPanel() {
       smtpFromEmail: emailConfig.smtpFromEmail ?? '',
       smtpSecure: emailConfig.smtpSecure,
       smartleadApiKey: '',
-      apolloApiKey: '',
-      calComApiKey: '',
-      stripeSecretKey: '',
-      stripeMeteredPriceId: emailConfig.stripeMeteredPriceId ?? '',
     })
     setSmtpOk(null)
   }
@@ -105,16 +99,18 @@ export function EmailSendingPanel() {
     else toast.error(result.error ?? 'SMTP connection failed')
   }
 
-  const googleConnected = !!emailConfig?.smtpUser && emailConfig?.smtpHost?.includes('gmail')
+  const handleCopyWebhook = () => {
+    const webhookUrl = `${window.location.origin}/api/webhooks/calcom`
+    navigator.clipboard.writeText(webhookUrl)
+    toast.success('Webhook URL copied!')
+  }
+
   const smtpConfigured = !!(emailConfig?.smtpHost && emailConfig?.smtpUser && emailConfig?.smtpPass && emailConfig?.smtpFromEmail)
   const smartleadConfigured = !!emailConfig?.smartleadApiKey
-  const apolloConfigured = !!emailConfig?.apolloApiKey
-  const calComConfigured = !!emailConfig?.calComApiKey
-  const stripeConfigured = !!emailConfig?.stripeSecretKey
 
   return (
     <div className="space-y-5">
-      {/* ===== OAuth Quick Connect (Primary — 90% of users) ===== */}
+      {/* ===== 1. Quick Connect (OAuth) ===== */}
       <Card className="p-5 space-y-4 border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50/50 to-teal-50/50 dark:from-emerald-950/20 dark:to-teal-950/20">
         <div className="flex items-center gap-2">
           <div className="rounded-lg bg-emerald-100 dark:bg-emerald-950/50 p-2">
@@ -134,7 +130,7 @@ export function EmailSendingPanel() {
         <div className="grid grid-cols-1 gap-3">
           {/* Google Workspace */}
           <div className={`rounded-lg border p-4 transition-all ${
-            googleConnected
+            smtpConfigured
               ? 'border-emerald-300 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-950/20'
               : 'border-border/60 hover:border-emerald-300 dark:hover:border-emerald-800'
           }`}>
@@ -149,24 +145,17 @@ export function EmailSendingPanel() {
                 <div>
                   <p className="text-sm font-medium">Google Workspace</p>
                   <p className="text-xs text-muted-foreground">
-                    {googleConnected
-                      ? `Connected: ${emailConfig?.smtpFromEmail ?? emailConfig?.smtpUser}`
-                      : 'Connect your Gmail or Google Workspace account'}
+                    {smtpConfigured ? `Connected: ${emailConfig?.smtpFromEmail ?? emailConfig?.smtpUser}` : 'Connect your Gmail or Google Workspace account'}
                   </p>
                 </div>
               </div>
-              {googleConnected ? (
+              {smtpConfigured ? (
                 <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs">
                   <CheckCircle2 className="mr-1 h-3 w-3" /> Connected
                 </Badge>
               ) : (
-                <Button
-                  size="sm"
-                  onClick={() => toast.info('Google Workspace OAuth requires setup. See instructions below.')}
-                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700"
-                >
-                  <Plug className="mr-1.5 h-3.5 w-3.5" />
-                  Connect
+                <Button size="sm" onClick={() => toast.info('Google Workspace OAuth setup required')} className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700">
+                  <Plug className="mr-1.5 h-3.5 w-3.5" /> Connect
                 </Button>
               )}
             </div>
@@ -187,13 +176,8 @@ export function EmailSendingPanel() {
                   <p className="text-xs text-muted-foreground">Connect your Outlook or Microsoft 365 account</p>
                 </div>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => toast.info('Microsoft 365 OAuth requires setup. See instructions below.')}
-              >
-                <Plug className="mr-1.5 h-3.5 w-3.5" />
-                Connect
+              <Button size="sm" variant="outline" onClick={() => toast.info('Microsoft 365 OAuth setup required')}>
+                <Plug className="mr-1.5 h-3.5 w-3.5" /> Connect
               </Button>
             </div>
           </div>
@@ -205,7 +189,7 @@ export function EmailSendingPanel() {
         </div>
       </Card>
 
-      {/* ===== Advanced SMTP (Collapsible — 10% of users) ===== */}
+      {/* ===== 2. Advanced SMTP (Collapsible) ===== */}
       <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
         <Card className="p-5">
           <CollapsibleTrigger asChild>
@@ -235,110 +219,49 @@ export function EmailSendingPanel() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="sm:col-span-2 space-y-1.5">
                   <Label htmlFor="smtp-host">SMTP Host</Label>
-                  <Input
-                    id="smtp-host"
-                    value={form.smtpHost}
-                    onChange={(e) => setForm((f) => ({ ...f, smtpHost: e.target.value }))}
-                    placeholder="smtp.gmail.com / smtp.sendgrid.net"
-                  />
+                  <Input id="smtp-host" value={form.smtpHost} onChange={(e) => setForm((f) => ({ ...f, smtpHost: e.target.value }))} placeholder="smtp.gmail.com / smtp.sendgrid.net" />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="smtp-port">Port</Label>
-                  <Input
-                    id="smtp-port"
-                    value={form.smtpPort}
-                    onChange={(e) => setForm((f) => ({ ...f, smtpPort: e.target.value }))}
-                    placeholder="587 / 465"
-                    type="number"
-                  />
+                  <Input id="smtp-port" value={form.smtpPort} onChange={(e) => setForm((f) => ({ ...f, smtpPort: e.target.value }))} placeholder="587 / 465" type="number" />
                 </div>
               </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="smtp-user">Username</Label>
-                  <Input
-                    id="smtp-user"
-                    value={form.smtpUser}
-                    onChange={(e) => setForm((f) => ({ ...f, smtpUser: e.target.value }))}
-                    placeholder="apikey or your@email.com"
-                  />
+                  <Input id="smtp-user" value={form.smtpUser} onChange={(e) => setForm((f) => ({ ...f, smtpUser: e.target.value }))} placeholder="apikey or your@email.com" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="smtp-pass">
-                    Password / API Key
-                    {emailConfig?.smtpPass && (
-                      <span className="ml-1 text-xs text-muted-foreground">(current: {emailConfig.smtpPass})</span>
-                    )}
-                  </Label>
-                  <Input
-                    id="smtp-pass"
-                    type="password"
-                    value={form.smtpPass}
-                    onChange={(e) => setForm((f) => ({ ...f, smtpPass: e.target.value }))}
-                    placeholder={emailConfig?.smtpPass ? '•••••••• (leave empty to keep)' : 'Enter password or API key'}
-                  />
+                  <Label htmlFor="smtp-pass">Password / API Key {emailConfig?.smtpPass && <span className="text-xs text-muted-foreground">(current: {emailConfig.smtpPass})</span>}</Label>
+                  <Input id="smtp-pass" type="password" value={form.smtpPass} onChange={(e) => setForm((f) => ({ ...f, smtpPass: e.target.value }))} placeholder={emailConfig?.smtpPass ? '•••••••• (leave empty to keep)' : 'Enter password or API key'} />
                 </div>
               </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="smtp-from-name">From Name</Label>
-                  <Input
-                    id="smtp-from-name"
-                    value={form.smtpFromName}
-                    onChange={(e) => setForm((f) => ({ ...f, smtpFromName: e.target.value }))}
-                    placeholder="Alex from Forge"
-                  />
+                  <Input id="smtp-from-name" value={form.smtpFromName} onChange={(e) => setForm((f) => ({ ...f, smtpFromName: e.target.value }))} placeholder="Alex from Forge" />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="smtp-from-email">From Email</Label>
-                  <Input
-                    id="smtp-from-email"
-                    type="email"
-                    value={form.smtpFromEmail}
-                    onChange={(e) => setForm((f) => ({ ...f, smtpFromEmail: e.target.value }))}
-                    placeholder="alex@yourcompany.com"
-                  />
+                  <Input id="smtp-from-email" type="email" value={form.smtpFromEmail} onChange={(e) => setForm((f) => ({ ...f, smtpFromEmail: e.target.value }))} placeholder="alex@yourcompany.com" />
                 </div>
               </div>
-
               <div className="flex items-center justify-between gap-3 rounded-md bg-muted/40 p-3">
                 <div className="flex items-center gap-2">
-                  <Switch
-                    id="smtp-secure"
-                    checked={form.smtpSecure}
-                    onCheckedChange={(v) => setForm((f) => ({ ...f, smtpSecure: v }))}
-                  />
-                  <Label htmlFor="smtp-secure" className="text-sm cursor-pointer">
-                    Use SSL/TLS (Port 465 usually needs this; 587 usually does not)
-                  </Label>
+                  <Switch id="smtp-secure" checked={form.smtpSecure} onCheckedChange={(v) => setForm((f) => ({ ...f, smtpSecure: v }))} />
+                  <Label htmlFor="smtp-secure" className="text-sm cursor-pointer">Use SSL/TLS (Port 465 usually needs this; 587 usually does not)</Label>
                 </div>
               </div>
-
               {smtpOk !== null && (
-                <div className={`flex items-center gap-2 rounded-md p-2 text-xs ${
-                  smtpOk ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300' : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300'
-                }`}>
+                <div className={`flex items-center gap-2 rounded-md p-2 text-xs ${smtpOk ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300' : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300'}`}>
                   {smtpOk ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
                   {smtpOk ? 'SMTP connection successful! Ready to send.' : 'SMTP connection failed. Please check settings.'}
                 </div>
               )}
-
               <div className="flex gap-2">
-                <Button onClick={handleSave} disabled={saving} variant="outline" size="sm">
-                  {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-                  Save
-                </Button>
-                <Button onClick={handleTestSmtp} disabled={testingSmtp} size="sm">
-                  {testingSmtp ? (
-                    <><Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> Testing...</>
-                  ) : (
-                    <><Plug className="mr-1 h-3.5 w-3.5" /> Test Connection</>
-                  )}
-                </Button>
+                <Button onClick={handleSave} disabled={saving} variant="outline" size="sm">{saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null} Save</Button>
+                <Button onClick={handleTestSmtp} disabled={testingSmtp} size="sm">{testingSmtp ? <><Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> Testing...</> : <><Plug className="mr-1 h-3.5 w-3.5" /> Test Connection</>}</Button>
               </div>
-
               <div className="rounded-md bg-muted/30 p-3 text-xs space-y-1 text-muted-foreground">
                 <p className="font-medium flex items-center gap-1"><Mail className="h-3 w-3" /> Common SMTP Services</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 font-mono text-[11px]">
@@ -355,7 +278,79 @@ export function EmailSendingPanel() {
 
       <Separator />
 
-      {/* ===== Smartlead ===== */}
+      {/* ===== 3. Lead Credits (Apollo — Platform-managed) ===== */}
+      <Card className="p-5 space-y-3 border-cyan-200 dark:border-cyan-900 bg-cyan-50/30 dark:bg-cyan-950/10">
+        <div className="flex items-center gap-2">
+          <div className="rounded-lg bg-cyan-100 dark:bg-cyan-950/50 p-2">
+            <Users className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-base font-semibold flex items-center gap-2">
+              Lead Credits
+              <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
+                <CheckCircle2 className="mr-1 h-3 w-3" /> Active
+              </Badge>
+            </h2>
+            <p className="text-xs text-muted-foreground">AI-powered email finding & enrichment — powered by Forge AI</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-md bg-white/60 dark:bg-cyan-950/20 p-3">
+          <Sparkles className="h-8 w-8 text-cyan-500 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium">Email enrichment is built-in</p>
+            <p className="text-xs text-muted-foreground">Finding verified emails for VP Sales / CEO / Founder uses your Lead Credits balance. No API key needed — we handle it for you.</p>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => window.location.href = '/?view=billing'}>
+            View Credits
+          </Button>
+        </div>
+      </Card>
+
+      {/* ===== 4. Cal.com Meeting Tracking (Platform-provided URL) ===== */}
+      <Card className="p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="rounded-lg bg-rose-100 dark:bg-rose-950/50 p-2">
+            <Calendar className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold">Cal.com Meeting Tracking</h2>
+            <p className="text-xs text-muted-foreground">Track meetings booked by your prospects automatically</p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {/* Copy Webhook URL */}
+          <div className="rounded-lg border border-border/60 p-3">
+            <Label className="text-xs text-muted-foreground mb-1.5 block">Your Webhook URL (copy this)</Label>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-xs font-mono bg-muted/40 px-2 py-1.5 rounded truncate">
+                {typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/calcom` : '/api/webhooks/calcom'}
+              </code>
+              <Button size="sm" variant="outline" onClick={handleCopyWebhook} className="shrink-0">
+                <Copy className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Instructions */}
+          <div className="rounded-md bg-rose-50 dark:bg-rose-950/30 p-3 text-xs space-y-1.5 text-rose-700 dark:text-rose-300">
+            <p className="font-medium">Setup instructions:</p>
+            <ol className="list-decimal ml-4 space-y-0.5">
+              <li>Log in to your <a href="https://app.cal.com/settings/webhooks" target="_blank" rel="noopener noreferrer" className="underline">Cal.com Webhooks settings</a></li>
+              <li>Click "Add Webhook"</li>
+              <li>Paste the URL above into "Endpoint URL"</li>
+              <li>Select events: <code className="px-1 bg-rose-100 dark:bg-rose-950/60 rounded">booking.created</code> and <code className="px-1 bg-rose-100 dark:bg-rose-950/60 rounded">booking.cancelled</code></li>
+              <li>Save — meetings will auto-appear in your Analytics</li>
+            </ol>
+          </div>
+
+          <a href="https://app.cal.com/settings/webhooks" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-rose-600 dark:text-rose-400 hover:underline">
+            <ExternalLink className="h-3 w-3" /> Open Cal.com Webhook Settings
+          </a>
+        </div>
+      </Card>
+
+      {/* ===== 5. Smartlead (Optional / Advanced) ===== */}
       <Card className="p-5 space-y-4">
         <div className="flex items-center gap-2">
           <div className="rounded-lg bg-violet-100 dark:bg-violet-950/50 p-2">
@@ -364,142 +359,48 @@ export function EmailSendingPanel() {
           <div>
             <h2 className="text-base font-semibold flex items-center gap-2">
               Smartlead Integration
-              {smartleadConfigured ? (
-                <Badge variant="outline" className="text-xs bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
+              <Badge variant="outline" className="text-[10px] bg-slate-50 dark:bg-slate-900/40 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400">
+                Optional
+              </Badge>
+              {smartleadConfigured && (
+                <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
                   <CheckCircle2 className="mr-1 h-3 w-3" /> Connected
                 </Badge>
-              ) : (
-                <Badge variant="outline" className="text-xs bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300">
-                  Not configured
-                </Badge>
               )}
             </h2>
-            <p className="text-xs text-muted-foreground">For scaled production sending with IP warmup, tracking, and A/B testing</p>
+            <p className="text-xs text-muted-foreground">For high-volume sending with IP warmup, tracking & A/B testing. If you have your own Smartlead account.</p>
           </div>
         </div>
 
-        <div className="grid gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="smartlead-key" className="flex items-center gap-1.5">
-              <KeyRound className="h-3 w-3" /> Smartlead API Key
-              {emailConfig?.smartleadApiKey && (
-                <span className="text-xs text-muted-foreground">(current: {emailConfig.smartleadApiKey})</span>
-              )}
-            </Label>
-            <Input
-              id="smartlead-key"
-              type="password"
-              value={form.smartleadApiKey}
-              onChange={(e) => setForm((f) => ({ ...f, smartleadApiKey: e.target.value }))}
-              placeholder={emailConfig?.smartleadApiKey ? '•••••••• (leave empty to keep)' : 'Go to Smartlead dashboard → API → Copy API Key'}
-            />
-          </div>
-
-          <a href="https://app.smartlead.ai" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-violet-600 dark:text-violet-400 hover:underline">
-            <ExternalLink className="h-3 w-3" /> Get Smartlead API Key
-          </a>
+        <div className="rounded-md bg-muted/30 p-3 text-xs text-muted-foreground">
+          <p><b>Not required for most users.</b> Google/Microsoft OAuth already handles sending. Only connect Smartlead if you need dedicated IP warmup or advanced A/B testing.</p>
         </div>
+
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" size="sm" className="w-full">
+              {smartleadConfigured ? 'Update Smartlead API Key' : 'Connect Smartlead (Advanced)'}
+              <ChevronDown className="ml-1 h-3.5 w-3.5" />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="space-y-3 pt-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="smartlead-key" className="flex items-center gap-1.5">
+                  <KeyRound className="h-3 w-3" /> Smartlead API Key
+                  {emailConfig?.smartleadApiKey && <span className="text-xs text-muted-foreground">(current: {emailConfig.smartleadApiKey})</span>}
+                </Label>
+                <Input id="smartlead-key" type="password" value={form.smartleadApiKey} onChange={(e) => setForm((f) => ({ ...f, smartleadApiKey: e.target.value }))} placeholder={emailConfig?.smartleadApiKey ? '•••••••• (leave empty to keep)' : 'Go to Smartlead → Settings → API → Copy Key'} />
+              </div>
+              <a href="https://app.smartlead.ai" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-violet-600 dark:text-violet-400 hover:underline">
+                <ExternalLink className="h-3 w-3" /> Get Smartlead API Key
+              </a>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </Card>
 
-      {/* ===== Apollo ===== */}
-      <Card className="p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <div className="rounded-lg bg-cyan-100 dark:bg-cyan-950/50 p-2">
-            <Users className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
-          </div>
-          <div>
-            <h2 className="text-base font-semibold flex items-center gap-2">
-              Apollo.io Email Finder
-              {apolloConfigured ? (
-                <Badge variant="outline" className="text-xs bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 className="mr-1 h-3 w-3" /> Configured
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-xs bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300">
-                  Not configured (will use AI prediction)
-                </Badge>
-              )}
-            </h2>
-            <p className="text-xs text-muted-foreground">Find verified emails for VP Sales / Director / CEO / Founder</p>
-          </div>
-        </div>
-
-        <div className="grid gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="apollo-key" className="flex items-center gap-1.5">
-              <KeyRound className="h-3 w-3" /> Apollo API Key
-              {emailConfig?.apolloApiKey && (
-                <span className="text-xs text-muted-foreground">(current: {emailConfig.apolloApiKey})</span>
-              )}
-            </Label>
-            <Input
-              id="apollo-key"
-              type="password"
-              value={form.apolloApiKey}
-              onChange={(e) => setForm((f) => ({ ...f, apolloApiKey: e.target.value }))}
-              placeholder={emailConfig?.apolloApiKey ? '•••••••• (leave empty to keep)' : 'Go to Apollo → Settings → API Keys'}
-            />
-          </div>
-
-          <a href="https://app.apollo.io/#/settings/integrations/api" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-cyan-600 dark:text-cyan-400 hover:underline">
-            <ExternalLink className="h-3 w-3" /> Get Apollo API Key
-          </a>
-        </div>
-      </Card>
-
-      {/* ===== Cal.com ===== */}
-      <Card className="p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <div className="rounded-lg bg-rose-100 dark:bg-rose-950/50 p-2">
-            <Calendar className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-          </div>
-          <div>
-            <h2 className="text-base font-semibold flex items-center gap-2">
-              Cal.com Meeting Tracking
-              {calComConfigured ? (
-                <Badge variant="outline" className="text-xs bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 className="mr-1 h-3 w-3" /> Configured
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-xs bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300">
-                  Not configured
-                </Badge>
-              )}
-            </h2>
-            <p className="text-xs text-muted-foreground">Automatically track meetings booked by prospects via webhook</p>
-          </div>
-        </div>
-
-        <div className="grid gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="calcom-key" className="flex items-center gap-1.5">
-              <KeyRound className="h-3 w-3" /> Cal.com API Key
-              {emailConfig?.calComApiKey && (
-                <span className="text-xs text-muted-foreground">(current: {emailConfig.calComApiKey})</span>
-              )}
-            </Label>
-            <Input
-              id="calcom-key"
-              type="password"
-              value={form.calComApiKey}
-              onChange={(e) => setForm((f) => ({ ...f, calComApiKey: e.target.value }))}
-              placeholder={emailConfig?.calComApiKey ? '•••••••• (leave empty to keep)' : 'Go to Cal.com → Settings → API'}
-            />
-          </div>
-
-          <div className="rounded-md bg-rose-50 dark:bg-rose-950/30 p-3 text-xs space-y-1 text-rose-700 dark:text-rose-300">
-            <p className="font-medium">Set up webhook to receive meeting events</p>
-            <p className="font-mono text-[11px]">URL: https://your-domain.com/api/webhooks/calcom</p>
-            <p className="text-rose-700 dark:text-rose-400">Subscribe to events: booking.created, booking.cancelled</p>
-          </div>
-
-          <a href="https://app.cal.com/settings/api" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-rose-600 dark:text-rose-400 hover:underline">
-            <ExternalLink className="h-3 w-3" /> Get Cal.com API Key
-          </a>
-        </div>
-      </Card>
-
-      {/* Stripe is platform-managed (not user-configurable) */}
+      {/* ===== 6. Stripe (Platform-managed — hidden from user) ===== */}
       <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/20 p-4 flex items-center gap-3">
         <CreditCard className="h-5 w-5 text-slate-400 shrink-0" />
         <div className="text-xs text-muted-foreground">
@@ -508,12 +409,9 @@ export function EmailSendingPanel() {
         </div>
       </div>
 
+      {/* Save button */}
       <Button onClick={handleSave} disabled={saving} className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700">
-        {saving ? (
-          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>
-        ) : (
-          <><Send className="mr-2 h-4 w-4" /> Save All Settings</>
-        )}
+        {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : <><Send className="mr-2 h-4 w-4" /> Save Settings</>}
       </Button>
     </div>
   )
