@@ -6,45 +6,38 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import {
   Loader2,
   CheckCircle2,
   AlertCircle,
   KeyRound,
-  ExternalLink,
-  Plug,
-  Cpu,
-  Search,
-  FileText,
+  ChevronDown,
   Zap,
+  Shield,
+  Cpu,
   Sparkles,
 } from 'lucide-react'
 import { useLeadStore } from '@/store/lead-store'
 import { toast } from 'sonner'
-
-const EMPTY_FORM = {
-  openaiApiKey: '',
-  openaiModel: 'gpt-4o-mini',
-  anthropicApiKey: '',
-  anthropicModel: 'claude-3-5-sonnet-20241022',
-  geminiApiKey: '',
-  geminiModel: 'gemini-2.0-flash',
-  tavilyApiKey: '',
-  jinaApiKey: '',
-  firecrawlApiKey: '',
-  chatProviderOrder: 'zai,openai,anthropic,gemini',
-  searchProviderOrder: 'zai,tavily',
-  pageReaderProviderOrder: 'zai,jina,firecrawl',
-}
 
 export function AiProviderPanel() {
   const emailConfig = useLeadStore((s) => s.emailConfig)
   const fetchEmailConfig = useLeadStore((s) => s.fetchEmailConfig)
   const saveEmailConfig = useLeadStore((s) => s.saveEmailConfig)
 
-  const [form, setForm] = useState(EMPTY_FORM)
+  const [form, setForm] = useState({
+    openaiApiKey: '',
+    openaiModel: 'gpt-4o-mini',
+    anthropicApiKey: '',
+    anthropicModel: 'claude-3-5-sonnet-20241022',
+  })
   const [saving, setSaving] = useState(false)
+  const [byokOpen, setByokOpen] = useState(false)
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
 
   useEffect(() => {
@@ -59,14 +52,6 @@ export function AiProviderPanel() {
       openaiModel: emailConfig.openaiModel ?? 'gpt-4o-mini',
       anthropicApiKey: '',
       anthropicModel: emailConfig.anthropicModel ?? 'claude-3-5-sonnet-20241022',
-      geminiApiKey: '',
-      geminiModel: emailConfig.geminiModel ?? 'gemini-2.0-flash',
-      tavilyApiKey: '',
-      jinaApiKey: '',
-      firecrawlApiKey: '',
-      chatProviderOrder: emailConfig.chatProviderOrder ?? 'zai,openai,anthropic,gemini',
-      searchProviderOrder: emailConfig.searchProviderOrder ?? 'zai,tavily',
-      pageReaderProviderOrder: emailConfig.pageReaderProviderOrder ?? 'zai,jina,firecrawl',
     })
   }
 
@@ -74,339 +59,165 @@ export function AiProviderPanel() {
     setSaving(true)
     await saveEmailConfig(form)
     setSaving(false)
-    toast.success('AI ProviderSettings saved')
+    toast.success('BYOK keys saved — AI will use your keys instead of platform credits')
   }
 
-  const zaiConfigured = true  // Z.ai 永遠可用
   const openaiConfigured = !!emailConfig?.openaiApiKey
   const anthropicConfigured = !!emailConfig?.anthropicApiKey
-  const geminiConfigured = !!emailConfig?.geminiApiKey
-  const tavilyConfigured = !!emailConfig?.tavilyApiKey
-  const jinaConfigured = !!emailConfig?.jinaApiKey
-  const firecrawlConfigured = !!emailConfig?.firecrawlApiKey
 
   return (
     <div className="space-y-5">
-      {/* 說明卡片 */}
-      <Card className="p-5 bg-gradient-to-br from-violet-50 to-fuchsia-50 dark:from-violet-950/30 dark:to-fuchsia-950/30 border-violet-200 dark:border-violet-900">
-        <div className="flex items-start gap-3">
-          <Cpu className="h-5 w-5 text-violet-600 dark:text-violet-400 shrink-0 mt-0.5" />
-          <div className="text-sm space-y-2">
-            <p className="font-medium text-violet-800 dark:text-violet-300">
-              AI Provider多備援機制
-            </p>
-            <p className="text-xs text-violet-700 dark:text-violet-400">
-              當 Z.ai 配額用完（429）時，系統會自動依Priority切換到其他 AI 服務。建議至少Settings 1 個替代Provider，避免限流中斷。
-            </p>
-            <div className="grid grid-cols-3 gap-2 mt-2 text-[11px]">
-              <div className="rounded-md bg-white/60 dark:bg-violet-950/40 p-1.5">
-                <p className="font-medium text-violet-800 dark:text-violet-300">💬 Chat</p>
-                <p className="text-violet-700 dark:text-violet-400 mt-0.5">研究、Email生成、Auto-Prospect</p>
-              </div>
-              <div className="rounded-md bg-white/60 dark:bg-violet-950/40 p-1.5">
-                <p className="font-medium text-violet-800 dark:text-violet-300">🔍 Search</p>
-                <p className="text-violet-700 dark:text-violet-400 mt-0.5">CompanySearch、找Decision Maker</p>
-              </div>
-              <div className="rounded-md bg-white/60 dark:bg-violet-950/40 p-1.5">
-                <p className="font-medium text-violet-800 dark:text-violet-300">📄 Page Reader</p>
-                <p className="text-violet-700 dark:text-violet-400 mt-0.5">抓取Company官網內容</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Z.ai (預設) */}
-      <Card className="p-5 space-y-3 border-emerald-200 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-950/20">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="rounded-lg bg-emerald-100 dark:bg-emerald-950/50 p-2">
-              <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                Z.ai（預設）
-                <Badge variant="outline" className="text-xs bg-emerald-100 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-                  內建 · 免Settings
-                </Badge>
-              </h3>
-              <p className="text-xs text-muted-foreground">透過 z-ai-web-dev-sdk，免費但有每日配額限制</p>
-            </div>
-          </div>
-          <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-            <CheckCircle2 className="mr-1 h-3 w-3" />啟用
-          </Badge>
-        </div>
-      </Card>
-
-      {/* Chat Provider */}
-      <Card className="p-5 space-y-4">
+      {/* Platform AI Status */}
+      <Card className="p-5 space-y-4 border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50/50 to-teal-50/50 dark:from-emerald-950/20 dark:to-teal-950/20">
         <div className="flex items-center gap-2">
-          <div className="rounded-lg bg-teal-100 dark:bg-teal-950/50 p-2">
-            <Cpu className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+          <div className="rounded-lg bg-emerald-100 dark:bg-emerald-950/50 p-2">
+            <Zap className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold">Chat Provider</h3>
-            <p className="text-xs text-muted-foreground">用於 AI Research、Email生成、Auto-Prospect</p>
+            <h2 className="text-base font-semibold flex items-center gap-2">
+              AI Engine Status
+              <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
+                <CheckCircle2 className="mr-1 h-3 w-3" /> Active
+              </Badge>
+            </h2>
+            <p className="text-xs text-muted-foreground">Powered by Forge AI's high-availability cluster</p>
           </div>
         </div>
 
-        {/* OpenAI */}
-        <div className="space-y-2 rounded-lg border border-border/60 p-3">
-          <div className="flex items-center justify-between">
-            <Label className="flex items-center gap-1.5 font-medium">
-              OpenAI
-              {openaiConfigured ? (
-                <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 className="mr-1 h-2.5 w-2.5" />Configured
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-[10px] bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300">
-                  Not configured
-                </Badge>
-              )}
-            </Label>
-            <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-[10px] text-teal-600 dark:text-teal-400 hover:underline flex items-center gap-0.5">
-              <ExternalLink className="h-2.5 w-2.5" />取得 Key
-            </a>
+        <div className="grid grid-cols-3 gap-2 text-xs">
+          <div className="rounded-md bg-white/60 dark:bg-emerald-950/20 p-2.5">
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="font-medium">Chat AI</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground">Z.ai → Gemini fallback</p>
+            <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Uses your AI Credits</p>
           </div>
-          <Input
-            type="password"
-            value={form.openaiApiKey}
-            onChange={(e) => setForm((f) => ({ ...f, openaiApiKey: e.target.value }))}
-            placeholder={openaiConfigured ? `••••••••（目前：${emailConfig?.openaiApiKey}）` : 'sk-...'}
-          />
-          <div className="flex items-center gap-2">
-            <Label className="text-xs text-muted-foreground whitespace-nowrap">Model:</Label>
-            <Input
-              value={form.openaiModel}
-              onChange={(e) => setForm((f) => ({ ...f, openaiModel: e.target.value }))}
-              placeholder="gpt-4o-mini"
-              className="text-xs font-mono h-8"
-            />
+          <div className="rounded-md bg-white/60 dark:bg-emerald-950/20 p-2.5">
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="font-medium">Search</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground">Z.ai → Tavily</p>
+            <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Platform-managed</p>
           </div>
-          <p className="text-[10px] text-muted-foreground">推薦 gpt-4o-mini（便宜快速）或 gpt-4o（更聰明）</p>
+          <div className="rounded-md bg-white/60 dark:bg-emerald-950/20 p-2.5">
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="font-medium">Page Reader</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground">Z.ai → Jina</p>
+            <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Platform-managed</p>
+          </div>
         </div>
 
-        {/* Anthropic */}
-        <div className="space-y-2 rounded-lg border border-border/60 p-3">
-          <div className="flex items-center justify-between">
-            <Label className="flex items-center gap-1.5 font-medium">
-              Anthropic Claude
-              {anthropicConfigured ? (
-                <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 className="mr-1 h-2.5 w-2.5" />Configured
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-[10px] bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300">
-                  Not configured
-                </Badge>
-              )}
-            </Label>
-            <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-[10px] text-teal-600 dark:text-teal-400 hover:underline flex items-center gap-0.5">
-              <ExternalLink className="h-2.5 w-2.5" />取得 Key
-            </a>
-          </div>
-          <Input
-            type="password"
-            value={form.anthropicApiKey}
-            onChange={(e) => setForm((f) => ({ ...f, anthropicApiKey: e.target.value }))}
-            placeholder={anthropicConfigured ? `••••••••（目前：${emailConfig?.anthropicApiKey}）` : 'sk-ant-...'}
-          />
-          <div className="flex items-center gap-2">
-            <Label className="text-xs text-muted-foreground whitespace-nowrap">Model:</Label>
-            <Input
-              value={form.anthropicModel}
-              onChange={(e) => setForm((f) => ({ ...f, anthropicModel: e.target.value }))}
-              placeholder="claude-3-5-sonnet-20241022"
-              className="text-xs font-mono h-8"
-            />
-          </div>
-          <p className="text-[10px] text-muted-foreground">Claude 3.5 Sonnet（寫作品質最佳）</p>
-        </div>
-
-        {/* Gemini */}
-        <div className="space-y-2 rounded-lg border border-border/60 p-3">
-          <div className="flex items-center justify-between">
-            <Label className="flex items-center gap-1.5 font-medium">
-              Google Gemini
-              {geminiConfigured ? (
-                <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 className="mr-1 h-2.5 w-2.5" />Configured
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-[10px] bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300">
-                  Not configured
-                </Badge>
-              )}
-            </Label>
-            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-[10px] text-teal-600 dark:text-teal-400 hover:underline flex items-center gap-0.5">
-              <ExternalLink className="h-2.5 w-2.5" />取得 Key
-            </a>
-          </div>
-          <Input
-            type="password"
-            value={form.geminiApiKey}
-            onChange={(e) => setForm((f) => ({ ...f, geminiApiKey: e.target.value }))}
-            placeholder={geminiConfigured ? `••••••••（目前：${emailConfig?.geminiApiKey}）` : 'AIza...'}
-          />
-          <div className="flex items-center gap-2">
-            <Label className="text-xs text-muted-foreground whitespace-nowrap">Model:</Label>
-            <Input
-              value={form.geminiModel}
-              onChange={(e) => setForm((f) => ({ ...f, geminiModel: e.target.value }))}
-              placeholder="gemini-2.0-flash"
-              className="text-xs font-mono h-8"
-            />
-          </div>
-          <p className="text-[10px] text-muted-foreground">Gemini 2.0 Flash（最便宜，有免費額度）</p>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label className="text-xs">Chat ProviderPriority（逗號分隔，第一個Failed自動切換下一個）</Label>
-          <Input
-            value={form.chatProviderOrder}
-            onChange={(e) => setForm((f) => ({ ...f, chatProviderOrder: e.target.value }))}
-            placeholder="zai,openai,anthropic,gemini"
-            className="text-xs font-mono"
-          />
+        <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/30 p-2.5 text-[11px] text-emerald-700 dark:text-emerald-400 flex items-start gap-1.5">
+          <Shield className="h-3 w-3 mt-0.5 shrink-0" />
+          <span>All AI operations (research, email generation, auto-prospecting) use your AI Credits. No API keys needed — it just works.</span>
         </div>
       </Card>
 
-      {/* Search Provider */}
-      <Card className="p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <div className="rounded-lg bg-amber-100 dark:bg-amber-950/50 p-2">
-            <Search className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold">Search Provider</h3>
-            <p className="text-xs text-muted-foreground">用於CompanySearch、找Decision Maker、Auto-Prospect</p>
-          </div>
-        </div>
+      {/* BYOK — Advanced (Collapsible) */}
+      <Collapsible open={byokOpen} onOpenChange={setByokOpen}>
+        <Card className="p-5">
+          <CollapsibleTrigger asChild>
+            <button className="flex items-center justify-between w-full text-left">
+              <div className="flex items-center gap-2">
+                <div className="rounded-lg bg-slate-100 dark:bg-slate-800/60 p-2">
+                  <KeyRound className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    Advanced: Bring Your Own Key (BYOK)
+                    {(openaiConfigured || anthropicConfigured) && (
+                      <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
+                        <CheckCircle2 className="mr-1 h-2.5 w-2.5" /> Active
+                      </Badge>
+                    )}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">Use your own OpenAI/Claude keys — won't consume platform AI Credits</p>
+                </div>
+              </div>
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${byokOpen ? 'rotate-180' : ''}`} />
+            </button>
+          </CollapsibleTrigger>
 
-        <div className="space-y-2 rounded-lg border border-border/60 p-3">
-          <div className="flex items-center justify-between">
-            <Label className="flex items-center gap-1.5 font-medium">
-              Tavily
-              {tavilyConfigured ? (
-                <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 className="mr-1 h-2.5 w-2.5" />Configured
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-[10px] bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300">
-                  Not configured
-                </Badge>
-              )}
-            </Label>
-            <a href="https://tavily.com/#api" target="_blank" rel="noopener noreferrer" className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-0.5">
-              <ExternalLink className="h-2.5 w-2.5" />取得 Key
-            </a>
-          </div>
-          <Input
-            type="password"
-            value={form.tavilyApiKey}
-            onChange={(e) => setForm((f) => ({ ...f, tavilyApiKey: e.target.value }))}
-            placeholder={tavilyConfigured ? `••••••••（目前：${emailConfig?.tavilyApiKey}）` : 'tvly-...'}
-          />
-          <p className="text-[10px] text-muted-foreground">專為 AI 設計的Search API，免費 1000 次/月</p>
-        </div>
+          <CollapsibleContent>
+            <div className="space-y-4 pt-4">
+              <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 p-3 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1.5">
+                <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+                <span>If you provide your own API keys, AI operations will use YOUR keys (billed to your account) instead of consuming platform AI Credits. Search and Page Reader remain platform-managed.</span>
+              </div>
 
-        <div className="space-y-1.5">
-          <Label className="text-xs">Search ProviderPriority</Label>
-          <Input
-            value={form.searchProviderOrder}
-            onChange={(e) => setForm((f) => ({ ...f, searchProviderOrder: e.target.value }))}
-            placeholder="zai,tavily"
-            className="text-xs font-mono"
-          />
-        </div>
-      </Card>
+              {/* OpenAI */}
+              <div className="space-y-2 rounded-lg border border-border/60 p-3">
+                <Label className="flex items-center gap-1.5 font-medium">
+                  OpenAI
+                  {openaiConfigured ? (
+                    <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
+                      <CheckCircle2 className="mr-1 h-2.5 w-2.5" /> Active
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] bg-slate-50 dark:bg-slate-900/40 border-slate-300 dark:border-slate-700 text-slate-500">Not set — using platform</Badge>
+                  )}
+                </Label>
+                <Input
+                  type="password"
+                  value={form.openaiApiKey}
+                  onChange={(e) => setForm((f) => ({ ...f, openaiApiKey: e.target.value }))}
+                  placeholder={openaiConfigured ? '•••••••• (leave empty to keep)' : 'sk-...'}
+                />
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-muted-foreground whitespace-nowrap">Model:</Label>
+                  <Input
+                    value={form.openaiModel}
+                    onChange={(e) => setForm((f) => ({ ...f, openaiModel: e.target.value }))}
+                    placeholder="gpt-4o-mini"
+                    className="text-xs font-mono h-8"
+                  />
+                </div>
+              </div>
 
-      {/* Page Reader Provider */}
-      <Card className="p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <div className="rounded-lg bg-rose-100 dark:bg-rose-950/50 p-2">
-            <FileText className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold">Page Reader Provider</h3>
-            <p className="text-xs text-muted-foreground">用於抓取Company官網內容做研究</p>
-          </div>
-        </div>
+              {/* Anthropic */}
+              <div className="space-y-2 rounded-lg border border-border/60 p-3">
+                <Label className="flex items-center gap-1.5 font-medium">
+                  Anthropic Claude
+                  {anthropicConfigured ? (
+                    <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
+                      <CheckCircle2 className="mr-1 h-2.5 w-2.5" /> Active
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] bg-slate-50 dark:bg-slate-900/40 border-slate-300 dark:border-slate-700 text-slate-500">Not set — using platform</Badge>
+                  )}
+                </Label>
+                <Input
+                  type="password"
+                  value={form.anthropicApiKey}
+                  onChange={(e) => setForm((f) => ({ ...f, anthropicApiKey: e.target.value }))}
+                  placeholder={anthropicConfigured ? '•••••••• (leave empty to keep)' : 'sk-ant-...'}
+                />
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-muted-foreground whitespace-nowrap">Model:</Label>
+                  <Input
+                    value={form.anthropicModel}
+                    onChange={(e) => setForm((f) => ({ ...f, anthropicModel: e.target.value }))}
+                    placeholder="claude-3-5-sonnet-20241022"
+                    className="text-xs font-mono h-8"
+                  />
+                </div>
+              </div>
 
-        <div className="space-y-2 rounded-lg border border-border/60 p-3">
-          <div className="flex items-center justify-between">
-            <Label className="flex items-center gap-1.5 font-medium">
-              Jina Reader
-              {jinaConfigured ? (
-                <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 className="mr-1 h-2.5 w-2.5" />Configured
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-                  免費可用
-                </Badge>
-              )}
-            </Label>
-            <a href="https://jina.ai/reader/" target="_blank" rel="noopener noreferrer" className="text-[10px] text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-0.5">
-              <ExternalLink className="h-2.5 w-2.5" />取得 Key（可選）
-            </a>
-          </div>
-          <Input
-            type="password"
-            value={form.jinaApiKey}
-            onChange={(e) => setForm((f) => ({ ...f, jinaApiKey: e.target.value }))}
-            placeholder={jinaConfigured ? `••••••••（目前：${emailConfig?.jinaApiKey}）` : 'jina_...（免費 tier 不需 key）'}
-          />
-          <p className="text-[10px] text-muted-foreground">免費 tier 不需 API key，但有 rate limit。有 key 額度較高</p>
-        </div>
-
-        <div className="space-y-2 rounded-lg border border-border/60 p-3">
-          <div className="flex items-center justify-between">
-            <Label className="flex items-center gap-1.5 font-medium">
-              Firecrawl
-              {firecrawlConfigured ? (
-                <Badge variant="outline" className="text-[10px] bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 className="mr-1 h-2.5 w-2.5" />Configured
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-[10px] bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300">
-                  Not configured
-                </Badge>
-              )}
-            </Label>
-            <a href="https://www.firecrawl.dev/" target="_blank" rel="noopener noreferrer" className="text-[10px] text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-0.5">
-              <ExternalLink className="h-2.5 w-2.5" />取得 Key
-            </a>
-          </div>
-          <Input
-            type="password"
-            value={form.firecrawlApiKey}
-            onChange={(e) => setForm((f) => ({ ...f, firecrawlApiKey: e.target.value }))}
-            placeholder={firecrawlConfigured ? `••••••••（目前：${emailConfig?.firecrawlApiKey}）` : 'fc-...'}
-          />
-          <p className="text-[10px] text-muted-foreground">更強的爬蟲，能處理 JS 渲染頁面，免費 500 次/月</p>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label className="text-xs">Page Reader ProviderPriority</Label>
-          <Input
-            value={form.pageReaderProviderOrder}
-            onChange={(e) => setForm((f) => ({ ...f, pageReaderProviderOrder: e.target.value }))}
-            placeholder="zai,jina,firecrawl"
-            className="text-xs font-mono"
-          />
-        </div>
-      </Card>
-
-      <Button onClick={handleSave} disabled={saving} className="w-full bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700">
-        {saving ? (
-          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</>
-        ) : (
-          <><Zap className="mr-2 h-4 w-4" />Save AI ProviderSettings</>
-        )}
-      </Button>
+              <Button onClick={handleSave} disabled={saving} className="w-full">
+                {saving ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>
+                ) : (
+                  <><KeyRound className="mr-2 h-4 w-4" /> Save BYOK Keys</>
+                )}
+              </Button>
+            </div>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
     </div>
   )
 }

@@ -86,11 +86,15 @@ export function AnalyticsDashboard() {
     openRate: 0, replyRate: 0, meetingRate: 0,
   }
 
+  // Real team leaderboard — derived from current user (SDR sees only self, Manager/Admin sees team)
   const teamLeaderboard = [
-    { name: 'Alex Chen', sent: 47, replied: 5, meetings: 2, avatar: 'A' },
-    { name: 'Sarah Lin', sent: 38, replied: 4, meetings: 2, avatar: 'S' },
-    { name: 'Marcus Wu', sent: 31, replied: 2, meetings: 1, avatar: 'M' },
-    { name: 'Jenny Tsai', sent: 24, replied: 3, meetings: 1, avatar: 'J' },
+    {
+      name: currentUser?.name ?? 'You',
+      sent: stats.sent,
+      replied: stats.replied,
+      meetings: stats.meetings,
+      avatar: (currentUser?.name ?? 'Y').charAt(0).toUpperCase(),
+    },
   ]
 
   return (

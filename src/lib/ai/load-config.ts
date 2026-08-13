@@ -3,8 +3,12 @@ import { setProviderConfig, type ProviderConfig } from '@/lib/ai/agent'
 import { requireUser } from '@/lib/auth/session'
 
 /**
- * 從資料庫載入 tenant 的 provider config 並注入到 agent.ts 的全域變數
- * 在每個使用 AI 的 API route 開頭呼叫
+ * Load provider config from:
+ * 1. Platform env vars (GEMINI_API_KEY, TAVILY_API_KEY, JINA_API_KEY) — always available
+ * 2. User's BYOK keys from DB (optional — overrides platform keys if provided)
+ *
+ * Platform-managed: Gemini, Tavily, Jina (users don't see these keys)
+ * User BYOK: OpenAI, Anthropic (optional advanced setting)
  */
 export async function loadProviderConfig(): Promise<void> {
   try {
@@ -13,24 +17,28 @@ export async function loadProviderConfig(): Promise<void> {
       where: { tenantId: user.tenantId },
     })
 
-    if (!config) {
-      setProviderConfig({})
-      return
-    }
+    // Platform-managed keys from env vars
+    const platformGeminiKey = process.env.GEMINI_API_KEY || undefined
+    const platformTavilyKey = process.env.TAVILY_API_KEY || undefined
+    const platformJinaKey = process.env.JINA_API_KEY || undefined
 
     const providerConfig: ProviderConfig = {
-      openaiApiKey: config.openaiApiKey ?? undefined,
-      openaiModel: config.openaiModel ?? 'gpt-4o-mini',
-      anthropicApiKey: config.anthropicApiKey ?? undefined,
-      anthropicModel: config.anthropicModel ?? 'claude-3-5-sonnet-20241022',
-      geminiApiKey: config.geminiApiKey ?? undefined,
-      geminiModel: config.geminiModel ?? 'gemini-2.0-flash',
-      tavilyApiKey: config.tavilyApiKey ?? undefined,
-      jinaApiKey: config.jinaApiKey ?? undefined,
-      firecrawlApiKey: config.firecrawlApiKey ?? undefined,
-      chatProviderOrder: config.chatProviderOrder ?? 'zai,openai,anthropic,gemini',
-      searchProviderOrder: config.searchProviderOrder ?? 'zai,tavily',
-      pageReaderProviderOrder: config.pageReaderProviderOrder ?? 'zai,jina,firecrawl',
+      // Chat: Z.ai (built-in) → Gemini (platform) → OpenAI (BYOK) → Anthropic (BYOK)
+      openaiApiKey: config?.openaiApiKey ?? undefined,
+      openaiModel: config?.openaiModel ?? 'gpt-4o-mini',
+      anthropicApiKey: config?.anthropicApiKey ?? undefined,
+      anthropicModel: config?.anthropicModel ?? 'claude-3-5-sonnet-20241022',
+      // Platform-managed Gemini (user never sees this key)
+      geminiApiKey: config?.geminiApiKey ?? platformGeminiKey,
+      geminiModel: config?.geminiModel ?? 'gemini-2.0-flash',
+      // Platform-managed search + page reader (users never see these)
+      tavilyApiKey: config?.tavilyApiKey ?? platformTavilyKey,
+      jinaApiKey: config?.jinaApiKey ?? platformJinaKey,
+      firecrawlApiKey: config?.firecrawlApiKey ?? undefined,
+      // Priority: Z.ai first, then platform Gemini, then user BYOK
+      chatProviderOrder: config?.chatProviderOrder ?? 'zai,gemini,openai,anthropic',
+      searchProviderOrder: config?.searchProviderOrder ?? 'zai,tavily',
+      pageReaderProviderOrder: config?.pageReaderProviderOrder ?? 'zai,jina',
     }
 
     setProviderConfig(providerConfig)

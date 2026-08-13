@@ -5,7 +5,7 @@ import { loadProviderConfig } from '@/lib/ai/load-config'
 import { autoProspect } from '@/lib/ai/agent'
 import { jobs, updateJob, cleanupOldJobs, type ProspectJob } from '@/lib/prospect-jobs'
 
-export const maxDuration = 600
+export const maxDuration = 300
 
 export async function POST(req: NextRequest) {
   try {
