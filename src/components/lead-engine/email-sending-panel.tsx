@@ -499,67 +499,14 @@ export function EmailSendingPanel() {
         </div>
       </Card>
 
-      {/* ===== Stripe ===== */}
-      <Card className="p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <div className="rounded-lg bg-slate-200 dark:bg-slate-800 p-2">
-            <CreditCard className="h-4 w-4 text-slate-700 dark:text-slate-300" />
-          </div>
-          <div>
-            <h2 className="text-base font-semibold flex items-center gap-2">
-              Stripe Billing
-              {stripeConfigured ? (
-                <Badge variant="outline" className="text-xs bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 className="mr-1 h-3 w-3" /> Configured
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-xs bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300">
-                  Not configured
-                </Badge>
-              )}
-            </h2>
-            <p className="text-xs text-muted-foreground">Metered billing: charged per email sent, auto-charged at month end</p>
-          </div>
+      {/* Stripe is platform-managed (not user-configurable) */}
+      <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/20 p-4 flex items-center gap-3">
+        <CreditCard className="h-5 w-5 text-slate-400 shrink-0" />
+        <div className="text-xs text-muted-foreground">
+          <p className="font-medium text-slate-600 dark:text-slate-400">Billing is managed by Forge AI</p>
+          <p>Subscription and credits are handled automatically. Visit the Billing tab to view your plan and usage.</p>
         </div>
-
-        <div className="grid gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="stripe-key" className="flex items-center gap-1.5">
-              <KeyRound className="h-3 w-3" /> Stripe Secret Key
-              {emailConfig?.stripeSecretKey && (
-                <span className="text-xs text-muted-foreground">(current: {emailConfig.stripeSecretKey})</span>
-              )}
-            </Label>
-            <Input
-              id="stripe-key"
-              type="password"
-              value={form.stripeSecretKey}
-              onChange={(e) => setForm((f) => ({ ...f, stripeSecretKey: e.target.value }))}
-              placeholder={emailConfig?.stripeSecretKey ? '•••••••• (leave empty to keep)' : 'sk_live_... or sk_test_...'}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="stripe-price">Metered Price ID</Label>
-            <Input
-              id="stripe-price"
-              value={form.stripeMeteredPriceId}
-              onChange={(e) => setForm((f) => ({ ...f, stripeMeteredPriceId: e.target.value }))}
-              placeholder="price_... (usage_type=metered)"
-            />
-          </div>
-
-          <div className="rounded-md bg-slate-50 dark:bg-slate-900/40 p-3 text-xs space-y-1 text-slate-600 dark:text-slate-400">
-            <p className="font-medium">Stripe Webhook Setup</p>
-            <p className="font-mono text-[11px]">URL: https://your-domain.com/api/webhooks/stripe</p>
-            <p>Subscribe: customer.subscription.created/updated/deleted, invoice.payment_succeeded/failed</p>
-          </div>
-
-          <a href="https://dashboard.stripe.com/webhooks" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400 hover:underline">
-            <ExternalLink className="h-3 w-3" /> Set up Stripe Webhook
-          </a>
-        </div>
-      </Card>
+      </div>
 
       <Button onClick={handleSave} disabled={saving} className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700">
         {saving ? (

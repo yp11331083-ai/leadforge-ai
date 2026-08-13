@@ -14,6 +14,7 @@ import {
   Database,
   Mail,
   Wand2,
+  Hammer,
   AlertTriangle,
   X,
   LayoutDashboard,
@@ -33,11 +34,10 @@ import { Toaster } from '@/components/ui/sonner'
 import { useLeadStore } from '@/store/lead-store'
 import { StatsDashboard } from '@/components/lead-engine/stats-dashboard'
 import { LeadsTable } from '@/components/lead-engine/leads-table'
-import { ResearchPanel } from '@/components/lead-engine/research-panel'
+import { AutoProspectPanel } from '@/components/lead-engine/auto-prospect-panel'
 import { SenderConfigPanel } from '@/components/lead-engine/sender-config-panel'
 import { EmailSendingPanel } from '@/components/lead-engine/email-sending-panel'
 import { AiProviderPanel } from '@/components/lead-engine/ai-provider-panel'
-import { AutoProspectPanel } from '@/components/lead-engine/auto-prospect-panel'
 import { LeadDetailSheet } from '@/components/lead-engine/lead-detail-sheet'
 import { AddLeadModal, ImportModal } from '@/components/lead-engine/modals'
 import { SalesCardFeed } from '@/components/sales-view/sales-card-feed'
@@ -312,35 +312,15 @@ export default function Home() {
           <>
             <StatsDashboard />
             <Tabs defaultValue="leads" className="w-full">
-              <TabsList className="grid w-full max-w-2xl grid-cols-6">
+              <TabsList className="grid w-full max-w-2xl grid-cols-5">
                 <TabsTrigger value="leads"><Table2 className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">Leads</span></TabsTrigger>
-                <TabsTrigger value="prospect"><Wand2 className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">Prospect</span></TabsTrigger>
-                <TabsTrigger value="research"><Sparkles className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">Research</span></TabsTrigger>
+                <TabsTrigger value="prospect"><Hammer className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">Prospect</span></TabsTrigger>
                 <TabsTrigger value="settings"><Settings className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">Sender</span></TabsTrigger>
                 <TabsTrigger value="email"><Mail className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">Email</span></TabsTrigger>
                 <TabsTrigger value="providers"><Cpu className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">AI Providers</span></TabsTrigger>
               </TabsList>
               <TabsContent value="leads" className="mt-4"><LeadsTable /></TabsContent>
               <TabsContent value="prospect" className="mt-4"><AutoProspectPanel /></TabsContent>
-              <TabsContent value="research" className="mt-4">
-                <div className="grid gap-5 lg:grid-cols-2">
-                  <ResearchPanel />
-                  <Card className="p-5">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="rounded-lg bg-cyan-100 dark:bg-cyan-950/50 p-2"><Database className="h-4 w-4 text-cyan-600 dark:text-cyan-400" /></div>
-                      <div><h2 className="text-base font-semibold">Workflow</h2><p className="text-xs text-muted-foreground">From research to sending in 4 steps</p></div>
-                    </div>
-                    <ol className="space-y-3">
-                      {[{n:'1',t:'Create Leads',d:'Manually add, bulk import CSV/JSON, or let AI auto-create from a website URL'},{n:'2',t:'AI Company Research',d:'Claygent engine scrapes the website and AI extracts pain points, hiring signals, buying intent, and outreach angles'},{n:'3',t:'AI Generate Cold Email',d:'Based on research, AI writes a personalized subject, icebreaker, value proposition, and CTA'},{n:'4',t:'Send Email',d:'Send via SMTP directly, or push to Smartlead for professional delivery with tracking'}].map((step) => (
-                        <li key={step.n} className="flex gap-3">
-                          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-xs font-bold text-emerald-700 dark:text-emerald-400">{step.n}</div>
-                          <div><p className="text-sm font-medium">{step.t}</p><p className="text-xs text-muted-foreground mt-0.5">{step.d}</p></div>
-                        </li>
-                      ))}
-                    </ol>
-                  </Card>
-                </div>
-              </TabsContent>
               <TabsContent value="settings" className="mt-4"><div className="max-w-2xl"><SenderConfigPanel /></div></TabsContent>
               <TabsContent value="email" className="mt-4"><div className="max-w-2xl"><EmailSendingPanel /></div></TabsContent>
               <TabsContent value="providers" className="mt-4"><div className="max-w-2xl"><AiProviderPanel /></div></TabsContent>
