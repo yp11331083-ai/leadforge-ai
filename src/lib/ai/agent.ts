@@ -210,46 +210,50 @@ export async function generateColdEmail(params: {
     bold: '大膽、有觀點，敢於提出挑戰性的問題',
   }
 
-  const prompt = `你是頂級 B2B 冷郵件寫手，擅長根據深入的研究洞察撰寫高回覆率的個人化郵件。
+  const prompt = `You are a professional B2B Cold Email expert. Write a cold email based on the provided variables.
 
-## 收件人資訊
-- 公司：${company}
-- 聯絡人：${contactName || '（未知姓名，用通用稱呼）'}
-- 職稱：${title || '（未知）'}
-- 產業：${industry || '（未知）'}
+[Constraints]
+1. Word count must be strictly under 125 words.
+2. Tone must be natural and conversational — like a real salesperson wrote it. No formulaic marketing language.
+3. NEVER include these spam trigger words: Free, Guarantee, Risk-Free, 100%, Special Offer, $$$, Click Here, Act Now, Limited Time, Buy Now.
+4. End with a low-friction Call-to-Action (e.g., "Would you have 2 minutes to watch a quick demo?")
+5. Do NOT use "Dear", "Hi there", "Hope this email finds you well", or "I hope you're doing well".
 
-## 研究洞察
-- 核心業務：${businessSummary || '無'}
-- 徵才訊號：${hiringSignals.join('、') || '無'}
-- 核心痛點：${painPoints.map((p, i) => `${i + 1}. ${p}`).join('\n') || '無'}
-- 採購訊號：${buyingSignals.join('、') || '無'}
-- 建議切入點：${outreachAngle || '無'}
+[Input Variables]
+- Target Name: ${contactName || 'Unknown (use a general greeting)'}
+- Target Title: ${title || 'Unknown'}
+- Target Company: ${company}
+- Target Industry: ${industry || 'Unknown'}
+- User Value Proposition: ${senderProduct}
+- Sender Name: ${senderName}
+- Sender Company: ${senderCompany}
 
-## 寄件人資訊
-- 寄件人：${senderName}，${senderCompany}
-- 產品/服務：${senderProduct}
+[Research Insights]
+- Business Summary: ${businessSummary || 'N/A'}
+- Hiring Signals: ${hiringSignals.join(', ') || 'N/A'}
+- Pain Points: ${painPoints.map((p, i) => `${i + 1}. ${p}`).join('\n') || 'N/A'}
+- Buying Signals: ${buyingSignals.join(', ') || 'N/A'}
+- Outreach Angle: ${outreachAngle || 'N/A'}
 
-## 撰寫要求
-- ${langInstruction}
-- 語氣風格：${toneMap[tone]}
-- 郵件結構：
-  1. **主旨**：50 字以內，引起好奇但不標題黨
-  2. **開場白（Icebreaker）**：1-2 句，展現你對他們公司的具體理解（不要用「Hope you're well」這種爛開頭）
-  3. **價值主張**：根據痛點，說明你的產品能如何幫助他們（要具體，不要空話）
-  4. **社會證明**（可選）：簡短提及類似公司的成果
-  5. **行動呼籲**：低摩擦的下一步（例如「週二下午 15 分鐘聊聊？」而非「請回信讓我演示」）
-- 禁止事項：
-  - 不要用「Dear」「Hi there」「Hope this email finds you well」
-  - 不要超過 150 字（中文）/ 100 字（英文）
-  - 不要用感嘆號過多
-  - 不要承諾具體數字除非有依據
+[Language]
+${langInstruction}
 
-請用以下 JSON 格式回應（直接輸出純 JSON，不要 markdown）：
+[Tone]
+${toneMap[tone]}
+
+[Email Structure]
+1. Subject: Under 50 chars, spark curiosity but not clickbait
+2. Icebreaker: 1-2 sentences showing specific understanding of their company
+3. Value Proposition: Based on pain points, explain how your product helps (be specific)
+4. Social Proof (optional): Brief mention of similar company results
+5. CTA: Low-friction next step (e.g., "Tuesday afternoon for 15 min?")
+
+Output PURE JSON (no markdown):
 {
-  "subject": "郵件主旨",
-  "icebreaker": "開場白 1-2 句",
-  "body": "完整郵件內容（不含主旨）",
-  "cta": "行動呼籲一句話"
+  "subject": "email subject",
+  "icebreaker": "1-2 sentence opener",
+  "body": "full email body (without subject)",
+  "cta": "one sentence CTA"
 }`
 
   const chatResult = await chatWithFallback({
