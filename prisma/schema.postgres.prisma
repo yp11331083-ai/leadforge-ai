@@ -184,7 +184,7 @@ model EmailConfig {
   anthropicApiKey   String?  // Claude 3.5 Sonnet
   anthropicModel    String?  @default("claude-3-5-sonnet-20241022")
   geminiApiKey      String?  // Google Gemini
-  geminiModel       String?  @default("gemini-2.0-flash")
+  geminiModel       String?  @default("gemini-flash-latest")
   // web_search 替代方案
   tavilyApiKey      String?  // Tavily AI 搜尋
   // page_reader 替代方案

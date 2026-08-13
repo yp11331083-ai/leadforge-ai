@@ -13,7 +13,12 @@ let zaiInstance: ZAI | null = null
 
 export async function getAI() {
   if (!zaiInstance) {
-    zaiInstance = await ZAI.create()
+    try {
+      zaiInstance = await ZAI.create()
+    } catch (e) {
+      console.warn('Z.ai SDK not available on this environment')
+      throw e
+    }
   }
   return zaiInstance
 }
@@ -91,7 +96,7 @@ export async function researchCompany(params: {
   websiteContent: string
   extraContext?: string
 }) {
-  const zai = await getAI()
+  const zai = await getAI().catch(() => null as any)
   const { company, website, websiteContent, extraContext } = params
 
   const prompt = `你是 B2B 潛在客戶研究的頂級分析師（類似 Clay 平台的 Claygent）。
@@ -180,7 +185,7 @@ export async function generateColdEmail(params: {
   tone: 'professional' | 'friendly' | 'concise' | 'bold'
   language: 'zh-TW' | 'en'
 }) {
-  const zai = await getAI()
+  const zai = await getAI().catch(() => null as any)
   const {
     company,
     contactName,
@@ -409,7 +414,7 @@ export async function researchCompanyDeep(params: {
   sources: ResearchSource[]
   raw: string
 }> {
-  const zai = await getAI()
+  const zai = await getAI().catch(() => null as any)
   const { company, website, websiteContent, extraContext } = params
 
   // 步驟 1：探索次要來源
@@ -572,7 +577,7 @@ export async function generateSearchQueries(params: {
   targetLocation?: string
   idealCustomerSignals?: string
 }): Promise<{ success: boolean; queries: string[]; raw: string }> {
-  const zai = await getAI()
+  const zai = await getAI().catch(() => null as any)
   const { serviceName, description, targetIndustries, targetCompanySize, targetLocation, idealCustomerSignals } = params
 
   const prompt = `你是頂級 B2B 潛在客戶開發專家。
@@ -750,7 +755,7 @@ export async function evaluateProspectFit(params: {
   data: ProspectCandidate | null
   raw: string
 }> {
-  const zai = await getAI()
+  const zai = await getAI().catch(() => null as any)
   const { serviceName, description, keyBenefits, idealCustomerSignals, companyUrl, companyName, websiteContent } = params
 
   const prompt = `你是頂級 B2B 業務分析師，擅長判斷一家公司是否需要某個服務。
@@ -1156,7 +1161,7 @@ async function findPeopleWithAI(params: {
   domain: string
 }): Promise<DecisionMaker[]> {
   const { companyName, domain } = params
-  const zai = await getAI()
+  const zai = await getAI().catch(() => null as any)
 
   // 5 組搜尋策略（漸進放寬）
   const searches = [

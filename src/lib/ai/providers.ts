@@ -109,7 +109,7 @@ async function callChatProvider(
       return await chatWithAnthropic(options, config.anthropicApiKey, config.anthropicModel ?? 'claude-3-5-sonnet-20241022')
     case 'gemini':
       if (!config.geminiApiKey) return null
-      return await chatWithGemini(options, config.geminiApiKey, config.geminiModel ?? 'gemini-2.0-flash')
+      return await chatWithGemini(options, config.geminiApiKey, config.geminiModel ?? 'gemini-flash-latest')
     default:
       return null
   }
@@ -119,6 +119,7 @@ async function callChatProvider(
  * Z.ai chat（透過 z-ai-web-dev-sdk）
  */
 async function chatWithZai(options: ChatCompletionOptions): Promise<ChatCompletionResult> {
+  if (!(await isZaiAvailable())) throw new Error('Z.ai not available')
   const ZAI = (await import('z-ai-web-dev-sdk')).default
   const zai = await ZAI.create()
   const completion = await zai.chat.completions.create({
@@ -290,6 +291,7 @@ async function callSearchProvider(
 }
 
 async function searchWithZai(query: string, num: number): Promise<SearchResultItem[]> {
+  if (!(await isZaiAvailable())) throw new Error('Z.ai not available')
   const ZAI = (await import('z-ai-web-dev-sdk')).default
   const zai = await ZAI.create()
   const results = await zai.functions.invoke('web_search', { query, num })
@@ -368,6 +370,7 @@ async function callPageReaderProvider(
 }
 
 async function fetchPageWithZai(url: string): Promise<PageContent | null> {
+  if (!(await isZaiAvailable())) throw new Error('Z.ai not available')
   const ZAI = (await import('z-ai-web-dev-sdk')).default
   const zai = await ZAI.create()
   const result = await zai.functions.invoke('page_reader', { url })
