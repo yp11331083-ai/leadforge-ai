@@ -18,6 +18,10 @@ export const metadata: Metadata = {
   title: "Forge AI - AI Cold Outreach & Lead Generation",
   description: "AI-driven B2B cold outreach and lead generation SaaS platform",
   keywords: ["B2B", "Cold Outreach", "Lead Generation", "AI", "SaaS"],
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({

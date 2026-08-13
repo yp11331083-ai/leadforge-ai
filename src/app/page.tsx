@@ -156,9 +156,7 @@ export default function Home() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg mb-3 animate-pulse">
-            <Rocket className="h-6 w-6 text-white" />
-          </div>
+          <img src="/logo.png" alt="Forge AI" className="h-12 w-12 rounded-xl shadow-lg mb-3 animate-pulse" />
           <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
@@ -312,7 +310,7 @@ export default function Home() {
             <Tabs defaultValue="leads" className="w-full">
               <TabsList className="grid w-full max-w-2xl grid-cols-5">
                 <TabsTrigger value="leads"><Table2 className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">Leads</span></TabsTrigger>
-                <TabsTrigger value="prospect"><Hammer className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">Prospect</span></TabsTrigger>
+                <TabsTrigger value="prospect"><Hammer className="mr-1.5 h-3.5 w-3.5 shrink-0" style={{ transform: "scale(0.85)" }} /><span className="hidden md:inline">Prospect</span></TabsTrigger>
                 <TabsTrigger value="settings"><Settings className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">Sender</span></TabsTrigger>
                 <TabsTrigger value="email"><Mail className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">Email</span></TabsTrigger>
                 <TabsTrigger value="providers"><Cpu className="mr-1.5 h-3.5 w-3.5" /><span className="hidden md:inline">AI Providers</span></TabsTrigger>
