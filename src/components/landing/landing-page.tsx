@@ -115,14 +115,9 @@ export function LandingPage() {
         </div>
 
         <div className="text-center max-w-3xl mx-auto">
-          <a
-            href="/signup"
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 transition-colors mb-8"
-          >
-            <Sparkles className="h-3 w-3 text-violet-600" />
-            Founding members get 50% off lifetime
-            <ArrowRight className="h-3 w-3" />
-          </a>
+          <p className="text-sm text-slate-500 mb-8">
+            Now accepting <span className="font-semibold text-slate-900">founding members</span> — lock in 50% off, forever.
+          </p>
 
           <h1 className="text-5xl sm:text-7xl font-bold tracking-tight leading-[1.05] text-slate-900">
             AI finds customers.
@@ -169,29 +164,26 @@ export function LandingPage() {
                   Describe your product
                 </label>
                 <div className="mt-2 flex gap-2">
-                  <input
-                    type="text"
-                    value={product}
-                    onChange={(e) => setProduct(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleManualRun()
-                    }}
-                    placeholder="e.g. AI-powered CRM for real estate agents"
-                    className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all"
-                    disabled={loading}
-                  />
-                  <button
-                    onClick={handleManualRun}
-                    disabled={loading || !product.trim()}
-                    className="px-5 py-3 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 text-sm font-medium text-white hover:from-violet-700 hover:to-fuchsia-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
-                  >
+                  <div className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-700 flex items-center min-h-[48px]">
                     {loading ? (
-                      <><Loader2 className="h-4 w-4 animate-spin" /> Analyzing</>
+                      <span className="text-slate-400 flex items-center gap-2">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyzing...
+                      </span>
                     ) : (
-                      <>Find customer <ArrowRight className="h-4 w-4" /></>
+                      <span className="truncate">{product}</span>
                     )}
-                  </button>
+                  </div>
+                  <div className="px-5 py-3 rounded-lg bg-slate-900 text-sm font-medium text-white flex items-center gap-2 whitespace-nowrap">
+                    {loading ? (
+                      <><Loader2 className="h-4 w-4 animate-spin" /> Working</>
+                    ) : (
+                      <><Sparkles className="h-4 w-4" /> Auto-demo</>
+                    )}
+                  </div>
                 </div>
+                <p className="mt-2 text-xs text-slate-400">
+                  Rotating through live examples — sign up to use your own product description
+                </p>
               </div>
 
               {/* Result area — no empty state, always shows something */}
@@ -352,7 +344,7 @@ export function LandingPage() {
         <div className="mx-auto max-w-6xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
           <div className="flex items-center gap-2">
             <img src="/logo.png" alt="Outrovo" className="h-5 w-5 rounded" />
-            <span>© 2026 Outrovo. All rights reserved.</span>
+            <span>© Outrovo 2026. All Rights Reserved.</span>
           </div>
           <div className="flex items-center gap-4">
             <a href="/privacy" className="hover:text-slate-600 transition-colors">Privacy Policy</a>
