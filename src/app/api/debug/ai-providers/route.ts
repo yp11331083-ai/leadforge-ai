@@ -26,14 +26,48 @@ export async function GET() {
       hasTavilyKey: !!config.tavilyApiKey,
       hasGeminiKey: !!config.geminiApiKey,
       hasJinaKey: !!config.jinaApiKey,
+      hasGroqKey: !!config.groqApiKey,
       hasOpenaiKey: !!config.openaiApiKey,
       hasAnthropicKey: !!config.anthropicApiKey,
       geminiModel: config.geminiModel,
+      groqModel: config.groqModel,
     },
     tests: {},
   }
 
-  // Test 1: Tavily search directly
+  // Test 1: Groq chat directly (the new primary provider)
+  if (config.groqApiKey) {
+    try {
+      const model = config.groqModel || 'llama-3.3-70b-versatile'
+      const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.groqApiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: 'Reply with the single word: OK' }],
+          temperature: 0,
+          max_tokens: 10,
+        }),
+      })
+      const groqData = await groqRes.json() as any
+      results.tests.groq = {
+        ok: groqRes.ok,
+        status: groqRes.status,
+        model,
+        response: groqData?.choices?.[0]?.message?.content?.trim() ?? null,
+        error: groqData?.error?.message || null,
+      }
+    } catch (e: any) {
+      results.tests.groq = { ok: false, error: e.message }
+    }
+  } else {
+    results.tests.groq = { ok: false, error: 'GROQ_API_KEY not in config' }
+  }
+
+  // Test 2: Tavily search directly
   if (config.tavilyApiKey) {
     try {
       const tavilyRes = await fetch('https://api.tavily.com/search', {
@@ -62,7 +96,7 @@ export async function GET() {
     results.tests.tavily = { ok: false, error: 'TAVILY_API_KEY not in config' }
   }
 
-  // Test 2: Gemini chat directly
+  // Test 3: Gemini chat directly
   if (config.geminiApiKey) {
     try {
       const model = config.geminiModel || 'gemini-2.5-flash'
@@ -92,7 +126,7 @@ export async function GET() {
     results.tests.gemini = { ok: false, error: 'GEMINI_API_KEY not in config' }
   }
 
-  // Test 3: Jina page reader directly
+  // Test 4: Jina page reader directly
   if (config.jinaApiKey) {
     try {
       const jinaRes = await fetch(`https://r.jina.ai/https://example.com`, {

@@ -21,6 +21,7 @@ export async function loadProviderConfig(): Promise<void> {
     const platformGeminiKey = process.env.GEMINI_API_KEY || undefined
     const platformTavilyKey = process.env.TAVILY_API_KEY || undefined
     const platformJinaKey = process.env.JINA_API_KEY || undefined
+    const platformGroqKey = process.env.GROQ_API_KEY || undefined
 
     const providerConfig: ProviderConfig = {
       // Chat: Z.ai (built-in) → Gemini (platform) → OpenAI (BYOK) → Anthropic (BYOK)
@@ -31,12 +32,15 @@ export async function loadProviderConfig(): Promise<void> {
       // Platform-managed Gemini (user never sees this key)
       geminiApiKey: config?.geminiApiKey ?? platformGeminiKey,
       geminiModel: config?.geminiModel ?? 'gemini-2.5-flash',
+      // Platform-managed Groq (user never sees this key) — free + fast Llama 3.3 70B
+      groqApiKey: config?.groqApiKey ?? platformGroqKey,
+      groqModel: config?.groqModel ?? 'llama-3.3-70b-versatile',
       // Platform-managed search + page reader (users never see these)
       tavilyApiKey: config?.tavilyApiKey ?? platformTavilyKey,
       jinaApiKey: config?.jinaApiKey ?? platformJinaKey,
       firecrawlApiKey: config?.firecrawlApiKey ?? undefined,
-      // Priority: Z.ai first, then platform Gemini, then user BYOK
-      chatProviderOrder: config?.chatProviderOrder ?? 'zai,gemini,openai,anthropic',
+      // Priority: Groq first (fast + free), then Z.ai, then Gemini, then user BYOK
+      chatProviderOrder: config?.chatProviderOrder ?? 'groq,zai,gemini,openai,anthropic',
       searchProviderOrder: config?.searchProviderOrder ?? 'zai,tavily',
       pageReaderProviderOrder: config?.pageReaderProviderOrder ?? 'zai,jina',
     }

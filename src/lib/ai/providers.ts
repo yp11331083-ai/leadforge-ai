@@ -63,6 +63,9 @@ export interface ProviderConfig {
   // Gemini
   geminiApiKey?: string
   geminiModel?: string
+  // Groq (OpenAI-compatible, free + very fast)
+  groqApiKey?: string
+  groqModel?: string
   // Tavily (search)
   tavilyApiKey?: string
   // Jina (page reader)
@@ -70,7 +73,7 @@ export interface ProviderConfig {
   // Firecrawl
   firecrawlApiKey?: string
   // Provider 優先順序
-  chatProviderOrder?: string      // "zai,openai,anthropic,gemini"
+  chatProviderOrder?: string      // "groq,zai,gemini,openai,anthropic"
   searchProviderOrder?: string    // "zai,tavily"
   pageReaderProviderOrder?: string // "zai,jina,firecrawl"
 }
@@ -97,7 +100,7 @@ export async function chatWithFallback(
   options: ChatCompletionOptions,
   config: ProviderConfig
 ): Promise<ChatCompletionResult> {
-  const order = (config.chatProviderOrder ?? 'zai,openai,anthropic,gemini')
+  const order = (config.chatProviderOrder ?? 'groq,zai,gemini,openai,anthropic')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
@@ -136,6 +139,9 @@ async function callChatProvider(
     case 'gemini':
       if (!config.geminiApiKey) return null
       return await chatWithGemini(options, config.geminiApiKey, config.geminiModel ?? 'gemini-2.5-flash')
+    case 'groq':
+      if (!config.groqApiKey) return null
+      return await chatWithGroq(options, config.groqApiKey, config.groqModel ?? 'llama-3.3-70b-versatile')
     default:
       return null
   }
@@ -273,6 +279,41 @@ async function chatWithGemini(
   const content = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
   if (!content) throw new Error('Gemini 回應為空')
   return { content, provider: 'gemini', model }
+}
+
+/**
+ * Groq chat completions (OpenAI-compatible API).
+ * Free + very fast inference for Llama, Mixtral, Gemma models.
+ * Docs: https://console.groq.com/docs/api-reference
+ */
+async function chatWithGroq(
+  options: ChatCompletionOptions,
+  apiKey: string,
+  model: string
+): Promise<ChatCompletionResult> {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: options.messages,
+      temperature: options.temperature ?? 0.5,
+      max_tokens: options.maxTokens,
+    }),
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Groq ${res.status}: ${text.slice(0, 200)}`)
+  }
+
+  const data = await res.json() as any
+  const content = data.choices?.[0]?.message?.content ?? ''
+  if (!content) throw new Error('Groq returned an empty response')
+  return { content, provider: 'groq', model }
 }
 
 // ===== Web Search =====
@@ -437,8 +478,15 @@ async function fetchPageWithZai(url: string): Promise<PageContent | null> {
 async function fetchPageWithJina(url: string, apiKey?: string): Promise<PageContent | null> {
   // Jina Reader: https://r.jina.ai/{url}
   // 免費 tier 不需 API key，但有 API key 限額較高
+  //
+  // IMPORTANT: Use 'text/plain' Accept header (NOT 'text/html'). Jina returns
+  // markdown by default. Asking for 'text/html' makes Jina attempt a full
+  // browser render of the page, which can fail on JS-heavy SPA sites like
+  // scale.com, notion.so, etc. With 'text/plain' Jina returns markdown
+  // which is more reliable + faster.
   const headers: Record<string, string> = {
-    'Accept': 'text/html',
+    'Accept': 'text/plain',
+    'X-Return-Format': 'markdown',
   }
   if (apiKey) {
     headers['Authorization'] = `Bearer ${apiKey}`
@@ -451,7 +499,10 @@ async function fetchPageWithJina(url: string, apiKey?: string): Promise<PageCont
   }
 
   const text = await res.text()
-  // Jina 回傳 markdown 格式，標題在第一行
+  if (!text || text.length < 50) {
+    throw new Error(`Jina returned empty/short response (len=${text.length})`)
+  }
+  // Jina 回傳 markdown 格式，標題在第一行 "Title: ..."
   const lines = text.split('\n').filter(Boolean)
   const title = lines[0]?.replace(/^Title:\s*/i, '').replace(/^#+\s*/, '') ?? url
   const html = `<div>${text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</div>`

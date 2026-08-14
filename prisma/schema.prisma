@@ -184,13 +184,16 @@ model EmailConfig {
   anthropicModel    String?  @default("claude-3-5-sonnet-20241022")
   geminiApiKey      String?  // Google Gemini
   geminiModel       String?  @default("gemini-2.5-flash")
+  // Groq (OpenAI-compatible, free + very fast Llama 3.3 70B)
+  groqApiKey        String?  // Groq API key
+  groqModel         String?  @default("llama-3.3-70b-versatile")
   // web_search 替代方案
   tavilyApiKey      String?  // Tavily AI 搜尋
   // page_reader 替代方案
   jinaApiKey        String?  // Jina Reader
   firecrawlApiKey   String?  // Firecrawl
   // 提供者優先順序（逗號分隔）
-  chatProviderOrder       String?  @default("zai,gemini,openai,anthropic")
+  chatProviderOrder       String?  @default("groq,zai,gemini,openai,anthropic")
   searchProviderOrder     String?  @default("zai,tavily")
   pageReaderProviderOrder String?  @default("zai,jina,firecrawl")
 
