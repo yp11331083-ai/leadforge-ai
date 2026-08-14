@@ -42,26 +42,26 @@ export function SalesCardFeed({ onEditLead }: SalesCardFeedProps) {
   const [sending, setSending] = useState<string | null>(null)
   const [sentQueue, setSentQueue] = useState<Array<{ lead: Lead; at: number }>>([])
 
-  // 只顯示有 email 內容但還沒Send的Leads
+  // Only show leads that have email content but haven't been sent yet
   const queue = useMemo(() => {
     return leads.filter(
       (l) => l.emailBody && l.emailSubject && l.status !== 'sent' && l.status !== 'replied'
     )
   }, [leads])
 
-  // 從現在起載入
+  // Load now
   useEffect(() => {
     fetchLeads()
   }, [fetchLeads])
 
-  // 自動夾回合法範圍（用 derived value 避免 setState in effect）
+  // Auto-clamp to valid range (use derived value to avoid setState in effect)
   const safeIdx = Math.min(currentIdx, Math.max(0, queue.length - 1))
   const current = queue[safeIdx]
 
   const handleSend = async () => {
     if (!current) return
     if (!current.email) {
-      toast.error('此Leads缺少收件者 email')
+      toast.error('This lead is missing a recipient email')
       onEditLead(current.id)
       return
     }
@@ -72,7 +72,7 @@ export function SalesCardFeed({ onEditLead }: SalesCardFeedProps) {
       setSentQueue((q) => [...q, { lead: current, at: Date.now() }])
       setCurrentIdx((i) => Math.min(i + 1, queue.length - 1))
       toast.success(`Sent：${current.company}`, {
-        description: `寄到 ${current.email}`,
+        description: `Sent to ${current.email}`,
       })
     } else {
       toast.error(result.error ?? 'Send failed')
@@ -84,7 +84,7 @@ export function SalesCardFeed({ onEditLead }: SalesCardFeedProps) {
     // Optimistic skip — immediately advance the card, don't wait for the API call.
     // The DB update happens in the background; if it fails the user doesn't notice.
     setCurrentIdx((i) => Math.min(i + 1, queue.length - 1))
-    toast.info(`已跳過：${current.company}`)
+    toast.info(`Skipped: ${current.company}`)
     // Fire-and-forget — don't await
     updateLead(current.id, { status: 'new', tags: `${current.tags ?? ''},skipped`.replace(/^,/, '') })
       .catch((e) => console.error('Skip DB update failed:', e))
@@ -110,7 +110,7 @@ export function SalesCardFeed({ onEditLead }: SalesCardFeedProps) {
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900">
           <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
           <div>
-            <p className="text-xs text-muted-foreground">今日Sent</p>
+            <p className="text-xs text-muted-foreground">Sent Today</p>
             <p className="text-lg font-bold tabular-nums text-emerald-700 dark:text-emerald-400">{sentToday}</p>
           </div>
         </div>
@@ -144,7 +144,7 @@ export function SalesCardFeed({ onEditLead }: SalesCardFeedProps) {
       {sentQueue.length > 0 && (
         <div className="pt-2">
           <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-            <Clock className="h-3 w-3" /> 本次Send紀錄
+            <Clock className="h-3 w-3" /> Recent Sent
           </p>
           <div className="space-y-1.5">
             {sentQueue.slice(-3).reverse().map((s, i) => (
@@ -258,7 +258,6 @@ function SalesCard({
             </div>
           </div>
           <div className="text-right shrink-0">
-            <p className="text-[10px] uppercase tracking-wider opacity-80">Fit Score</p>
             <p className="text-4xl font-bold tabular-nums leading-none mt-0.5">{score}</p>
           </div>
         </div>
@@ -283,8 +282,8 @@ function SalesCard({
               ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300'
               : 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300'
           }`}>
-            <span className="text-xs opacity-80">{lead.email ? '收件' : 'Email'}</span>
-            <span className="font-medium truncate max-w-[200px]">{lead.email ?? '未填'}</span>
+            <span className="text-xs opacity-80">{lead.email ? 'To' : 'Email'}</span>
+            <span className="font-medium truncate max-w-[200px]">{lead.email ?? 'Not set'}</span>
           </div>
         </div>
 
@@ -300,7 +299,7 @@ function SalesCard({
                   <span className="text-sm font-semibold truncate">{parsedEnriched.name}</span>
                   {parsedEnriched.priority === 1 && (
                     <Badge variant="outline" className="text-[10px] bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300">
-                      <Crown className="mr-1 h-2.5 w-2.5" /> 第一Contact
+                      <Crown className="mr-1 h-2.5 w-2.5" /> Top Priority
                     </Badge>
                   )}
                 </div>
@@ -334,7 +333,7 @@ function SalesCard({
         <div className="rounded-lg border border-emerald-200 dark:border-emerald-900 bg-gradient-to-br from-emerald-50/50 to-teal-50/50 dark:from-emerald-950/20 dark:to-teal-950/20 p-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
-              <Sparkles className="h-3.5 w-3.5" /> AI 個人化Email
+              <Sparkles className="h-3.5 w-3.5" /> AI Personalized Email
             </p>
             <Button variant="ghost" size="sm" onClick={onEdit} className="h-6 px-2 text-xs">
               <Edit3 className="mr-1 h-3 w-3" /> Edit
@@ -383,13 +382,13 @@ function SalesCard({
         {!lead.email && (
           <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/40 p-2 text-xs text-amber-700 dark:text-amber-300">
             <AlertCircle className="h-3 w-3" />
-            缺少收件者 email，點「Edit」先找 Email
+            Missing recipient email — click "Edit" to find the email first
           </div>
         )}
         {!smtpReady && (
           <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/40 p-2 text-xs text-amber-700 dark:text-amber-300">
             <AlertCircle className="h-3 w-3" />
-            尚Not configured SMTP 或 Smartlead，請先到後台「Email」Settings
+            SMTP or Smartlead not configured — go to Email settings to set it up first
           </div>
         )}
       </div>
@@ -407,15 +406,15 @@ function EmptyState() {
         <div>
           <p className="text-lg font-semibold">Inbox Clear 🎉</p>
           <p className="text-sm text-muted-foreground mt-1">
-            所有Queued的開Email都已處理完畢。
+            All queued emails have been processed.
           </p>
         </div>
         <div className="pt-2 text-xs text-muted-foreground space-y-1">
           <p className="flex items-center justify-center gap-1">
-            <Mail className="h-3 w-3" /> 提示：可以到「Auto-Prospect」分頁讓 AI 找更多潛在客戶
+            <Mail className="h-3 w-3" /> Tip: go to the Auto-Prospect tab to let AI find more leads
           </p>
           <p className="flex items-center justify-center gap-1">
-            <TrendingUp className="h-3 w-3" /> VP 可以切到「數據儀表板」看Open Rate與Reply Rate
+            <TrendingUp className="h-3 w-3" /> Managers can switch to the Analytics dashboard to see open rate and reply rate
           </p>
         </div>
       </div>

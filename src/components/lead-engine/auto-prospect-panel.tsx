@@ -64,7 +64,7 @@ export function AutoProspectPanel() {
     fetchServiceOffering()
   }, [fetchServiceOffering])
 
-  // 同步 DB Settings到表單
+  // Sync DB settings to form
   const configKey = serviceOffering?.updatedAt ?? ''
   if (serviceOffering && configKey !== lastSyncedAt) {
     setLastSyncedAt(configKey)
@@ -82,24 +82,24 @@ export function AutoProspectPanel() {
 
   const handleSave = async () => {
     if (!form.serviceName.trim() || !form.description.trim()) {
-      toast.error('服務Name與Description為Required')
+      toast.error('Service Name and Description are required')
       return
     }
     setSaving(true)
     await saveServiceOffering(form)
     setSaving(false)
-    toast.success('服務Settings saved')
+    toast.success('Service settings saved')
   }
 
   const handleRun = async () => {
     if (!form.serviceName.trim() || !form.description.trim()) {
-      toast.error('請先填寫服務Name與Description')
+      toast.error('Please fill in Service Name and Description first')
       return
     }
-    // 先Save再執行
+    // Save first, then run
     await saveServiceOffering(form)
     setAddedIds(new Set())
-    toast.info('AI Auto-ProspectStart中，預計 2-4 分鐘...')
+    toast.info('Starting AI Auto-Prospect — estimated 2-4 minutes...')
     const result = await runAutoProspect({
       serviceName: form.serviceName,
       description: form.description,
@@ -112,7 +112,7 @@ export function AutoProspectPanel() {
       saveToDb: false,
     })
     if (result.success) {
-      toast.success(`找到 ${prospectResult?.candidates.length ?? 0} 家潛在客戶！`)
+      toast.success(`Found ${prospectResult?.candidates.length ?? 0} potential leads!`)
     } else {
       toast.error(result.error ?? 'Auto-ProspectFailed')
     }
@@ -137,7 +137,7 @@ export function AutoProspectPanel() {
     })
     if (lead) {
       setAddedIds((s) => new Set([...s, c.website]))
-      toast.success(`已加入：${c.company}`)
+      toast.success(`Added: ${c.company}`)
       await fetchLeads()
     }
   }
@@ -146,112 +146,112 @@ export function AutoProspectPanel() {
     if (!prospectResult) return
     const toAdd = prospectResult.candidates.filter((c) => !addedIds.has(c.website))
     if (toAdd.length === 0) {
-      toast.info('已All加入')
+      toast.info('All added')
       return
     }
-    toast.info(`正在加入 ${toAdd.length} 家Company...`)
+    toast.info(`Adding ${toAdd.length} companies...`)
     for (const c of toAdd) {
       await handleAddOne(c)
     }
-    toast.success('All加入Complete！')
+    toast.success('All added successfully!')
   }
 
   return (
     <div className="space-y-5">
-      {/* 服務Settings */}
+      {/* Service Settings */}
       <Card className="p-5 space-y-4">
         <div className="flex items-center gap-2">
           <div className="rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 p-2 shadow-md">
             <Wand2 className="h-4 w-4 text-white" />
           </div>
           <div>
-            <h2 className="text-base font-semibold">AI Auto-Prospect引擎</h2>
+            <h2 className="text-base font-semibold">AI Auto-Prospect Engine</h2>
             <p className="text-xs text-muted-foreground">
-              輸入你的服務，AI 自動找出 10 家最需要你服務的企業
+              Enter your service — AI will automatically find 10 companies that need it most
             </p>
           </div>
         </div>
 
         <div className="grid gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="service-name">服務/產品Name *</Label>
+            <Label htmlFor="service-name">Service / Product Name *</Label>
             <Input
               id="service-name"
               value={form.serviceName}
               onChange={(e) => setForm((f) => ({ ...f, serviceName: e.target.value }))}
-              placeholder="例如：AI 銷售開發自動化平台"
+              placeholder="e.g. AI Sales Development Platform"
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="service-desc">服務Description *</Label>
+            <Label htmlFor="service-desc">Service Description *</Label>
             <Textarea
               id="service-desc"
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              placeholder="詳細說明你的服務做什麼、解決什麼問題、目標客戶是誰。AI 會根據這段Description設計Search策略。"
+              placeholder="Describe what your service does, what problem it solves, and who your target customer is. AI uses this to design the search strategy."
               rows={4}
               className="text-sm"
             />
             <p className="text-[11px] text-muted-foreground">
-              Description越具體，AI 找出的Leads越精準。建議包含：核心功能、解決的痛點、與競品的差異。
+              The more specific your description, the more accurate the leads AI finds. Include: core features, pain points solved, what makes you different.
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="target-industries">目標Industry</Label>
+              <Label htmlFor="target-industries">Target Industry</Label>
               <Input
                 id="target-industries"
                 value={form.targetIndustries}
                 onChange={(e) => setForm((f) => ({ ...f, targetIndustries: e.target.value }))}
-                placeholder="SaaS, 電商, 製造"
+                placeholder="SaaS, e-commerce, manufacturing"
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="target-size">目標Company規模</Label>
+              <Label htmlFor="target-size">Target Company Size</Label>
               <Input
                 id="target-size"
                 value={form.targetCompanySize}
                 onChange={(e) => setForm((f) => ({ ...f, targetCompanySize: e.target.value }))}
-                placeholder="50-500 人"
+                placeholder="50-500 employees"
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="target-location">目標Location</Label>
+              <Label htmlFor="target-location">Target Location</Label>
               <Input
                 id="target-location"
                 value={form.targetLocation}
                 onChange={(e) => setForm((f) => ({ ...f, targetLocation: e.target.value }))}
-                placeholder="美國 / 台灣 / 全球"
+                placeholder="United States / Taiwan / Global"
               />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="key-benefits">核心價值主張</Label>
+            <Label htmlFor="key-benefits">Key Value Proposition</Label>
             <Input
               id="key-benefits"
               value={form.keyBenefits}
               onChange={(e) => setForm((f) => ({ ...f, keyBenefits: e.target.value }))}
-              placeholder="幫客戶省 80% 業務研究Time、提升 3 倍Reply Rate"
+              placeholder="Save 80% research time, 3x reply rate"
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="ideal-signals">理想客戶訊號（可選）</Label>
+            <Label htmlFor="ideal-signals">Ideal Customer Signals (optional)</Label>
             <Textarea
               id="ideal-signals"
               value={form.idealCustomerSignals}
               onChange={(e) => setForm((f) => ({ ...f, idealCustomerSignals: e.target.value }))}
-              placeholder="舉例：正在招募 SDR、剛融資 Series A、使用 Salesforce、有國際拓展計畫..."
+              placeholder="e.g. Hiring SDRs, just raised Series A, using Salesforce, expanding internationally..."
               rows={2}
               className="text-sm"
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="target-count">想找幾家</Label>
+            <Label htmlFor="target-count">How many companies to find</Label>
             <Input
               id="target-count"
               type="number"
@@ -276,7 +276,7 @@ export function AutoProspectPanel() {
               {prospectLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  AI 開發中...
+                  AI working...
                 </>
               ) : (
                 <>
@@ -289,11 +289,11 @@ export function AutoProspectPanel() {
         </div>
       </Card>
 
-      {/* 進度面板 */}
+      {/* Progress panel */}
       {prospectLoading && (
         <Card className="p-5 border-violet-200 dark:border-violet-800 bg-violet-50/40 dark:bg-violet-950/20">
           <div className="space-y-4">
-            {/* Header: 旋轉圖示 + 當前階段 + 計時 */}
+            {/* Header: spinner + current stage + timer */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3">
                 <div className="relative">
@@ -304,7 +304,7 @@ export function AutoProspectPanel() {
                     {prospectStage}
                   </p>
                   <p className="text-xs text-violet-700 dark:text-violet-400/70">
-                    {prospectDetail || '執行中...'}
+                    {prospectDetail || 'Running...'}
                   </p>
                 </div>
               </div>
@@ -317,10 +317,10 @@ export function AutoProspectPanel() {
               </div>
             </div>
 
-            {/* 進度條 */}
+            {/* Progress bar */}
             <div className="space-y-1">
               <div className="flex justify-between text-[11px] text-violet-700 dark:text-violet-400">
-                <span>步驟 {prospectStep} / 6</span>
+                <span>Step {prospectStep} / 6</span>
                 <span>{Math.round((prospectStep / 6) * 100)}%</span>
               </div>
               <div className="h-2 rounded-full bg-violet-100 dark:bg-violet-950/60 overflow-hidden">
@@ -331,15 +331,15 @@ export function AutoProspectPanel() {
               </div>
             </div>
 
-            {/* 6 步驟清單 */}
+            {/* 6-step list */}
             <div className="space-y-1.5">
               {[
-                { n: 1, label: '生成Search策略', desc: 'AI 設計 8 組精準查詢', icon: Wand2 },
-                { n: 2, label: 'Search候選Company', desc: 'Google Search ~40 個結果', icon: Search },
-                { n: 3, label: 'FilterCompany網址', desc: '過濾並萃取Company網站', icon: ListChecks },
-                { n: 4, label: '抓取網站內容', desc: 'page_reader 抓取每家官網', icon: Zap },
-                { n: 5, label: 'AI 評估契合度', desc: '5 維度評分，輸出 fit_score', icon: Target },
-                { n: 6, label: 'Sort回傳', desc: '依ScoreSort，取 Top N', icon: Sparkles },
+                { n: 1, label: 'Generate Search Strategy', desc: 'AI designs 8 precise queries', icon: Wand2 },
+                { n: 2, label: 'Search Candidates', desc: 'Google Search ~40 results', icon: Search },
+                { n: 3, label: 'Filter Company URLs', desc: 'Extract company websites from results', icon: ListChecks },
+                { n: 4, label: 'Fetch Website Content', desc: 'Page reader fetches each company site', icon: Zap },
+                { n: 5, label: 'AI Fit Evaluation', desc: '5-dimension scoring, output fit_score', icon: Target },
+                { n: 6, label: 'Sort & Return', desc: 'Sort by score, return top N', icon: Sparkles },
               ].map(({ n, label, desc, icon: Icon }) => {
                 const done = prospectStep > n
                 const current = prospectStep === n
@@ -383,13 +383,13 @@ export function AutoProspectPanel() {
             </div>
 
             <p className="text-[10px] text-violet-700/70 dark:text-violet-400/60 text-center">
-              預計 2-4 分鐘Complete · 視目標數量與網路速度而定 · 可以切到其他分頁做別的事
+              Estimated 2-4 minutes to complete · Depends on target count and network speed · You can switch tabs and do other things while it runs
             </p>
           </div>
         </Card>
       )}
 
-      {/* Failed顯示 */}
+      {/* Failed state */}
       {!prospectLoading && prospectError && (
         <Card className={`p-5 ${
           rateLimitedAt
@@ -421,23 +421,23 @@ export function AutoProspectPanel() {
               {rateLimitedAt && (
                 <div className="space-y-2 mt-3">
                   <div className="rounded-md bg-amber-100 dark:bg-amber-950/60 p-2.5 text-[11px] text-amber-800 dark:text-amber-300 space-y-1">
-                    <p className="font-medium">⏳ 預估恢復Time</p>
+                    <p className="font-medium">⏳ Estimated recovery time</p>
                     <ul className="ml-3 list-disc space-y-0.5 text-amber-700 dark:text-amber-400">
-                      <li>短期限流：等 5-30 分鐘</li>
-                      <li>每日配額：等到明天 UTC 0:00（台灣Time早上 8:00）</li>
-                      <li>目前無法精確預測，建議 1-2 小時後再試一次</li>
+                      <li>Short-term rate limit: wait 5-30 minutes</li>
+                      <li>Daily quota: wait until UTC 0:00 (resets daily)</li>
+                      <li>Cannot predict exact reset time — try again in 1-2 hours</li>
                     </ul>
                   </div>
                   <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/40 p-2.5 text-[11px] text-emerald-700 dark:text-emerald-300">
-                    <p className="font-medium">✅ 不受影響的功能</p>
-                    <p className="mt-0.5">已Save的Leads、研究結果、AI 生成的Email、EmailSettings都不受影響。你可以繼續Edit、CopyEmail、Email。</p>
+                    <p className="font-medium">✅ Not affected</p>
+                    <p className="mt-0.5">Saved leads, research results, AI-generated emails, and email settings are not affected. You can still edit, copy email content, and send emails.</p>
                   </div>
                 </div>
               )}
 
               {!rateLimitedAt && (
                 <p className="text-[11px] text-rose-600/70 dark:text-rose-400/70 mt-2">
-                  建議：減少目標數量、簡化服務Description、或稍後再試。
+                  Try: reduce the target count, simplify the service description, or try again later.
                 </p>
               )}
             </div>
@@ -445,10 +445,10 @@ export function AutoProspectPanel() {
         </Card>
       )}
 
-      {/* 結果 */}
+      {/* Results */}
       {prospectResult && !prospectLoading && (
         <>
-          {/* 統計與Actions */}
+          {/* Stats and actions */}
           <Card className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border-emerald-200 dark:border-emerald-900">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -457,10 +457,10 @@ export function AutoProspectPanel() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
-                    找到 {prospectResult.candidates.length} 家潛在客戶
+                    Found {prospectResult.candidates.length} potential leads
                   </p>
                   <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                    從 {prospectResult.total_discovered} 家候選中評估 {prospectResult.evaluated} 家篩出
+                    Evaluated {prospectResult.evaluated} of {prospectResult.total_discovered} candidates, filtered to top matches
                   </p>
                 </div>
               </div>
@@ -470,12 +470,12 @@ export function AutoProspectPanel() {
                 className="bg-emerald-600 hover:bg-emerald-700"
               >
                 <Plus className="mr-1 h-3.5 w-3.5" />
-                All加入Leads
+                Add All to Leads
               </Button>
             </div>
           </Card>
 
-          {/* 候選Leads卡片 */}
+          {/* Candidate Leads Cards */}
           <div className="space-y-3">
             {prospectResult.candidates.map((c, i) => (
               <ProspectCard
@@ -488,12 +488,12 @@ export function AutoProspectPanel() {
             ))}
           </div>
 
-          {/* AI Search策略透明化 */}
+          {/* AI Search strategy transparency */}
           <Card className="p-4">
             <details>
               <summary className="cursor-pointer text-xs font-medium text-muted-foreground flex items-center gap-1">
                 <ListChecks className="h-3 w-3" />
-                AI 生成的Search策略（{prospectResult.ai_search_queries.length} 組查詢）
+                AI-generated search strategy ({prospectResult.ai_search_queries.length} queries)
               </summary>
               <ul className="mt-3 space-y-1">
                 {prospectResult.ai_search_queries.map((q, i) => (
@@ -507,7 +507,7 @@ export function AutoProspectPanel() {
         </>
       )}
 
-      {/* 空Status */}
+      {/* Empty state */}
       {!prospectResult && !prospectLoading && (
         <Card className="p-8 border-dashed border-violet-200 dark:border-violet-800">
           <div className="text-center space-y-3">
@@ -515,26 +515,26 @@ export function AutoProspectPanel() {
               <Search className="h-6 w-6 text-violet-600 dark:text-violet-400" />
             </div>
             <div>
-              <p className="text-sm font-medium">輸入你的服務，讓 AI 幫你找客戶</p>
+              <p className="text-sm font-medium">Enter your service — let AI find your customers</p>
               <p className="text-xs text-muted-foreground mt-1">
-                AI 會自動Search、瀏覽、評估數十家Company，回傳最契合的前 10 名
+                AI will automatically search, browse, and evaluate dozens of companies — returning the top 10 most relevant matches
               </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 max-w-2xl mx-auto text-xs">
               <div className="rounded-md bg-muted/40 p-3">
                 <Target className="h-4 w-4 mx-auto mb-1 text-violet-500" />
-                <p className="font-medium">精準契合</p>
-                <p className="text-muted-foreground mt-0.5">AI 評分 0-100，只回傳高分</p>
+                <p className="font-medium">Precise Match</p>
+                <p className="text-muted-foreground mt-0.5">AI scores 0–100, returns only high-fit results</p>
               </div>
               <div className="rounded-md bg-muted/40 p-3">
                 <Sparkles className="h-4 w-4 mx-auto mb-1 text-amber-500" />
                 <p className="font-medium">Suggested Angle</p>
-                <p className="text-muted-foreground mt-0.5">每家附上為什麼需要你服務</p>
+                <p className="text-muted-foreground mt-0.5">Each lead includes why they need your service</p>
               </div>
               <div className="rounded-md bg-muted/40 p-3">
                 <Plus className="h-4 w-4 mx-auto mb-1 text-emerald-500" />
-                <p className="font-medium">一鍵加入</p>
-                <p className="text-muted-foreground mt-0.5">直接ImportLeads試算表</p>
+                <p className="font-medium">One-click add</p>
+                <p className="text-muted-foreground mt-0.5">Import directly to your leads table</p>
               </div>
             </div>
           </div>
@@ -574,7 +574,7 @@ function ProspectCard({
   return (
     <Card className="p-4 hover:shadow-md transition-shadow">
       <div className="space-y-3">
-        {/* Header: 排名 + Company名 + Score */}
+        {/* Header: rank + company name + score */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0 flex-1">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-400 to-fuchsia-500 text-white text-xs font-bold">
@@ -592,7 +592,7 @@ function ProspectCard({
                   variant="outline"
                   className={`text-[10px] ${confidenceColor}`}
                 >
-                  {candidate.confidence === 'high' ? '高信心' : candidate.confidence === 'medium' ? '中信心' : '低信心'}
+                  {candidate.confidence === 'high' ? 'High confidence' : candidate.confidence === 'medium' ? 'Medium confidence' : 'Low confidence'}
                 </Badge>
               </div>
               <a
@@ -610,7 +610,7 @@ function ProspectCard({
           {/* Fit score */}
           <div className="flex items-center gap-2 shrink-0">
             <div className="text-right">
-              <p className="text-[10px] text-muted-foreground">契合度</p>
+              <p className="text-[10px] text-muted-foreground">Fit Score</p>
               <p className="text-lg font-bold tabular-nums">{candidate.fit_score}</p>
             </div>
             <div className="h-12 w-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex flex-col-reverse">
@@ -625,7 +625,7 @@ function ProspectCard({
         {/* Why they need it */}
         <div className="rounded-md bg-muted/30 p-2.5">
           <p className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
-            <Target className="h-3 w-3" /> 為什麼他們需要你
+            <Target className="h-3 w-3" /> Why they need you
           </p>
           <p className="text-sm">{candidate.why_they_need_it}</p>
         </div>
@@ -644,7 +644,7 @@ function ProspectCard({
         {candidate.key_signals && candidate.key_signals.length > 0 && (
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
-              <TrendingUp className="h-3 w-3" /> 關鍵訊號
+              <TrendingUp className="h-3 w-3" /> Key Signals
             </p>
             <div className="flex flex-wrap gap-1.5">
               {candidate.key_signals.map((s, i) => (
@@ -672,12 +672,12 @@ function ProspectCard({
             {added ? (
               <>
                 <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-                已加入
+                Added
               </>
             ) : (
               <>
                 <Plus className="mr-1 h-3.5 w-3.5" />
-                加入Leads
+                Add to Leads
               </>
             )}
           </Button>
