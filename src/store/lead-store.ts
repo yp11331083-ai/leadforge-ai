@@ -67,7 +67,7 @@ export interface EmailConfig {
   calComApiKey: string | null
   stripeSecretKey: string | null
   stripeMeteredPriceId: string | null
-  // AI 提供者
+  // AI providers
   openaiApiKey: string | null
   openaiModel: string | null
   anthropicApiKey: string | null
@@ -164,10 +164,10 @@ interface LeadStore {
   prospectElapsedSeconds: number
   prospectJobId: string | null
   prospectError: string | null
-  rateLimitedAt: number | null  // 第一次偵測到 429 的時間戳
+  rateLimitedAt: number | null  // First 429 detected timestamp
   viewMode: 'admin' | 'sales' | 'analytics'
   setViewMode: (mode: 'admin' | 'sales' | 'analytics') => void
-  // 當前使用者（從 NextAuth session 拿取）
+  // Current user (from NextAuth session)
   currentUser: {
     id: string
     email: string
@@ -216,7 +216,7 @@ const DEFAULT_SENDER: SenderConfig = {
   senderName: 'Alex Chen',
   senderCompany: 'Outrovo',
   senderProduct:
-    'AI 驅動的銷售開發自動化平台，幫助 B2B 團隊用更少人力開發更多高品質潛在客戶',
+    'AI-powered sales development automation platform for B2B teams',
   tone: 'professional',
   language: 'zh-TW',
 }
@@ -416,10 +416,10 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
       if (res.ok) {
         return { success: true, message: data.message }
       }
-      return { success: false, error: data.error ?? '測試失敗' }
+      return { success: false, error: data.error ?? 'Test failed' }
     } catch (e) {
       console.error('testEmailConfig error:', e)
-      return { success: false, error: '測試過程發生錯誤' }
+      return { success: false, error: 'Test error occurred' }
     }
   },
 
@@ -451,10 +451,10 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
       }
       // Refresh credits on failure too (insufficient credits error path)
       get().fetchCredits()
-      return { success: false, error: data.error ?? '發信失敗' }
+      return { success: false, error: data.error ?? 'Send failed' }
     } catch (e) {
       console.error('sendEmail error:', e)
-      return { success: false, error: '發信過程發生錯誤' }
+      return { success: false, error: 'Send error occurred' }
     }
   },
 
@@ -470,10 +470,10 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
         await get().fetchLeads()
         return { success: true }
       }
-      return { success: false, error: data.error ?? '推送失敗' }
+      return { success: false, error: data.error ?? 'Push failed' }
     } catch (e) {
       console.error('pushToSmartlead error:', e)
-      return { success: false, error: '推送過程發生錯誤' }
+      return { success: false, error: 'Push error occurred' }
     }
   },
 
@@ -505,10 +505,10 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
       }
       // Refresh credits even on failure (may have been refunded)
       get().fetchCredits()
-      return { success: false, error: data.error ?? 'Email enrichment 失敗' }
+      return { success: false, error: data.error ?? 'Email enrichment failed' }
     } catch (e) {
       console.error('enrichEmail error:', e)
-      return { success: false, error: '網路錯誤' }
+      return { success: false, error: 'Network error' }
     }
   },
 
@@ -541,8 +541,8 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
     set({
       prospectLoading: true,
       prospectResult: null,
-      prospectStage: '啟動中',
-      prospectDetail: 'AI 正在啟動自動開發引擎...',
+      prospectStage: 'Starting',
+      prospectDetail: 'Starting AI Auto-Prospect engine...',
       prospectStep: 0,
       prospectElapsedSeconds: 0,
       prospectJobId: null,
@@ -573,7 +573,7 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
         const isInsufficientCredits = res.status === 402
         set({
           prospectLoading: false,
-          prospectStage: isInsufficientCredits ? 'AI 點數不足' : '失敗',
+          prospectStage: isInsufficientCredits ? 'Insufficient Credits' : 'Failed',
           prospectDetail: isInsufficientCredits
             ? errorMsg
             : errorMsg,
@@ -589,10 +589,10 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
       if (!contentType.includes('text/event-stream')) {
         // Fallback: treat as JSON (shouldn't happen with new code)
         const data = await res.json().catch(() => ({}) as any)
-        const errorMsg = data?.error ?? '回應格式錯誤'
+        const errorMsg = data?.error ?? 'Invalid response format'
         set({
           prospectLoading: false,
-          prospectStage: '失敗',
+          prospectStage: 'Failed',
           prospectDetail: errorMsg,
           prospectError: errorMsg,
           prospectStep: 6,
@@ -634,7 +634,7 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
 
           if (data.type === 'progress') {
             set({
-              prospectStage: data.stage ?? '執行中',
+              prospectStage: data.stage ?? 'Running',
               prospectDetail: data.detail ?? '',
               prospectStep: data.step ?? 1,
             })
@@ -644,22 +644,22 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
             set({
               prospectResult: data.result ?? null,
               prospectLoading: false,
-              prospectStage: '完成',
-              prospectDetail: data.detail ?? `找到 ${data.result?.candidates?.length ?? 0} 家潛在客戶`,
+              prospectStage: 'Complete',
+              prospectDetail: data.detail ?? `Found ${data.result?.candidates?.length ?? 0} potential leads`,
               prospectStep: 6,
             })
             // Refresh credit balance so UI shows the deduction immediately
             get().fetchCredits()
           } else if (data.type === 'error') {
             hadError = true
-            const errorMsg = data.error ?? '自動開發失敗'
+            const errorMsg = data.error ?? 'Auto-prospect failed'
             const isRateLimited = errorMsg.includes('429') || errorMsg.includes('Too many requests')
             set({
               prospectLoading: false,
-              prospectStage: isRateLimited ? 'AI 配額用完' : '失敗',
+              prospectStage: isRateLimited ? 'AI Quota Exhausted' : 'Failed',
               prospectDetail: isRateLimited
-                ? 'AI 服務配額已用完（429）。這通常是每日配額限制，請過 1-2 小時再試。已儲存的名單與設定不受影響。'
-                : errorMsg + (data.creditsRefunded ? `（已退還 ${data.creditsRefunded} 點數）` : ''),
+                ? 'AI service quota exhausted (429). This is usually a daily limit — please try again in 1-2 hours. Saved leads and settings are not affected.'
+                : errorMsg + (data.creditsRefunded ? ` (${data.creditsRefunded} credits refunded)` : ''),
               prospectError: errorMsg,
               prospectStep: 6,
               rateLimitedAt: isRateLimited ? Date.now() : null,
@@ -680,19 +680,19 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
       return { success: true, addedToLeads }
     } catch (e: any) {
       console.error('runAutoProspect error:', e)
-      const msg = e?.message ?? '網路錯誤'
+      const msg = e?.message ?? 'Network error'
       // Vercel returns 504 FUNCTION_TIMEOUT when maxDuration is exceeded
       const isTimeout = msg.includes('timeout') || msg.includes('aborted') || e?.name === 'AbortError'
       set({
         prospectLoading: false,
-        prospectStage: isTimeout ? '超時' : '錯誤',
+        prospectStage: isTimeout ? 'Timeout' : 'Error',
         prospectDetail: isTimeout
-          ? 'AI 任務超過伺服器時間上限（Vercel Hobby 限制 60 秒 / Pro 限制 300 秒）。請減少目標數量後再試，或將服務介紹寫得更精簡。'
-          : '網路錯誤，請確認伺服器連線正常',
-        prospectError: isTimeout ? '超時' : msg,
+          ? 'AI task exceeded the server time limit (Vercel Hobby: 60s / Pro: 300s). Try reducing the target count or simplifying your service description.'
+          : 'Network error — please check your connection',
+        prospectError: isTimeout ? 'Timeout' : msg,
         prospectStep: 6,
       })
-      return { success: false, error: isTimeout ? '超時' : msg }
+      return { success: false, error: isTimeout ? 'Timeout' : msg }
     } finally {
       clearInterval(ticker)
     }

@@ -58,27 +58,30 @@ export function AutoProspectPanel() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
+  const [hasLoadedFromDB, setHasLoadedFromDB] = useState(false)
 
   useEffect(() => {
     fetchServiceOffering()
   }, [fetchServiceOffering])
 
-  // Sync DB settings to form
-  const configKey = serviceOffering?.updatedAt ?? ''
-  if (serviceOffering && configKey !== lastSyncedAt) {
-    setLastSyncedAt(configKey)
-    setForm({
-      serviceName: serviceOffering.serviceName ?? '',
-      description: serviceOffering.description ?? '',
-      targetIndustries: serviceOffering.targetIndustries ?? '',
-      targetCompanySize: serviceOffering.targetCompanySize ?? '',
-      targetLocation: serviceOffering.targetLocation ?? '',
-      keyBenefits: serviceOffering.keyBenefits ?? '',
-      idealCustomerSignals: serviceOffering.idealCustomerSignals ?? '',
-      targetCount: '10',
-    })
-  }
+  // Sync DB settings to form — ONLY on initial load, not after save.
+  // After save, the form already has the correct values; we don't want
+  // to overwrite them with a potentially stale DB response.
+  useEffect(() => {
+    if (serviceOffering && !hasLoadedFromDB) {
+      setHasLoadedFromDB(true)
+      setForm({
+        serviceName: serviceOffering.serviceName ?? '',
+        description: serviceOffering.description ?? '',
+        targetIndustries: serviceOffering.targetIndustries ?? '',
+        targetCompanySize: serviceOffering.targetCompanySize ?? '',
+        targetLocation: serviceOffering.targetLocation ?? '',
+        keyBenefits: serviceOffering.keyBenefits ?? '',
+        idealCustomerSignals: serviceOffering.idealCustomerSignals ?? '',
+        targetCount: '10',
+      })
+    }
+  }, [serviceOffering, hasLoadedFromDB])
 
   const handleSave = async () => {
     if (!form.serviceName.trim() || !form.description.trim()) {

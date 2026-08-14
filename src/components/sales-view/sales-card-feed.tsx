@@ -229,9 +229,6 @@ function SalesCard({
     <Card className="overflow-hidden border-0 shadow-xl shadow-slate-200/50 dark:shadow-black/30">
       {/* Header: gradient band with company info */}
       <div className={`relative bg-gradient-to-br ${scoreColor} p-6 text-white`}>
-        <div className="absolute top-4 right-4 text-[11px] font-mono opacity-80">
-          {rank} / {total}
-        </div>
         <div className="flex items-start gap-4">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm text-2xl font-bold border border-white/30">
             {lead.company.charAt(0).toUpperCase()}
@@ -258,6 +255,7 @@ function SalesCard({
             </div>
           </div>
           <div className="text-right shrink-0">
+            <p className="text-[10px] uppercase tracking-wider opacity-80">Fit Score</p>
             <p className="text-4xl font-bold tabular-nums leading-none mt-0.5">{score}</p>
           </div>
         </div>

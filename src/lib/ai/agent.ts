@@ -102,40 +102,40 @@ export async function researchCompany(params: {
   const zai = await getAI().catch(() => null as any)
   const { company, website, websiteContent, extraContext } = params
 
-  const prompt = `你是 B2B 潛在客戶研究的頂級分析師（類似 Clay 平台的 Claygent）。
+  const prompt = `You are a top-tier B2B lead research analyst (similar to Clay's Claygent).
 
-請根據以下資訊，深度分析「${company}」這家公司，並用**繁體中文**輸出結構化的研究報告。
+Based on the following information, deeply analyze "${company}" and output a structured research report IN ENGLISH.
 
-公司網站：${website}
+Company website: ${website}
 
-網站內容摘要：
+Website content summary:
 ${websiteContent.slice(0, 8000)}
 
-${extraContext ? `額外背景資訊：${extraContext}` : ''}
+${extraContext ? `Additional context: ${extraContext}` : ''}
 
-請從以下五個維度分析，每個維度都要有具體洞察：
+Analyze from these five dimensions — each must have concrete insights:
 
-1. **核心業務**：這家公司主要做什麼？產品/服務、目標客群、商業模式
-2. **徵才訊號**：他們最近有沒有在招募什麼關鍵職位？（特別關注：銷售、行銷、客戶成功、產品等成長導向職位）這暗示了什麼樣的成長痛點？
-3. **核心痛點**（3-5 點，每點 1-2 句）：根據他們的業務型態與徵才動態，推測他們最可能面臨的痛點。要具體、可操作，不要講廢話。
-4. **採購意圖訊號**：他們有沒有釋出任何可能在採購相關工具/服務的訊號？（例如：招募數據分析師 → 可能在強化數據基礎建設）
-5. **開發切入點**：作為 B2B 業務開發，跟他們聯繫時最有共鳴的切入點是什麼？
+1. **Core Business**: What does this company do? Product/service, target audience, business model
+2. **Hiring Signals**: Are they recently hiring for any key roles? (Focus on: sales, marketing, customer success, product — growth-oriented roles) What growth pain does this suggest?
+3. **Pain Points** (3-5 items, 1-2 sentences each): Based on their business type and hiring dynamics, what pain points are they most likely facing? Be specific and actionable.
+4. **Buying Intent Signals**: Are there any signals suggesting they might be purchasing related tools/services? (e.g. hiring data analysts → may be strengthening data infrastructure)
+5. **Outreach Angle**: As a B2B business developer, what's the most resonating angle when reaching out to them?
 
-請用以下 JSON 格式回應（不要有 markdown code block 標記，直接輸出純 JSON）：
+Output pure JSON (no markdown code block):
 
 {
-  "business_summary": "一段話描述核心業務",
-  "hiring_signals": ["訊號1", "訊號2"],
-  "pain_points": ["痛點1", "痛點2", "痛點3"],
-  "buying_signals": ["訊號1", "訊號2"],
-  "outreach_angle": "建議的切入點"
+  "business_summary": "one paragraph describing core business",
+  "hiring_signals": ["signal 1", "signal 2"],
+  "pain_points": ["pain point 1", "pain point 2", "pain point 3"],
+  "buying_signals": ["signal 1", "signal 2"],
+  "outreach_angle": "suggested outreach angle"
 }`
 
   const chatResult = await chatWithFallback({
     messages: [
       {
         role: 'system',
-        content: '你是專業的 B2B 業務研究分析師。擅長從企業公開資訊中推導出可執行的業務開發洞察。回應必須是純 JSON 格式。',
+        content: 'You are a professional B2B sales research analyst. You excel at deriving actionable business development insights from public company information. You MUST respond in English. Your response must be pure JSON.',
       },
       { role: 'user', content: prompt },
     ],
@@ -583,46 +583,49 @@ export async function generateSearchQueries(params: {
   const zai = await getAI().catch(() => null as any)
   const { serviceName, description, targetIndustries, targetCompanySize, targetLocation, idealCustomerSignals } = params
 
-  const prompt = `你是頂級 B2B 潛在客戶開發專家。
+  const prompt = `You are a top-tier B2B lead generation expert.
 
-我經營的服務/產品如下：
+My service/product is:
 
-**服務名稱**：${serviceName}
-**詳細描述**：${description}
-${targetIndustries ? `**目標產業**：${targetIndustries}` : ''}
-${targetCompanySize ? `**目標公司規模**：${targetCompanySize}` : ''}
-${targetLocation ? `**目標地區**：${targetLocation}` : ''}
-${idealCustomerSignals ? `**理想客戶訊號**：${idealCustomerSignals}` : ''}
+**Service Name**: ${serviceName}
+**Detailed Description**: ${description}
+${targetIndustries ? `**Target Industries**: ${targetIndustries}` : ''}
+${targetCompanySize ? `**Target Company Size**: ${targetCompanySize}` : ''}
+${targetLocation ? `**Target Location**: ${targetLocation}` : ''}
+${idealCustomerSignals ? `**Ideal Customer Signals**: ${idealCustomerSignals}` : ''}
 
-請幫我設計 8 組**用於 Google 搜尋的查詢詞**，目標是找出「最可能需要我服務」的企業官網。
+Design 10 Google search queries to find companies that are most likely to need my service.
 
-⚠️ 重要：我們要的是公司的「官方網站」（例如 stripe.com、notion.so），不是 LinkedIn 頁面。
+⚠️ IMPORTANT: We want company OFFICIAL WEBSITES (e.g. stripe.com, notion.so), NOT LinkedIn pages.
 
-查詢策略要多元，包含：
-1. **徵才訊號類**：搜尋正在招募與我服務相關職位的公司官網（例如 "hiring sales operations manager" site:com -site:linkedin.com）
-2. **融資/成長訊號類**：最近融資、擴編的公司官網（例如 "Series A SaaS 2024" -site:linkedin.com）
-3. **產業 + 痛點類**：特定產業 + 我服務解決的痛點的公司官網
-4. **技術堆疊類**：使用特定技術堆疊的公司官網（例如 "companies using Salesforce" -site:linkedin.com）
-5. **地區 + 產業類**：特定地區的目標產業公司官網
-6. **規模 + 產業類**：特定規模的目標公司官網
-7. **競爭對手客戶類**：使用競爭對手產品的公司官網
-8. **行為訊號類**：近期發布特定內容/參加特定活動的公司官網
+Query strategies — make them diverse:
+1. **Hiring signals**: Search for companies hiring roles related to my service (e.g. "hiring sales operations manager" -site:linkedin.com)
+2. **Funding/growth signals**: Recently funded or expanding companies (e.g. "Series A SaaS 2025" -site:linkedin.com)
+3. **Industry + pain point**: Specific industry + the pain point my service solves
+4. **Tech stack**: Companies using specific tech stacks (e.g. "companies using Salesforce" -site:linkedin.com)
+5. **Location + industry**: Target industry in the target location
+6. **Size + industry**: Target company size in target industry
+7. **Competitor customers**: Companies using competitor products
+8. **Behavioral signals**: Companies recently publishing specific content or attending events
+9. **Niche + region**: Very specific niche queries with location
+10. **Broad discovery**: Broader queries that cast a wide net
 
-每組查詢詞要：
-- 英文（Google 搜尋效果較好）
-- 具體、可執行
-- **必須排除 LinkedIn**：每組查詢都要加上 \`-site:linkedin.com\` 運算子，確保只回傳公司官網
-- **不要使用** site:linkedin.com、site:crunchbase.com 這類限定到社交平台的運算子
-- 不要太寬泛（避免 "best SaaS companies"）
+Each query must:
+- Be in English (works best for Google)
+- Be specific and actionable
+- **Exclude LinkedIn**: Add \`-site:linkedin.com\` to EVERY query
+- **NOT use** site:linkedin.com, site:crunchbase.com (no social platform restrictions)
+- Not be too broad (avoid "best SaaS companies")
+- If targetLocation is set, include the location in at least 4 queries
 
-請輸出純 JSON 陣列（不要 markdown code block）：
-["query 1 -site:linkedin.com", "query 2 -site:linkedin.com", ..., "query 8 -site:linkedin.com"]`
+Output pure JSON array (no markdown code block):
+["query 1 -site:linkedin.com", "query 2 -site:linkedin.com", ..., "query 10 -site:linkedin.com"]`
 
   const chatResult = await chatWithFallback({
     messages: [
       {
         role: 'system',
-        content: '你是頂級 B2B 潛在客戶開發專家。回應必須是純 JSON 陣列。',
+        content: 'You are a top-tier B2B lead generation expert. Your response must be a pure JSON array. Respond in English.',
       },
       { role: 'user', content: prompt },
     ],
@@ -815,72 +818,74 @@ export async function evaluateProspectFit(params: {
   const zai = await getAI().catch(() => null as any)
   const { serviceName, description, keyBenefits, idealCustomerSignals, companyUrl, companyName, websiteContent, targetLocation, targetCompanySize } = params
 
-  const prompt = `你是頂級 B2B 業務分析師，擅長判斷一家公司是否需要某個服務。
+  const prompt = `You are a top-tier B2B business analyst skilled at evaluating whether a company needs a given service.
 
-## 我的服務
+## My Service
 
-**服務名稱**：${serviceName}
-**服務描述**：${description}
-${keyBenefits ? `**核心價值**：${keyBenefits}` : ''}
-${idealCustomerSignals ? `**理想客戶訊號**：${idealCustomerSignals}` : ''}
-${targetLocation ? `**目標地區**：${targetLocation}（如果候選公司不在這個地區，fit_score 必須 ≤ 20）` : ''}
-${targetCompanySize ? `**目標規模**：${targetCompanySize}（如果候選公司規模差太多，fit_score 必須 ≤ 30）` : ''}
+**Service Name**: ${serviceName}
+**Service Description**: ${description}
+${keyBenefits ? `**Key Value**: ${keyBenefits}` : ''}
+${idealCustomerSignals ? `**Ideal Customer Signals**: ${idealCustomerSignals}` : ''}
+${targetLocation ? `**Target Location**: ${targetLocation} — If the candidate company is NOT in this region, fit_score MUST be ≤ 10` : ''}
+${targetCompanySize ? `**Target Size**: ${targetCompanySize} — If the candidate company's size is far off, fit_score MUST be ≤ 20` : ''}
 
-## 候選公司
+## Candidate Company
 
-**公司名稱**：${companyName}
-**公司網站**：${companyUrl}
+**Company Name**: ${companyName}
+**Company Website**: ${companyUrl}
 
-**網站內容**：
+**Website Content**:
 ${websiteContent.slice(0, 5000)}
 
-## 任務
+## Task
 
-請評估這家公司是否需要我的服務。從以下維度判斷：
+Evaluate whether this company needs my service. Judge from these dimensions:
 
-1. **業務型態契合度**：他們做的事是否會用到我的服務？
-2. **規模契合度**：他們的規模是否符合我的目標客戶？
-3. **訊號強度**：網站/徵才/產品訊息是否暗示他們有我服務能解決的痛點？
-4. **採購能力**：他們看起來有預算採購嗎？
-5. **接觸可能性**：是否有公開聯絡資訊？
+1. **Business Fit**: Does what they do suggest they'd use my service?
+2. **Size Fit**: Does their size match my target customer?
+3. **Signal Strength**: Do website/hiring/product signals suggest they have pain points my service solves?
+4. **Purchasing Power**: Do they appear to have budget to buy?
+5. **Reachability**: Is there public contact info?
 
-## ⚠️ 重要：先判斷是否為「真正的公司」
+## ⚠️ Important: First check if this is a "real company"
 
-如果這個網站是以下類型，請直接給 fit_score 0-15 並在 why_they_need_it 說明「這不是公司官網，是目錄/聚合/列表頁面」：
-- 目錄網站（列出多家公司，如 topstartups.io、growjo.com）
-- 創業加速器列表頁（如 ycombinator.com/companies/location/india）
-- 新聞/媒體網站
-- 政府機關
-- 個人作品集/部落格
-- 求職平台（不是公司本身）
+If this website is any of the following, give fit_score 0-10 and explain in why_they_need_it "This is not a company website — it's a directory/aggregator/listing page":
+- Directory site (lists many companies, e.g. topstartups.io, growjo.com)
+- Accelerator listing page (e.g. ycombinator.com/companies/location/india)
+- News/media website
+- Government agency
+- Personal portfolio/blog
+- Job board (not the company itself)
 
-## 輸出格式
+## Output Format
 
-請輸出純 JSON（不要 markdown）：
+Output pure JSON (no markdown):
 
 {
   "company": "${companyName}",
   "website": "${companyUrl}",
-  "industry": "推斷的產業",
-  "fit_score": 75,  // 0-100，整數
-  "why_they_need_it": "2-3 句具體說明為什麼他們需要我的服務，要點出他們的具體痛點與我的服務如何對應",
-  "suggested_angle": "建議的開發切入點（1 句）",
-  "key_signals": ["訊號1", "訊號2", "訊號3"],
-  "confidence": "high"  // high / medium / low
+  "industry": "inferred industry (in English, e.g. SaaS, E-commerce, Manufacturing)",
+  "fit_score": 75,
+  "why_they_need_it": "2-3 sentences explaining specifically why they need my service. Point out their concrete pain points and how my service addresses them. Write in English.",
+  "suggested_angle": "Suggested outreach angle (1 sentence, in English)",
+  "key_signals": ["signal 1", "signal 2", "signal 3"],
+  "confidence": "high"
 }
 
-注意：
-- fit_score 要客觀，不要全部都給 80+。真的不適合就給低分。
-- 如果這不是公司官網（是目錄/列表/聚合頁），fit_score 必須 ≤ 15。
-- why_they_need_it 要具體，不要寫「他們可能需要自動化」這種廢話。
-- 如果查不到足夠資訊判斷，confidence 給 low，fit_score 給 30 以下。
-- 行業別用中文，例如 "SaaS 軟體"、"電商"、"製造業"。`
+Notes:
+- fit_score must be objective. Don't give everything 80+. If it's a bad fit, give a low score.
+- If this is not a company website (directory/listing/aggregator), fit_score MUST be ≤ 10.
+- If targetLocation is set and the company is clearly in a different region, fit_score MUST be ≤ 10.
+- why_they_need_it must be specific — no vague "they might need automation" nonsense.
+- If you can't find enough info to judge, give confidence "low" and fit_score ≤ 30.
+- ALL text fields must be in English.
+- Industry should be in English (e.g. "SaaS", "E-commerce", "Manufacturing", "B2B Services").`
 
   const chatResult = await chatWithFallback({
     messages: [
       {
         role: 'system',
-        content: '你是頂級 B2B 業務分析師。你客觀評估公司契合度，不會盲目給高分。回應必須是純 JSON 格式。',
+        content: 'You are a top-tier B2B business analyst. You objectively evaluate company fit — you do not blindly give high scores. You MUST respond in English. Your response must be pure JSON.',
       },
       { role: 'user', content: prompt },
     ],
@@ -938,7 +943,7 @@ export async function autoProspect(params: {
   } = params
 
   // 步驟 1：AI 生成搜尋查詢詞
-  onProgress?.('生成搜尋策略', 'AI 正在設計精準搜尋查詢...')
+  onProgress?.('Generate search strategy', 'AI is designing precise search queries...')
   const queryResult = await generateSearchQueries({
     serviceName,
     description,
@@ -949,18 +954,18 @@ export async function autoProspect(params: {
   })
 
   if (!queryResult.success || queryResult.queries.length === 0) {
-    return { success: false, result: null, error: `AI 無法生成搜尋策略（raw: ${queryResult.raw?.slice(0, 800) ?? 'no response'})` }
+    return { success: false, result: null, error: `AI failed to generate search strategy (raw: ${queryResult.raw?.slice(0, 800) ?? 'no response'})` }
   }
 
-  onProgress?.('搜尋候選公司', `使用 ${queryResult.queries.length} 組查詢詞搜尋...`)
+  onProgress?.('Search candidates', `Searching with ${queryResult.queries.length} queries...`)
 
   // 步驟 2：循序執行 web_search（避免 429）
   const allSearchResults: Array<{ url?: string; name?: string; host_name?: string }> = []
   for (const q of queryResult.queries) {
     try {
-      const results = await searchCompanies(q, 5)
+      const results = await searchCompanies(q, 8)
       allSearchResults.push(...results)
-      onProgress?.('搜尋候選公司', `已搜尋 ${allSearchResults.length} 個結果...`)
+      onProgress?.('Search candidates', `Found ${allSearchResults.length} results so far...`)
     } catch (e) {
       console.error(`search failed for "${q}":`, e)
     }
@@ -969,7 +974,7 @@ export async function autoProspect(params: {
 
   // 步驟 3：萃取公司 URL
   const candidates = extractCompanyUrls(allSearchResults)
-  onProgress?.('篩選候選公司', `從 ${allSearchResults.length} 個結果中萃取出 ${candidates.length} 家公司`)
+  onProgress?.('Filter companies', `Extracted ${candidates.length} companies from ${allSearchResults.length} results`)
 
   if (candidates.length === 0) {
     return {
@@ -980,14 +985,14 @@ export async function autoProspect(params: {
   }
 
   // 取前 N*2 家做評估（確保最終能篩出 N 家）
-  const toEvaluate = candidates.slice(0, Math.max(targetCount * 2, 15))
-  onProgress?.('AI 分析契合度', `正在評估 ${toEvaluate.length} 家候選公司...`)
+  const toEvaluate = candidates.slice(0, Math.max(targetCount * 3, 20))
+  onProgress?.('AI fit analysis', `Evaluating ${toEvaluate.length} candidates...`)
 
   // 步驟 4 + 5：循序抓網站 + AI 評估
   const evaluated: ProspectCandidate[] = []
   for (let i = 0; i < toEvaluate.length; i++) {
     const c = toEvaluate[i]
-    onProgress?.('AI 分析契合度', `(${i + 1}/${toEvaluate.length}) ${c.name}`)
+    onProgress?.('AI fit analysis', `(${i + 1}/${toEvaluate.length}) ${c.name}`)
 
     try {
       // 抓網站內容
@@ -1033,8 +1038,8 @@ export async function autoProspect(params: {
 
   const droppedCount = evaluated.length - qualified.length
   onProgress?.(
-    '完成',
-    `已篩選出 ${top.length} 家最契合的潛在客戶${droppedCount > 0 ? `（過濾掉 ${droppedCount} 個非公司網站）` : ''}`
+    'Complete',
+    `Found ${top.length} best-matching leads${droppedCount > 0 ? ` (filtered out ${droppedCount} non-company websites)` : ''}`
   )
 
   return {
