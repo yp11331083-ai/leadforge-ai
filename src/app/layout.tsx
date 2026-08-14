@@ -15,12 +15,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Outrovo - AI Cold Outreach & Lead Generation",
-  description: "AI-driven B2B cold outreach and lead generation SaaS platform",
-  keywords: ["B2B", "Cold Outreach", "Lead Generation", "AI", "SaaS"],
+  title: "Outrovo — AI Cold Outreach & Lead Generation",
+  description: "AI finds your customers. You close the deal. Outrovo searches the web, researches companies, and writes personalized cold emails — all in one platform.",
+  keywords: ["B2B", "Cold Outreach", "Lead Generation", "AI", "SaaS", "Sales Automation", "Prospecting"],
   icons: {
     icon: "/logo.png",
     apple: "/logo.png",
+  },
+  openGraph: {
+    title: "Outrovo — AI Cold Outreach & Lead Generation",
+    description: "AI finds your customers. You close the deal. Try the live demo — type your product and watch AI find a real customer.",
+    type: "website",
   },
 };
 

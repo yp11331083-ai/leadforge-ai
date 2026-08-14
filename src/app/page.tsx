@@ -44,6 +44,7 @@ import { SalesCardFeed } from '@/components/sales-view/sales-card-feed'
 import { AnalyticsDashboard } from '@/components/analytics-view/analytics-dashboard'
 import { BillingPanel } from '@/components/billing/billing-panel'
 import { AssistantWidget } from '@/components/assistant/assistant-widget'
+import { LandingPage } from '@/components/landing/landing-page'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -118,12 +119,13 @@ export default function Home() {
     }
   }, [session, setCurrentUser])
 
-  // 未Sign In → 導向 /login
+  // Not signed in → show landing page (instead of redirecting to /login)
+  // User can click "Get Started" on the landing page to go to /signup or /login
   useEffect(() => {
     if (status === 'unauthenticated') {
-      router.push('/login')
+      // Don't redirect — show landing page instead
     }
-  }, [status, router])
+  }, [status])
 
   // 初次載入
   useEffect(() => {
@@ -164,7 +166,10 @@ export default function Home() {
     )
   }
 
-  if (!session?.user) return null
+  // Not signed in → show landing page
+  if (!session?.user) {
+    return <LandingPage />
+  }
 
   const user = currentUser
   if (!user) return null
