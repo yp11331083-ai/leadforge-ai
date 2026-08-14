@@ -101,6 +101,8 @@ export function EmailSendingPanel() {
   const smtpConfigured = !!(emailConfig?.smtpHost && emailConfig?.smtpUser && emailConfig?.smtpPass && emailConfig?.smtpFromEmail)
   const smartleadConfigured = !!emailConfig?.smartleadApiKey
   const calComConfigured = !!emailConfig?.calComApiKey
+  // Check if Cal.com OAuth is configured on the platform side (client-visible env var)
+  const calcomOAuthConfigured = !!process.env.NEXT_PUBLIC_CALCOM_OAUTH_ENABLED
 
   return (
     <div className="space-y-5">
@@ -344,6 +346,12 @@ export function EmailSendingPanel() {
             </div>
             {calComConfigured ? (
               <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+            ) : calcomOAuthConfigured ? (
+              <a href="/api/auth/calcom/connect">
+                <Button size="sm" className="bg-rose-600 hover:bg-rose-700">
+                  <Plug className="mr-1.5 h-3.5 w-3.5" /> Connect
+                </Button>
+              </a>
             ) : (
               <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs">
                 Coming Soon
