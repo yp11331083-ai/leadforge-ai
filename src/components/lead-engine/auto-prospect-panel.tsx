@@ -490,23 +490,6 @@ export function AutoProspectPanel() {
               />
             ))}
           </div>
-
-          {/* AI Search strategy transparency */}
-          <Card className="p-4">
-            <details>
-              <summary className="cursor-pointer text-xs font-medium text-muted-foreground flex items-center gap-1">
-                <ListChecks className="h-3 w-3" />
-                AI-generated search strategy ({prospectResult.ai_search_queries.length} queries)
-              </summary>
-              <ul className="mt-3 space-y-1">
-                {prospectResult.ai_search_queries.map((q, i) => (
-                  <li key={i} className="text-[11px] font-mono text-muted-foreground">
-                    <span className="text-violet-500">▸</span> {q}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          </Card>
         </>
       )}
 

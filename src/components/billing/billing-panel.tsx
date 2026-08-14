@@ -82,14 +82,39 @@ const PLANS = [
 
 export function BillingPanel() {
   const currentUser = useLeadStore((s) => s.currentUser)
+  const creditBalance = useLeadStore((s) => s.creditBalance)
+  const creditAllowance = useLeadStore((s) => s.creditAllowance)
+  const fetchCredits = useLeadStore((s) => s.fetchCredits)
   const [usage, setUsage] = useState<UsageData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [usageLoading, setUsageLoading] = useState(false)  // background, non-blocking
   const [recordingUsage, setRecordingUsage] = useState(false)
   const [upgradingPlan, setUpgradingPlan] = useState<string | null>(null)
 
+  // Fetches usage stats from /api/usage (slow — calls Stripe API).
+  // Runs in the BACKGROUND so the panel renders instantly with credit
+  // balance, then usage stats fill in when ready.
+  const fetchUsage = async () => {
+    setUsageLoading(true)
+    try {
+      const res = await fetch('/api/usage')
+      if (res.ok) {
+        const data = await res.json()
+        setUsage(data)
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setUsageLoading(false)
+    }
+  }
+
+  // Fire both requests IN PARALLEL on mount.
+  // Credit balance loads first (fast — just DB), usage stats load in
+  // background (slow — calls Stripe API). User sees the panel instantly.
   useEffect(() => {
-    fetchUsage()
-  }, [])
+    fetchCredits()  // fast — DB only, ~100ms
+    fetchUsage()    // slow — Stripe API, ~3s, non-blocking
+  }, [fetchCredits])
 
   const handleUpgrade = async (planId: string) => {
     setUpgradingPlan(planId)
@@ -130,20 +155,6 @@ export function BillingPanel() {
     }
   }
 
-  const fetchUsage = async () => {
-    try {
-      const res = await fetch('/api/usage')
-      if (res.ok) {
-        const data = await res.json()
-        setUsage(data)
-      }
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleReportUsage = async () => {
     setRecordingUsage(true)
     try {
@@ -170,14 +181,6 @@ export function BillingPanel() {
   }
   const canonicalPlanId = planAliasMap[currentUser?.tenantPlan ?? ''] ?? currentUser?.tenantPlan ?? 'freemium'
   const currentPlan = PLANS.find((p) => p.id === canonicalPlanId) ?? PLANS[0]
-  // Use REAL credit balance from /api/credits/balance (not email count)
-  const creditBalance = useLeadStore((s) => s.creditBalance)
-  const creditAllowance = useLeadStore((s) => s.creditAllowance)
-  const fetchCredits = useLeadStore((s) => s.fetchCredits)
-
-  useEffect(() => {
-    fetchCredits()
-  }, [fetchCredits])
 
   // Fallback if /api/credits/balance hasn't loaded yet
   const planLimitFallback: Record<string, number> = {
