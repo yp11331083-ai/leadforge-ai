@@ -218,7 +218,7 @@ const DEFAULT_SENDER: SenderConfig = {
   senderProduct:
     'AI-powered sales development automation platform for B2B teams',
   tone: 'professional',
-  language: 'zh-TW',
+  language: 'en',
 }
 
 export const useLeadStore = create<LeadStore>((set, get) => ({

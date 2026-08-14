@@ -88,26 +88,23 @@ export function AiProviderPanel() {
           <div className="rounded-md bg-white/60 dark:bg-emerald-950/20 p-2.5">
             <div className="flex items-center gap-1.5 mb-1">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="font-medium">Chat AI</span>
+              <span className="font-medium">AI Writer</span>
             </div>
-            <p className="text-[10px] text-muted-foreground">Z.ai → Gemini fallback</p>
-            <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Uses your AI Credits</p>
+            <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Included — uses your credits</p>
           </div>
           <div className="rounded-md bg-white/60 dark:bg-emerald-950/20 p-2.5">
             <div className="flex items-center gap-1.5 mb-1">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="font-medium">Search</span>
+              <span className="font-medium">Web Search</span>
             </div>
-            <p className="text-[10px] text-muted-foreground">Z.ai → Tavily</p>
-            <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Platform-managed</p>
+            <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Included — uses your credits</p>
           </div>
           <div className="rounded-md bg-white/60 dark:bg-emerald-950/20 p-2.5">
             <div className="flex items-center gap-1.5 mb-1">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="font-medium">Page Reader</span>
+              <span className="font-medium">Site Reader</span>
             </div>
-            <p className="text-[10px] text-muted-foreground">Z.ai → Jina</p>
-            <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Platform-managed</p>
+            <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Included — uses your credits</p>
           </div>
         </div>
 

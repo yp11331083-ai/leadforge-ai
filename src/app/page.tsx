@@ -43,6 +43,7 @@ import { AddLeadModal, ImportModal } from '@/components/lead-engine/modals'
 import { SalesCardFeed } from '@/components/sales-view/sales-card-feed'
 import { AnalyticsDashboard } from '@/components/analytics-view/analytics-dashboard'
 import { BillingPanel } from '@/components/billing/billing-panel'
+import { AssistantWidget } from '@/components/assistant/assistant-widget'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -362,6 +363,10 @@ export default function Home() {
         open={detailOpen}
         onOpenChange={(open) => { if (!open) setSelectedLeadId(null) }}
       />
+
+      {/* Floating AI Assistant — always available */}
+      <AssistantWidget />
+
       <Toaster />
     </div>
   )

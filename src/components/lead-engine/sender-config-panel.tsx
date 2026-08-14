@@ -25,9 +25,9 @@ export function SenderConfigPanel() {
           <User className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
         </div>
         <div>
-          <h2 className="text-base font-semibold">SenderSettings</h2>
+          <h2 className="text-base font-semibold">Sender Settings</h2>
           <p className="text-xs text-muted-foreground">
-            AI 生成Email時會自動帶入這些資訊作為Email脈絡
+            AI uses these details as context when generating personalized emails
           </p>
         </div>
       </div>
@@ -35,37 +35,37 @@ export function SenderConfigPanel() {
       <div className="grid gap-3">
         <div className="grid gap-1.5">
           <Label htmlFor="sender-name" className="flex items-center gap-1.5">
-            <User className="h-3 w-3" /> Sender姓名
+            <User className="h-3 w-3" /> Sender Name
           </Label>
           <Input
             id="sender-name"
             value={senderConfig.senderName}
             onChange={(e) => setSenderConfig({ senderName: e.target.value })}
-            placeholder="你的名字"
+            placeholder="Your name"
           />
         </div>
 
         <div className="grid gap-1.5">
           <Label htmlFor="sender-company" className="flex items-center gap-1.5">
-            <Building2 className="h-3 w-3" /> 寄件Company
+            <Building2 className="h-3 w-3" /> Your Company
           </Label>
           <Input
             id="sender-company"
             value={senderConfig.senderCompany}
             onChange={(e) => setSenderConfig({ senderCompany: e.target.value })}
-            placeholder="你的Company"
+            placeholder="Your company name"
           />
         </div>
 
         <div className="grid gap-1.5">
           <Label htmlFor="sender-product" className="flex items-center gap-1.5">
-            <Package className="h-3 w-3" /> 產品/服務介紹
+            <Package className="h-3 w-3" /> Product / Service
           </Label>
           <Textarea
             id="sender-product"
             value={senderConfig.senderProduct}
             onChange={(e) => setSenderConfig({ senderProduct: e.target.value })}
-            placeholder="一句話說明你的產品能為客戶解決什麼問題"
+            placeholder="One sentence describing what your product does for customers"
             rows={3}
             className="text-sm"
           />
@@ -73,7 +73,7 @@ export function SenderConfigPanel() {
 
         <div className="grid grid-cols-2 gap-3">
           <div className="grid gap-1.5">
-            <Label>語氣風格</Label>
+            <Label>Tone</Label>
             <Select
               value={senderConfig.tone}
               onValueChange={(v) =>
@@ -84,15 +84,15 @@ export function SenderConfigPanel() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="professional">專業內斂</SelectItem>
-                <SelectItem value="friendly">友善輕鬆</SelectItem>
-                <SelectItem value="concise">極簡直接</SelectItem>
-                <SelectItem value="bold">大膽有觀點</SelectItem>
+                <SelectItem value="professional">Professional</SelectItem>
+                <SelectItem value="friendly">Friendly</SelectItem>
+                <SelectItem value="concise">Concise</SelectItem>
+                <SelectItem value="bold">Bold</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="grid gap-1.5">
-            <Label>Email語言</Label>
+            <Label>Email Language</Label>
             <Select
               value={senderConfig.language}
               onValueChange={(v) =>
@@ -103,8 +103,8 @@ export function SenderConfigPanel() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="zh-TW">繁體中文</SelectItem>
                 <SelectItem value="en">English</SelectItem>
+                <SelectItem value="zh-TW">繁體中文</SelectItem>
               </SelectContent>
             </Select>
           </div>
