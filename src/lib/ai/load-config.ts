@@ -40,9 +40,9 @@ export async function loadProviderConfig(): Promise<void> {
       jinaApiKey: config?.jinaApiKey ?? platformJinaKey,
       firecrawlApiKey: config?.firecrawlApiKey ?? undefined,
       // Priority: Groq first (fast + free), then Z.ai, then Gemini, then user BYOK
-      chatProviderOrder: config?.chatProviderOrder ?? 'groq,zai,gemini,openai,anthropic',
-      searchProviderOrder: config?.searchProviderOrder ?? 'zai,tavily',
-      pageReaderProviderOrder: config?.pageReaderProviderOrder ?? 'zai,jina',
+      chatProviderOrder: config?.chatProviderOrder ?? 'groq,gemini,openai,anthropic',
+      searchProviderOrder: config?.searchProviderOrder ?? 'tavily',
+      pageReaderProviderOrder: config?.pageReaderProviderOrder ?? 'jina',
     }
 
     setProviderConfig(providerConfig)
