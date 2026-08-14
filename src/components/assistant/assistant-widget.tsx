@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card'
 import { Bot, X, Send, Loader2, Sparkles, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react'
 import { useLeadStore } from '@/store/lead-store'
 import { toast } from 'sonner'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -299,9 +300,17 @@ export function AssistantWidget() {
         {open ? <X className="h-6 w-6" /> : <Bot className="h-6 w-6" />}
       </button>
 
-      {/* Chat panel — stays open until user closes it */}
-      {open && (
-        <div className="fixed bottom-24 right-6 z-50 w-[calc(100vw-3rem)] max-w-md">
+      {/* Chat panel — spring bounce animation */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            key="chat-panel"
+            initial={{ opacity: 0, scale: 0.85, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.85, y: 20 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 25, mass: 0.8 }}
+            className="fixed bottom-24 right-6 z-50 w-[calc(100vw-3rem)] max-w-md"
+          >
           <Card className="flex flex-col h-[32rem] max-h-[80vh] shadow-2xl border-violet-200 dark:border-violet-800">
             {/* Header */}
             <div className="flex items-center justify-between p-3 border-b border-violet-100 dark:border-violet-900 bg-gradient-to-r from-violet-50 to-fuchsia-50 dark:from-violet-950/30 dark:to-fuchsia-950/30 rounded-t-lg">
