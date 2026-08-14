@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   ArrowRight,
-  Loader2,
   Target,
   Mail,
   Search,
@@ -30,11 +29,11 @@ interface DemoEntry {
 
 const DEMOS = demoData as DemoEntry[]
 
-const PAUSE_MS = 7000 // how long to show each result
-const TYPE_SPEED = 45 // ms per character when typing
-const DELETE_SPEED = 25 // ms per character when deleting
-const PAUSE_AFTER_TYPE = 500 // pause after typing before showing result
-const PAUSE_AFTER_DELETE = 300 // pause after deleting before next type
+const PAUSE_MS = 7000
+const TYPE_SPEED = 50
+const DELETE_SPEED = 28
+const PAUSE_AFTER_TYPE = 600
+const PAUSE_AFTER_DELETE = 400
 
 type Phase = 'typing' | 'showing' | 'deleting'
 
@@ -42,14 +41,14 @@ export function LandingPage() {
   const [demoIdx, setDemoIdx] = useState(0)
   const [typedText, setTypedText] = useState('')
   const [phase, setPhase] = useState<Phase>('typing')
-  const [progress, setProgress] = useState(0) // 0-100 for the progress bar
   const [isHovered, setIsHovered] = useState(false)
   const [showResult, setShowResult] = useState(false)
+  const [dotProgress, setDotProgress] = useState(0) // 0-1 for active dot fill
 
   const targetProduct = DEMOS[demoIdx]?.product ?? ''
   const currentResult = DEMOS[demoIdx]?.result
 
-  // Typewriter effect
+  // Typewriter + showing + deleting state machine
   useEffect(() => {
     if (isHovered) return
 
@@ -57,28 +56,26 @@ export function LandingPage() {
       if (typedText.length < targetProduct.length) {
         const timer = setTimeout(() => {
           setTypedText(targetProduct.slice(0, typedText.length + 1))
-        }, TYPE_SPEED)
+        }, TYPE_SPEED + Math.random() * 40) // slight randomness for natural feel
         return () => clearTimeout(timer)
       } else {
-        // Finished typing — pause briefly, then show result
         const timer = setTimeout(() => {
           setShowResult(true)
           setPhase('showing')
-          setProgress(0)
+          setDotProgress(0)
         }, PAUSE_AFTER_TYPE)
         return () => clearTimeout(timer)
       }
     }
 
     if (phase === 'showing') {
-      // Progress bar fills over PAUSE_MS
       const startTime = Date.now()
       const timer = setInterval(() => {
         if (isHovered) return
         const elapsed = Date.now() - startTime
-        const pct = Math.min(100, (elapsed / PAUSE_MS) * 100)
-        setProgress(pct)
-        if (pct >= 100) {
+        const pct = Math.min(1, elapsed / PAUSE_MS)
+        setDotProgress(pct)
+        if (pct >= 1) {
           clearInterval(timer)
           setShowResult(false)
           setPhase('deleting')
@@ -94,10 +91,10 @@ export function LandingPage() {
         }, DELETE_SPEED)
         return () => clearTimeout(timer)
       } else {
-        // Finished deleting — move to next demo
         const timer = setTimeout(() => {
           setDemoIdx((prev) => (prev + 1) % DEMOS.length)
           setPhase('typing')
+          setDotProgress(0)
         }, PAUSE_AFTER_DELETE)
         return () => clearTimeout(timer)
       }
@@ -124,9 +121,8 @@ export function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero */}
+      {/* Hero — violet/fuchsia accent */}
       <section className="relative mx-auto max-w-6xl px-4 sm:px-6 pt-20 pb-16">
-        {/* Subtle gradient backdrop */}
         <div className="absolute inset-0 -z-10 overflow-hidden">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-gradient-to-b from-violet-100/40 via-fuchsia-50/30 to-transparent rounded-full blur-3xl" />
         </div>
@@ -135,7 +131,7 @@ export function LandingPage() {
           <h1 className="text-5xl sm:text-7xl font-bold tracking-tight leading-[1.05] text-stone-900">
             Outrovo finds customers.
             <br />
-            <span className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-violet-600 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
               You close deals.
             </span>
           </h1>
@@ -155,14 +151,14 @@ export function LandingPage() {
           </div>
         </div>
 
-        {/* Live Demo — typewriter + progress bar + pause on hover */}
+        {/* Live Demo */}
         <div
           id="demo"
           className="mt-20 max-w-4xl mx-auto scroll-mt-20"
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
-          <div className="rounded-2xl border border-stone-200 bg-stone-50 shadow-xl shadow-stone-300/30 overflow-hidden">
+          <div className="rounded-2xl border border-stone-200 bg-white/60 shadow-xl shadow-stone-300/30 overflow-hidden">
             {/* Window chrome */}
             <div className="flex items-center gap-2 px-4 py-3 border-b border-stone-200/60 bg-stone-100/50">
               <div className="flex gap-1.5">
@@ -185,23 +181,17 @@ export function LandingPage() {
                   Describe your product
                 </label>
                 <div className="mt-2 flex gap-2">
-                  {/* Typewriter input */}
-                  <div className="flex-1 bg-white border border-stone-200 rounded-lg px-4 py-3 text-sm text-stone-700 flex items-center min-h-[48px]">
+                  <div className="flex-1 bg-stone-50 border border-stone-200 rounded-lg px-4 py-3 text-sm text-stone-700 flex items-center min-h-[48px]">
                     <span className="truncate">{typedText}</span>
-                    {/* Blinking cursor */}
                     <span className={`inline-block w-0.5 h-4 ml-0.5 ${phase === 'typing' || phase === 'deleting' ? 'bg-violet-500 animate-pulse' : 'bg-transparent'}`} />
                   </div>
-                  {/* Search button (non-interactive, just visual) */}
                   <div className="px-5 py-3 rounded-lg bg-stone-900 text-sm font-medium text-white flex items-center gap-2 whitespace-nowrap">
                     <Search className="h-4 w-4" /> Search
                   </div>
                 </div>
-                <p className="mt-2 text-xs text-stone-400">
-                  {DEMOS.length} live examples rotating — sign up to search your own product
-                </p>
               </div>
 
-              {/* Result — fades in when typing completes */}
+              {/* Result */}
               {showResult && currentResult ? (
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   {/* Company card */}
@@ -252,7 +242,6 @@ export function LandingPage() {
                   </p>
                 </div>
               ) : (
-                /* Skeleton while typing/deleting */
                 <div className="space-y-3">
                   <div className="h-16 bg-stone-100/60 rounded-lg" />
                   <div className="h-20 bg-stone-100/60 rounded-lg" />
@@ -260,26 +249,32 @@ export function LandingPage() {
                 </div>
               )}
 
-              {/* Progress bar — fills over time, advances when full */}
+              {/* Dot indicators with filling effect — no separate progress bar */}
               {showResult && (
-                <div className="mt-6">
-                  <div className="h-1 rounded-full bg-stone-200 overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500 transition-all duration-75 ease-linear"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                  {/* Demo indicator dots */}
-                  <div className="mt-3 flex justify-center gap-1.5">
-                    {DEMOS.map((_, i) => (
+                <div className="mt-6 flex justify-center gap-1.5">
+                  {DEMOS.map((_, i) => {
+                    const isActive = i === demoIdx
+                    const isPast = i < demoIdx
+                    return (
                       <div
                         key={i}
-                        className={`h-1.5 rounded-full transition-all ${
-                          i === demoIdx ? 'w-4 bg-violet-600' : 'w-1.5 bg-stone-300'
-                        }`}
-                      />
-                    ))}
-                  </div>
+                        className="relative h-1.5 rounded-full bg-stone-200 overflow-hidden"
+                        style={{ width: isActive ? '32px' : '6px' }}
+                      >
+                        {/* Fill for active dot — grows from left over time */}
+                        {isActive && (
+                          <div
+                            className="absolute inset-y-0 left-0 bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-full"
+                            style={{ width: `${dotProgress * 100}%` }}
+                          />
+                        )}
+                        {/* Past dots are fully filled */}
+                        {isPast && (
+                          <div className="absolute inset-0 bg-stone-400 rounded-full" />
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -287,7 +282,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Metrics */}
+      {/* Metrics — emerald accent */}
       <section className="mx-auto max-w-6xl px-4 sm:px-6 py-20 border-t border-stone-200/60">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-4">
           {[
@@ -296,7 +291,7 @@ export function LandingPage() {
             { value: '0', label: 'API keys to configure', desc: 'Platform-managed search, page reading, and writing' },
           ].map((m) => (
             <div key={m.label} className="text-center">
-              <p className="text-5xl font-bold text-stone-900">{m.value}</p>
+              <p className="text-5xl font-bold text-emerald-600">{m.value}</p>
               <p className="mt-2 text-sm font-medium text-stone-700">{m.label}</p>
               <p className="mt-2 text-xs text-stone-400 leading-relaxed max-w-[200px] mx-auto">{m.desc}</p>
             </div>
@@ -304,7 +299,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Features */}
+      {/* Features — blue/indigo accent */}
       <section className="mx-auto max-w-6xl px-4 sm:px-6 py-20 border-t border-stone-200/60">
         <div className="text-center mb-16">
           <h2 className="text-4xl font-bold tracking-tight text-stone-900">One platform. Everything you need.</h2>
@@ -317,9 +312,9 @@ export function LandingPage() {
             { icon: Mail, title: 'Email Writer', desc: 'Generates personalized cold emails with spam-filtered subject lines and specific icebreakers. Under 125 words.' },
             { icon: Calendar, title: 'Smart Meeting Tracking', desc: 'When a prospect books a meeting via Cal.com, Outrovo auto-stops sending follow-ups. No more awkward duplicates.' },
           ].map(({ icon: Icon, title, desc }) => (
-            <div key={title} className="p-6 rounded-2xl border border-stone-200/60 hover:border-stone-300 transition-colors">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 border border-violet-100 mb-4">
-                <Icon className="h-5 w-5 text-violet-600" />
+            <div key={title} className="p-6 rounded-2xl border border-stone-200/60 hover:border-blue-200 transition-colors">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 border border-blue-100 mb-4">
+                <Icon className="h-5 w-5 text-blue-600" />
               </div>
               <h3 className="text-lg font-semibold text-stone-900">{title}</h3>
               <p className="mt-2 text-sm text-stone-500 leading-relaxed">{desc}</p>
@@ -328,7 +323,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Integrations */}
+      {/* Integrations — amber accent */}
       <section className="mx-auto max-w-6xl px-4 sm:px-6 py-20 border-t border-stone-200/60">
         <div className="text-center mb-12">
           <h2 className="text-4xl font-bold tracking-tight text-stone-900">Built on infrastructure you trust</h2>
@@ -342,7 +337,7 @@ export function LandingPage() {
             { name: 'Groq', desc: 'Inference engine' },
             { name: 'Gemini', desc: 'Fallback engine' },
           ].map((int) => (
-            <div key={int.name} className="p-5 rounded-xl border border-stone-200/60 bg-stone-50 text-center hover:border-stone-300 transition-colors">
+            <div key={int.name} className="p-5 rounded-xl border border-stone-200/60 bg-stone-50 text-center hover:border-amber-200 transition-colors">
               <p className="font-semibold text-sm text-stone-900">{int.name}</p>
               <p className="text-xs text-stone-400 mt-1">{int.desc}</p>
             </div>
@@ -353,7 +348,7 @@ export function LandingPage() {
         </p>
       </section>
 
-      {/* CTA */}
+      {/* CTA — back to violet/fuchsia */}
       <section className="mx-auto max-w-6xl px-4 sm:px-6 py-20 border-t border-stone-200/60">
         <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-violet-600 to-fuchsia-600 p-12 sm:p-16 text-center">
           <h2 className="text-4xl sm:text-5xl font-bold tracking-tight text-white">Get 50% off lifetime.</h2>
