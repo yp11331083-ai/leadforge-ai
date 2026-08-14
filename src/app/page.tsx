@@ -157,10 +157,10 @@ export default function Home() {
   // Loading state
   if (status === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
         <div className="text-center">
           <img src="/logo.png" alt="Outrovo" className="h-12 w-12 rounded-xl shadow-lg mb-3 animate-pulse" />
-          <p className="text-sm text-muted-foreground">Loading...</p>
+          <p className="text-sm text-stone-400">Loading...</p>
         </div>
       </div>
     )
@@ -181,9 +181,9 @@ export default function Home() {
   const selectedLead = leads.find((l) => l.id === selectedLeadId) ?? null
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
+    <div className="min-h-screen flex flex-col bg-stone-50 text-stone-900">
       {/* Header */}
-      <header className="sticky top-0 z-30 border-b border-border/60 bg-background/80 backdrop-blur-lg">
+      <header className="sticky top-0 z-30 border-b border-stone-200/60 bg-stone-50/80 backdrop-blur-lg">
         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <img src="/logo.png" alt="Outrovo" className="h-9 w-9 rounded-xl object-cover shadow-md" />
@@ -347,11 +347,11 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="mt-auto border-t border-border/60 py-4">
-        <div className="mx-auto max-w-[1400px] px-4 sm:px-6 flex items-center justify-between text-xs text-muted-foreground">
+      <footer className="mt-auto border-t border-stone-200/60 bg-stone-100 py-4">
+        <div className="mx-auto max-w-[1400px] px-4 sm:px-6 flex items-center justify-between text-xs text-stone-400">
           <span>
             Outrovo · {leads.length} leads
-            <span className="ml-2 px-1.5 py-0.5 rounded bg-muted/60">{ROLE_LABELS[user.role]}</span>
+            <span className="ml-2 px-1.5 py-0.5 rounded bg-stone-200/60 text-stone-600">{ROLE_LABELS[user.role]}</span>
           </span>
           <span className="flex items-center gap-1">
             <ShieldCheck className="h-3 w-3" />
