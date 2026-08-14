@@ -148,9 +148,9 @@ export function EmailSendingPanel() {
                   <CheckCircle2 className="mr-1 h-3 w-3" /> Connected
                 </Badge>
               ) : (
-                <Button size="sm" onClick={() => toast.info('Google Workspace OAuth setup required')} className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700">
-                  <Plug className="mr-1.5 h-3.5 w-3.5" /> Connect
-                </Button>
+                <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs">
+                  Coming Soon
+                </Badge>
               )}
             </div>
           </div>
@@ -170,16 +170,16 @@ export function EmailSendingPanel() {
                   <p className="text-xs text-muted-foreground">Connect your Outlook or Microsoft 365 account</p>
                 </div>
               </div>
-              <Button size="sm" variant="outline" onClick={() => toast.info('Microsoft 365 OAuth setup required')}>
-                <Plug className="mr-1.5 h-3.5 w-3.5" /> Connect
-              </Button>
+              <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs">
+                Coming Soon
+              </Badge>
             </div>
           </div>
         </div>
 
-        <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/30 p-2.5 text-[11px] text-emerald-700 dark:text-emerald-400 flex items-start gap-1.5">
-          <Shield className="h-3 w-3 mt-0.5 shrink-0" />
-          <span>OAuth is the most secure method. We never see or store your password — you authorize access directly with Google/Microsoft.</span>
+        <div className="rounded-md bg-blue-50 dark:bg-blue-950/30 p-2.5 text-[11px] text-blue-700 dark:text-blue-400 flex items-start gap-1.5">
+          <Mail className="h-3 w-3 mt-0.5 shrink-0" />
+          <span><b>Quick start:</b> Use SMTP below (works with any email provider — Gmail, Outlook, custom domain). One-click Google/Microsoft OAuth is coming soon.</span>
         </div>
       </Card>
 
@@ -345,23 +345,25 @@ export function EmailSendingPanel() {
             {calComConfigured ? (
               <CheckCircle2 className="h-6 w-6 text-emerald-500" />
             ) : (
-              <a href="/api/auth/calcom/connect">
-                <Button size="sm" className="bg-rose-600 hover:bg-rose-700">
-                  <Plug className="mr-1.5 h-3.5 w-3.5" /> Connect
-                </Button>
-              </a>
+              <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs">
+                Coming Soon
+              </Badge>
             )}
           </div>
         </div>
 
         {!calComConfigured && (
-          <div className="rounded-md bg-rose-50 dark:bg-rose-950/30 p-3 text-xs space-y-1 text-rose-700 dark:text-rose-300">
-            <p className="font-medium">How it works:</p>
-            <ol className="list-decimal ml-4 space-y-0.5">
-              <li>Click "Connect" → redirects to Cal.com authorization</li>
-              <li>Authorize Forge AI to read your bookings</li>
-              <li>Webhook auto-registered (booking.created + booking.cancelled)</li>
-              <li>Meetings appear in Analytics dashboard automatically</li>
+          <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 p-3 text-xs space-y-1.5 text-amber-700 dark:text-amber-300">
+            <p className="font-medium flex items-center gap-1.5">
+              <Calendar className="h-3 w-3" /> Coming Soon
+            </p>
+            <p className="leading-relaxed">
+              Cal.com integration is being finalized. Once available, clicking "Connect" will:
+            </p>
+            <ol className="list-decimal ml-4 space-y-0.5 opacity-80">
+              <li>Redirect to Cal.com authorization</li>
+              <li>Auto-register webhook (booking.created + booking.cancelled)</li>
+              <li>Display meetings in Analytics dashboard automatically</li>
             </ol>
           </div>
         )}

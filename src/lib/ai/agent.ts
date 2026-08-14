@@ -650,6 +650,11 @@ ${idealCustomerSignals ? `**理想客戶訊號**：${idealCustomerSignals}` : ''
  *   2. LinkedIn 公司頁 / Crunchbase / Y Combinator — 第二優先（官網抓不到時的備援）
  *
  * 對同一家公司，如果搜尋結果中同時出現官網和 LinkedIn，只保留官網。
+ *
+ * 重要過濾規則：
+ *   - 排除目錄/聚合網站（如 topstartups.io, growjo.com, traz Cooper）
+ *   - 排除帶查詢字串的 URL（通常是目錄頁面，如 ?industries=SaaS）
+ *   - YC /companies/location/X 是目錄，不是公司
  */
 export function extractCompanyUrls(
   searchResults: Array<{ url?: string; name?: string; host_name?: string }>
@@ -681,37 +686,80 @@ export function extractCompanyUrls(
     /bloomberg\.com|reuters\.com|forbes\.com|businessinsider\.com/i,
     /github\.com|gitlab\.com|bitbucket\.org/i,
     /g2\.com|capterra\.com|trustpilot\.com/i,  // 評論網站
+    // 排除目錄/聚合網站（列出多家公司，不是公司本身）
+    /topstartups\.io|growjo\.com|tracxn\.com|cbinsights\.com/i,
+    /deployhq\.com|semrush\.com|similarweb\.com|builtwith\.com/i,
+    /producthunt\.com|betalist\.com|saa.sh|getlatka\.com/i,
+    /apollo\.io|zoominfo\.com|lusha\.com|clearbit\.com/i,
+    /clutch\.co|GoodFirms\.org/i,
+  ]
+
+  // 通用目錄路徑模式（這些 path 通常出現在聚合網站，不是公司首頁）
+  const directoryPathPatterns = [
+    /\/companies\/location\//i,        // ycombinator.com/companies/location/india
+    /\/companies\?/i,                  // 任何 ?companies=
+    /\/startups\/list/i,
+    /\/companies\/category/i,
+    /\/companies\/industry/i,
+    /\/collections?\//i,
+    /\/topics?\//i,
+    /\/tags?\//i,
+    /\/categories?\//i,
+    /\/top-/i,                         // top-100-startups, top-50-saas
+    /\/best-/i,                        // best-crm-tools
+    /\/list-of-/i,
   ]
 
   for (const r of searchResults) {
     if (!r?.url) continue
     const url = r.url
+
+    // 排除帶查詢字串的 URL（通常是目錄頁面，如 topstartups.io?industries=SaaS）
+    try {
+      const parsed = new URL(url)
+      if (parsed.search && parsed.search.length > 0) {
+        // 有 query string — 大概率是目錄/搜尋頁，不是公司首頁
+        continue
+      }
+    } catch {
+      continue
+    }
+
     if (excludePatterns.some((p) => p.test(url))) continue
 
     try {
       const host = new URL(url).hostname.replace(/^www\./, '')
       const name = r.name ?? host
+      const path = new URL(url).pathname
 
-      // LinkedIn 公司頁
+      // LinkedIn 公司頁（必須是 /company/{name}，不能是 /company/{name}/about 等子頁）
       if (/linkedin\.com\/company\//.test(url)) {
+        // 過濾掉 LinkedIn 目錄頁面
+        if (/\/company\/showcase\//i.test(path)) continue
         socials.push({ url, name, host, platform: 'linkedin' })
         continue
       }
 
-      // Crunchbase 公司頁
+      // Crunchbase 公司頁（必須是 /organization/{name}）
       if (/crunchbase\.com\/organization\//.test(url)) {
         socials.push({ url, name, host, platform: 'crunchbase' })
         continue
       }
 
-      // Y Combinator 公司頁
+      // Y Combinator 公司頁 — 必須是 /companies/{name}，不能是 /companies/location/X 或 /companies?...
       if (/ycombinator\.com\/companies\//.test(url)) {
+        // 過濾目錄頁面
+        if (directoryPathPatterns.some((p) => p.test(path))) continue
+        // /companies/location/X 通常是目錄，跳過
+        if (/\/companies\/location\//i.test(path)) continue
+        // 沒有具體公司名的也跳過
+        const parts = path.split('/').filter(Boolean)
+        if (parts.length < 2) continue
         socials.push({ url, name, host, platform: 'yc' })
         continue
       }
 
       // 一般公司官網首頁（不是子頁面）
-      const path = new URL(url).pathname
       const isRootOrMain = path === '/' || path === '' || /^\/[a-z]{2}(-[a-z]{2})?\/?$/i.test(path)
       if (isRootOrMain && !/\.gov|\.edu|\.mil/i.test(host)) {
         websites.push({ url, name, host })
@@ -792,6 +840,16 @@ ${websiteContent.slice(0, 5000)}
 4. **採購能力**：他們看起來有預算採購嗎？
 5. **接觸可能性**：是否有公開聯絡資訊？
 
+## ⚠️ 重要：先判斷是否為「真正的公司」
+
+如果這個網站是以下類型，請直接給 fit_score 0-15 並在 why_they_need_it 說明「這不是公司官網，是目錄/聚合/列表頁面」：
+- 目錄網站（列出多家公司，如 topstartups.io、growjo.com）
+- 創業加速器列表頁（如 ycombinator.com/companies/location/india）
+- 新聞/媒體網站
+- 政府機關
+- 個人作品集/部落格
+- 求職平台（不是公司本身）
+
 ## 輸出格式
 
 請輸出純 JSON（不要 markdown）：
@@ -809,6 +867,7 @@ ${websiteContent.slice(0, 5000)}
 
 注意：
 - fit_score 要客觀，不要全部都給 80+。真的不適合就給低分。
+- 如果這不是公司官網（是目錄/列表/聚合頁），fit_score 必須 ≤ 15。
 - why_they_need_it 要具體，不要寫「他們可能需要自動化」這種廢話。
 - 如果查不到足夠資訊判斷，confidence 給 low，fit_score 給 30 以下。
 - 行業別用中文，例如 "SaaS 軟體"、"電商"、"製造業"。`
@@ -960,11 +1019,17 @@ export async function autoProspect(params: {
     if (highConfCount >= targetCount && i >= targetCount) break
   }
 
-  // 步驟 6：依 fit_score 排序，取 top N
+  // 步驟 6：依 fit_score 排序，過濾掉非公司官網（fit_score ≤ 15 通常是目錄/列表頁），取 top N
   evaluated.sort((a, b) => b.fit_score - a.fit_score)
-  const top = evaluated.slice(0, targetCount)
+  // Drop candidates that the AI flagged as non-company websites (fit_score ≤ 15)
+  const qualified = evaluated.filter((e) => e.fit_score > 15)
+  const top = qualified.slice(0, targetCount)
 
-  onProgress?.('完成', `已篩選出 ${top.length} 家最契合的潛在客戶`)
+  const droppedCount = evaluated.length - qualified.length
+  onProgress?.(
+    '完成',
+    `已篩選出 ${top.length} 家最契合的潛在客戶${droppedCount > 0 ? `（過濾掉 ${droppedCount} 個非公司網站）` : ''}`
+  )
 
   return {
     success: true,

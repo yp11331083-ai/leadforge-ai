@@ -344,13 +344,13 @@ export default function Home() {
       <footer className="mt-auto border-t border-border/60 py-4">
         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 flex items-center justify-between text-xs text-muted-foreground">
           <span>
-            Powered by Z.ai · {leads.length} leads
+            Forge AI · {leads.length} leads
             <span className="ml-2 px-1.5 py-0.5 rounded bg-muted/60">{ROLE_LABELS[user.role]}</span>
           </span>
-          <a href="https://chat.z.ai" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-foreground transition-colors">
+          <span className="flex items-center gap-1">
             <ShieldCheck className="h-3 w-3" />
             Tenant-isolated SaaS
-          </a>
+          </span>
         </div>
       </footer>
 
