@@ -64,6 +64,16 @@ export function AssistantWidget() {
           return { success: false, label: 'Invalid tab' }
         }
 
+        case 'go_to_billing':
+        case 'update_plan': {
+          // Navigate to billing tab so user can see plans and upgrade
+          setViewMode('billing' as any)
+          return {
+            success: true,
+            label: 'Taking you to billing — tap Upgrade to switch plans',
+          }
+        }
+
         case 'fill_service_description': {
           // Navigate to admin tab (where Auto-Prospect is)
           setViewMode('admin' as any)
@@ -280,20 +290,18 @@ export function AssistantWidget() {
 
   return (
     <>
-      {/* Floating button */}
-      {!open && (
-        <button
-          onClick={() => setOpen(true)}
-          className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg hover:scale-105 transition-transform"
-          aria-label="Open assistant"
-        >
-          <Bot className="h-6 w-6" />
-        </button>
-      )}
+      {/* Floating button — always visible, toggles chat open/close */}
+      <button
+        onClick={() => setOpen(!open)}
+        className="fixed bottom-6 right-6 z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg hover:scale-105 transition-transform"
+        aria-label={open ? 'Close assistant' : 'Open assistant'}
+      >
+        {open ? <X className="h-6 w-6" /> : <Bot className="h-6 w-6" />}
+      </button>
 
-      {/* Chat panel */}
+      {/* Chat panel — stays open until user closes it */}
       {open && (
-        <div className="fixed bottom-6 right-6 z-50 w-[calc(100vw-3rem)] max-w-md">
+        <div className="fixed bottom-24 right-6 z-50 w-[calc(100vw-3rem)] max-w-md">
           <Card className="flex flex-col h-[32rem] max-h-[80vh] shadow-2xl border-violet-200 dark:border-violet-800">
             {/* Header */}
             <div className="flex items-center justify-between p-3 border-b border-violet-100 dark:border-violet-900 bg-gradient-to-r from-violet-50 to-fuchsia-50 dark:from-violet-950/30 dark:to-fuchsia-950/30 rounded-t-lg">

@@ -61,6 +61,15 @@ export async function POST(req: NextRequest) {
       '',
       '### go_to_tab',
       'Navigate user to a tab. Params: {"tab":"admin"} (admin, sales, analytics, billing)',
+      '',
+      '### go_to_billing',
+      'When user asks about plans, pricing, upgrade, or billing.',
+      'Params: none needed. Navigates to billing tab.',
+      '',
+      '### update_plan',
+      'When user wants to change their plan (e.g. upgrade to Agency).',
+      'Params: none. Navigates to billing tab so they can click Upgrade.',
+      'Always confirm first, then navigate them to billing.',
       'Example: {"reply":"Taking you to billing.","action":{"type":"go_to_tab","params":{"tab":"billing"}}}',
       '',
       '### fill_service_description',
@@ -101,49 +110,67 @@ export async function POST(req: NextRequest) {
       maxTokens: 500,
     }, getProviderConfig())
 
-    // Robust JSON parsing — try multiple strategies
-    let reply = chatResult.content
+    // Get raw AI response
+    const rawContent = chatResult.content.trim()
+
+    // AGGRESSIVE JSON extraction — the AI often returns JSON but sometimes
+    // wraps it in text or markdown. We need to reliably extract {reply, action}.
+    let reply = ''
     let action: any = null
 
-    let cleaned = chatResult.content.trim()
-    // Remove markdown code blocks
+    // Step 1: Remove markdown code blocks
+    let cleaned = rawContent
     if (cleaned.startsWith('```')) {
-      cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+      cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
     }
 
-    // Try to extract JSON from the response
-    try {
-      const parsed = JSON.parse(cleaned)
-      if (parsed.reply) {
-        reply = parsed.reply
-        action = parsed.action ?? null
-      }
-    } catch {
-      // Try to find JSON object in the text
-      const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        try {
-          const parsed = JSON.parse(jsonMatch[0])
-          if (parsed.reply) {
-            reply = parsed.reply
-            action = parsed.action ?? null
-          }
-        } catch {
-          // Not JSON — use raw text as reply
+    // Step 2: Try to find and parse a JSON object
+    // Look for the FIRST { and LAST } — that's our JSON
+    const firstBrace = cleaned.indexOf('{')
+    const lastBrace = cleaned.lastIndexOf('}')
+
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      const jsonStr = cleaned.slice(firstBrace, lastBrace + 1)
+      try {
+        const parsed = JSON.parse(jsonStr)
+        // If it has a reply field, use it
+        if (parsed.reply && typeof parsed.reply === 'string') {
+          reply = parsed.reply
+          action = parsed.action ?? null
+        } else {
+          // JSON but no reply field — use the whole thing as reply text
+          reply = cleaned
         }
+      } catch {
+        // Not valid JSON — use the cleaned text as reply
+        reply = cleaned
       }
-      // If all parsing fails, reply is the raw text (which is fine for plain text responses)
+    } else {
+      // No JSON found — it's plain text
+      reply = cleaned
     }
 
-    // If the raw reply looks like it contains JSON, strip it
-    if (reply.includes('{"reply"') || reply.includes('{ "reply"')) {
-      const jsonStart = reply.search(/\{["\s]*reply["\s]*:/)
+    // Step 3: Final safety — strip any remaining JSON from the reply
+    if (reply.includes('{"reply"') || reply.includes('{ "reply"') || reply.includes("{'reply'")) {
+      // Find where JSON starts and cut it
+      const jsonStart = reply.search(/\{["\s]*['"]?reply/)
       if (jsonStart >= 0) {
         const beforeJson = reply.slice(0, jsonStart).trim()
-        if (beforeJson) {
+        if (beforeJson.length > 5) {
           reply = beforeJson
+        } else {
+          // The entire reply IS the JSON — try to extract just the reply value
+          try {
+            const match = reply.match(/"reply"\s*:\s*"([^"]+)"/)
+            if (match) reply = match[1]
+          } catch {}
         }
       }
+    }
+
+    // Step 4: If reply is empty, use a fallback
+    if (!reply || reply.trim().length === 0) {
+      reply = 'I can help you with that. What would you like me to do?'
     }
 
     return NextResponse.json({
