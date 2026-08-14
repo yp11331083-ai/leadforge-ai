@@ -59,6 +59,28 @@ export const authOptions: NextAuthOptions = {
         token.tenantName = (user as any).tenantName
         token.tenantSlug = (user as any).tenantSlug
         token.tenantPlan = (user as any).tenantPlan
+        token.lastTenantSync = Date.now()
+      }
+
+      // Refresh tenant info from DB every 5 minutes (so plan changes via Stripe
+      // webhook show up without requiring the user to sign out + sign back in)
+      const lastSync = (token.lastTenantSync as number) ?? 0
+      const fiveMinutes = 5 * 60 * 1000
+      if (token.tenantId && Date.now() - lastSync > fiveMinutes) {
+        try {
+          const freshTenant = await db.tenant.findUnique({
+            where: { id: token.tenantId as string },
+            select: { plan: true, name: true, slug: true, status: true },
+          })
+          if (freshTenant) {
+            token.tenantPlan = freshTenant.plan
+            token.tenantName = freshTenant.name
+            token.tenantSlug = freshTenant.slug
+            token.lastTenantSync = Date.now()
+          }
+        } catch (e) {
+          // DB query failed — keep the cached values
+        }
       }
       return token
     },

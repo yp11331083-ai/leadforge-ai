@@ -89,7 +89,9 @@ export async function POST(req: NextRequest) {
           console.log(`✓ Tenant ${tenantId} bought ${credits} credit pack`)
         }
       } else if (type === 'subscription') {
-        // Subscription upgrade — update plan + grant monthly credits
+        // Subscription upgrade — update plan + RESET credits to new plan's allowance
+        // (NOT add to existing balance — that would let users accumulate by upgrading
+        // multiple times. Each subscription change starts a fresh billing cycle.)
         const planId = session.metadata?.planId
         if (!planId) {
           console.warn('Missing planId in subscription checkout metadata')
@@ -110,20 +112,24 @@ export async function POST(req: NextRequest) {
             stripeSubscriptionId: session.subscription as string,
             status: 'active',
             monthlyCreditAllowance: planInfo.credits,
+            creditBalance: planInfo.credits,  // RESET to full allowance (fresh cycle)
             billingCycleResetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           },
         })
 
-        // Grant the monthly credits
-        await addCredits(
-          tenantId,
-          planInfo.credits,
-          'ADD_ON_PURCHASE',
-          `Subscription activated: ${planId} plan (${planInfo.credits} credits)`,
-          session.id
-        )
+        // Log the credit reset (no addCredits call — we set balance directly above)
+        await db.creditLog.create({
+          data: {
+            tenantId,
+            type: 'CREDIT_RESET',
+            amount: planInfo.credits,
+            balanceAfter: planInfo.credits,
+            description: `Subscription activated: ${planId} plan (reset to ${planInfo.credits} credits)`,
+            stripePaymentId: session.id,
+          },
+        })
 
-        console.log(`✓ Tenant ${tenantId} upgraded to ${planId}, granted ${planInfo.credits} credits`)
+        console.log(`✓ Tenant ${tenantId} upgraded to ${planId}, balance reset to ${planInfo.credits} credits`)
       }
     }
 
@@ -144,10 +150,14 @@ export async function POST(req: NextRequest) {
               plan: newPlanId,
               stripeSubscriptionId: subscription.id,
               status: subscription.status === 'active' || subscription.status === 'trialing' ? 'active' : 'suspended',
-              ...(planInfo ? { monthlyCreditAllowance: planInfo.credits } : {}),
+              ...(planInfo ? {
+                monthlyCreditAllowance: planInfo.credits,
+                // Reset balance on plan change — starts fresh billing cycle
+                creditBalance: planInfo.credits,
+              } : {}),
             },
           })
-          console.log(`✓ Tenant ${tenant.id} subscription updated to ${newPlanId}`)
+          console.log(`✓ Tenant ${tenant.id} subscription updated to ${newPlanId}, balance reset`)
         }
       }
     }
@@ -174,19 +184,26 @@ export async function POST(req: NextRequest) {
         if (tenant && tenant.plan !== 'freemium') {
           const planInfo = PLAN_CREDITS[tenant.plan]
           if (planInfo) {
-            await addCredits(
-              tenant.id,
-              planInfo.credits,
-              'CREDIT_RESET',
-              `Monthly renewal: ${tenant.plan} plan (${planInfo.credits} credits)`,
-              invoice.id
-            )
-            // Reset the billing cycle date
+            // On renewal, RESET balance to full monthly allowance
+            // (don't add to existing — that would let unused credits accumulate)
             await db.tenant.update({
               where: { id: tenant.id },
-              data: { billingCycleResetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
+              data: {
+                creditBalance: planInfo.credits,
+                billingCycleResetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+              },
             })
-            console.log(`✓ Tenant ${tenant.id} renewed: granted ${planInfo.credits} credits`)
+            await db.creditLog.create({
+              data: {
+                tenantId: tenant.id,
+                type: 'CREDIT_RESET',
+                amount: planInfo.credits,
+                balanceAfter: planInfo.credits,
+                description: `Monthly renewal: ${tenant.plan} plan (reset to ${planInfo.credits} credits)`,
+                stripePaymentId: invoice.id,
+              },
+            })
+            console.log(`✓ Tenant ${tenant.id} renewed: balance reset to ${planInfo.credits} credits`)
           }
         }
       }
