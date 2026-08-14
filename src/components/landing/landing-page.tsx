@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   ArrowRight,
@@ -11,6 +11,7 @@ import {
   Calendar,
   Sparkles,
 } from 'lucide-react'
+import demoData from './demo-data.json'
 
 interface DemoResult {
   company: string
@@ -22,70 +23,36 @@ interface DemoResult {
   why_they_need_it: string
 }
 
-const DEMO_EXAMPLES = [
-  'AI-powered CRM for real estate agents',
-  'Automated invoicing tool for freelancers',
-  'Cybersecurity compliance platform for fintech startups',
-]
+interface DemoEntry {
+  product: string
+  result: DemoResult
+}
+
+const DEMOS = demoData as DemoEntry[]
 
 export function LandingPage() {
-  const [product, setProduct] = useState(DEMO_EXAMPLES[0])
-  const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<DemoResult | null>(null)
-  const [error, setError] = useState('')
-  const [hasAutoRun, setHasAutoRun] = useState(false)
-  const [exampleIdx, setExampleIdx] = useState(0)
+  const [currentIdx, setCurrentIdx] = useState(0)
+  const [displayed, setDisplayed] = useState(false)
 
-  const runDemo = useCallback(async (productDesc: string) => {
-    if (!productDesc.trim() || productDesc.length < 5) return
-    setError('')
-    setLoading(true)
-    setResult(null)
-
-    try {
-      const res = await fetch('/api/demo/research', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product: productDesc }),
-      })
-      const data = await res.json()
-      if (res.ok && data.result) {
-        setResult(data.result)
-      } else {
-        setError(data.error ?? 'Demo failed — please try again.')
-      }
-    } catch {
-      setError('Network error — please check your connection.')
-    } finally {
-      setLoading(false)
-    }
+  // Show first demo immediately on load (after brief delay for page animation)
+  useEffect(() => {
+    const timer = setTimeout(() => setDisplayed(true), 800)
+    return () => clearTimeout(timer)
   }, [])
 
-  // Auto-run demo immediately on load — no waiting for user
+  // Cycle through demos every 8 seconds
   useEffect(() => {
-    if (hasAutoRun) return
-    setHasAutoRun(true)
-    runDemo(DEMO_EXAMPLES[0])
-  }, [hasAutoRun, runDemo])
-
-  // Cycle through examples every 15 seconds (only when user hasn't typed)
-  useEffect(() => {
-    if (loading) return
-    if (product !== DEMO_EXAMPLES[exampleIdx]) return // user typed something
+    if (!displayed) return
     const timer = setInterval(() => {
-      setExampleIdx((prev) => {
-        const next = (prev + 1) % DEMO_EXAMPLES.length
-        setProduct(DEMO_EXAMPLES[next])
-        runDemo(DEMO_EXAMPLES[next])
-        return next
-      })
-    }, 15000)
+      setCurrentIdx((prev) => (prev + 1) % DEMOS.length)
+    }, 8000)
     return () => clearInterval(timer)
-  }, [exampleIdx, loading, product, runDemo])
+  }, [displayed])
 
-  const handleManualRun = () => {
-    runDemo(product)
-  }
+  const current = DEMOS[currentIdx]
+  if (!current) return null
+
+  const { product, result } = current
 
   return (
     <div className="min-h-screen bg-white text-slate-900">
@@ -115,10 +82,6 @@ export function LandingPage() {
         </div>
 
         <div className="text-center max-w-3xl mx-auto">
-          <p className="text-sm text-slate-500 mb-8">
-            Now accepting <span className="font-semibold text-slate-900">founding members</span> — lock in 50% off, forever.
-          </p>
-
           <h1 className="text-5xl sm:text-7xl font-bold tracking-tight leading-[1.05] text-slate-900">
             AI finds customers.
             <br />
@@ -142,7 +105,7 @@ export function LandingPage() {
           </div>
         </div>
 
-        {/* Live Demo */}
+        {/* Live Demo — pre-cached, no API calls */}
         <div id="demo" className="mt-20 max-w-4xl mx-auto scroll-mt-20">
           <div className="rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50 overflow-hidden">
             {/* Window chrome */}
@@ -165,38 +128,33 @@ export function LandingPage() {
                 </label>
                 <div className="mt-2 flex gap-2">
                   <div className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-700 flex items-center min-h-[48px]">
-                    {loading ? (
-                      <span className="text-slate-400 flex items-center gap-2">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Analyzing...
-                      </span>
-                    ) : (
-                      <span className="truncate">{product}</span>
-                    )}
+                    <span className="truncate">{product}</span>
                   </div>
                   <div className="px-5 py-3 rounded-lg bg-slate-900 text-sm font-medium text-white flex items-center gap-2 whitespace-nowrap">
-                    {loading ? (
-                      <><Loader2 className="h-4 w-4 animate-spin" /> Working</>
-                    ) : (
-                      <><Sparkles className="h-4 w-4" /> Auto-demo</>
-                    )}
+                    <Sparkles className="h-4 w-4" /> Auto-demo
                   </div>
                 </div>
-                <p className="mt-2 text-xs text-slate-400">
-                  Rotating through live examples — sign up to use your own product description
-                </p>
+                <div className="mt-3 flex items-center justify-between">
+                  <p className="text-xs text-slate-400">
+                    Rotating through {DEMOS.length} live examples — sign up to use your own product
+                  </p>
+                  {/* Progress dots */}
+                  <div className="flex gap-1.5">
+                    {DEMOS.map((_, i) => (
+                      <div
+                        key={i}
+                        className={`h-1.5 rounded-full transition-all ${
+                          i === currentIdx ? 'w-4 bg-violet-600' : 'w-1.5 bg-slate-200'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
 
-              {/* Result area — no empty state, always shows something */}
-              {loading && (
-                <div className="space-y-3 animate-pulse">
-                  <div className="h-16 bg-slate-100 rounded-lg" />
-                  <div className="h-20 bg-slate-100 rounded-lg" />
-                  <div className="h-16 bg-slate-100 rounded-lg" />
-                </div>
-              )}
-
-              {result && !loading && (
-                <div className="space-y-4">
+              {/* Result — always visible after initial delay */}
+              {displayed ? (
+                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   {/* Company card */}
                   <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-violet-50 to-fuchsia-50 border border-violet-100">
                     <div className="flex items-center gap-3">
@@ -241,14 +199,14 @@ export function LandingPage() {
                   </div>
 
                   <p className="text-center text-xs text-slate-400 pt-2">
-                    ↑ Generated in real-time. Try your own product above.
+                    ↑ Generated by Outrovo's AI. Sign up to try your own product.
                   </p>
                 </div>
-              )}
-
-              {error && !loading && (
-                <div className="p-4 rounded-xl bg-rose-50 border border-rose-100 text-sm text-rose-600">
-                  {error}
+              ) : (
+                <div className="space-y-3 animate-pulse">
+                  <div className="h-16 bg-slate-100 rounded-lg" />
+                  <div className="h-20 bg-slate-100 rounded-lg" />
+                  <div className="h-16 bg-slate-100 rounded-lg" />
                 </div>
               )}
             </div>

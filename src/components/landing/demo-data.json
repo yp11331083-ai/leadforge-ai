@@ -1,0 +1,122 @@
+[
+  {
+    "product": "AI-powered CRM for real estate agents",
+    "result": {
+      "company": "Compass",
+      "website": "compass.com",
+      "industry": "Real Estate",
+      "fit_score": 88,
+      "pain_point": "Agents spend 40% of their day on manual data entry instead of showing properties, and leads fall through the cracks when follow-ups are missed.",
+      "email_hook": "I noticed Compass just expanded into 3 new markets this quarter — your agents must be drowning in new leads to follow up with.",
+      "why_they_need_it": "Automates lead capture and follow-up so agents focus on closing deals, not admin work."
+    }
+  },
+  {
+    "product": "Automated invoicing tool for freelancers",
+    "result": {
+      "company": "Upwork",
+      "website": "upwork.com",
+      "industry": "Freelance Platform",
+      "fit_score": 72,
+      "pain_point": "Freelancers on the platform lose 5-10 hours per week chasing unpaid invoices, and Upwork's built-in billing doesn't handle off-platform work.",
+      "email_hook": "I saw Upwork processed $4.1B in freelancer earnings last year — how many of those freelancers still struggle with invoicing clients outside the platform?",
+      "why_they_need_it": "Gives freelancers a simple invoicing tool that integrates with their existing Upwork workflow."
+    }
+  },
+  {
+    "product": "Cybersecurity compliance platform for fintech startups",
+    "result": {
+      "company": "Brex",
+      "website": "brex.com",
+      "industry": "Fintech",
+      "fit_score": 85,
+      "pain_point": "As a fast-growing fintech, Brex must maintain SOC 2 and PCI compliance, but their compliance team spends weeks on audit prep instead of proactive security.",
+      "email_hook": "I read Brex just hit $300M ARR — with that growth rate, your compliance team must be stretched thin preparing for SOC 2 audits.",
+      "why_they_need_it": "Automates compliance evidence collection so the security team focuses on real threats, not paperwork."
+    }
+  },
+  {
+    "product": "AI sales coaching software for SDR teams",
+    "result": {
+      "company": "Gong",
+      "website": "gong.io",
+      "industry": "Sales Intelligence",
+      "fit_score": 78,
+      "pain_point": "Gong's own SDR team grew 3x last year, but coaching is still manual — managers review calls one at a time and feedback is inconsistent.",
+      "email_hook": "I noticed Gong is hiring 15+ SDRs this quarter — your sales managers must be spending hours reviewing call recordings to coach the new hires.",
+      "why_they_need_it": "Automatically analyzes SDR calls and gives instant, consistent coaching feedback at scale."
+    }
+  },
+  {
+    "product": "Automated job posting distribution tool for recruiters",
+    "result": {
+      "company": "Greenhouse",
+      "website": "greenhouse.io",
+      "industry": "HR Tech",
+      "fit_score": 80,
+      "pain_point": "Greenhouse customers post jobs to 20+ boards manually, which takes 2+ hours per role and often misses niche boards where top talent actually hangs out.",
+      "email_hook": "I saw Greenhouse just crossed 7,500 customers — your team must be fielding endless requests for multi-board job posting integrations.",
+      "why_they_need_it": "One-click distribution to 100+ job boards with analytics on which boards actually convert."
+    }
+  },
+  {
+    "product": "AI-powered content generation for marketing agencies",
+    "result": {
+      "company": "Webflow",
+      "website": "webflow.com",
+      "industry": "Web Design Platform",
+      "fit_score": 75,
+      "pain_point": "Webflow's agency partners spend 60% of project time on content writing instead of design, and clients expect blog posts, landing pages, and SEO content as part of every project.",
+      "email_hook": "I noticed Webflow just launched their Agency Partner Program — those agencies must be struggling to keep up with content demands from their clients.",
+      "why_they_need_it": "Lets agencies generate on-brand content in minutes, so they can take on more clients without hiring more writers."
+    }
+  },
+  {
+    "product": "Cloud cost optimization platform for AWS users",
+    "result": {
+      "company": "Datadog",
+      "website": "datadoghq.com",
+      "industry": "Cloud Monitoring",
+      "fit_score": 82,
+      "pain_point": "Datadog's AWS bill grew 40% year-over-year as they scaled to 30,000+ customers, and their DevOps team has no visibility into which services are wasting budget.",
+      "email_hook": "I read Datadog now monitors 3x more infrastructure than last year — your own AWS bill must be growing faster than your revenue.",
+      "why_they_need_it": "Identifies idle resources and right-sizing opportunities, cutting AWS spend by 20-30% automatically."
+    }
+  },
+  {
+    "product": "Automated employee onboarding software for HR teams",
+    "result": {
+      "company": "Notion",
+      "website": "notion.so",
+      "industry": "Productivity SaaS",
+      "fit_score": 77,
+      "pain_point": "Notion hires 100+ people per quarter, and each new hire spends their first week chasing access to tools, docs, and intros — HR can't keep up manually.",
+      "email_hook": "I saw Notion is hiring for 40+ open roles right now — your HR team must be overwhelmed coordinating onboarding for all those new hires.",
+      "why_they_need_it": "Automates the entire first-week experience: accounts, docs, intros, and check-ins — all triggered by a single hire."
+    }
+  },
+  {
+    "product": "AI-powered customer support chatbot for e-commerce",
+    "result": {
+      "company": "Shopify",
+      "website": "shopify.com",
+      "industry": "E-commerce",
+      "fit_score": 86,
+      "pain_point": "Shopify merchants receive millions of support tickets monthly, and 70% are repetitive questions about order status, returns, and shipping — human agents burn out handling them.",
+      "email_hook": "I noticed Shopify just crossed $8B in annual revenue — your merchants must be drowning in support tickets during peak shopping seasons.",
+      "why_they_need_it": "AI resolves 70% of repetitive tickets instantly, so human agents focus on complex issues that need empathy."
+    }
+  },
+  {
+    "product": "Automated social media scheduling tool for small businesses",
+    "result": {
+      "company": "Squarespace",
+      "website": "squarespace.com",
+      "industry": "Website Builder",
+      "fit_score": 73,
+      "pain_point": "Squarespace's small business customers build beautiful websites but neglect social media because scheduling posts across Instagram, Facebook, and TikTok takes 5+ hours per week.",
+      "email_hook": "I saw Squarespace crossed 4M subscriptions — those small business owners must be struggling to maintain their social presence after launching their site.",
+      "why_they_need_it": "Lets small business owners schedule a month of social posts in 10 minutes, with AI suggesting content based on their website."
+    }
+  }
+]
