@@ -182,7 +182,7 @@ export function LandingPage() {
                     }}
                   >
                     <svg className="h-2 w-2 opacity-0 group-hover/dots:opacity-100 transition-opacity" viewBox="0 0 12 12" fill="none">
-                      <path d="M3.5 3.5L8.5 8.5M8.5 3.5L3.5 8.5" stroke="rgba(0,0,0,0.5)" strokeWidth="1.5" strokeLinecap="round" />
+                      <path d="M3 5L5 5L5 3Z M7 7L9 7L9 9Z" fill="rgba(0,0,0,0.5)" />
                     </svg>
                   </button>
                 </div>
