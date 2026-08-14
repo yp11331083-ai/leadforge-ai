@@ -330,11 +330,15 @@ async function searchWithZai(query: string, num: number): Promise<SearchResultIt
 }
 
 async function searchWithTavily(query: string, num: number, apiKey: string): Promise<SearchResultItem[]> {
+  // Try Authorization header first (more reliable from cloud environments
+  // — Tavily has been known to 401 body-auth requests from cloud IPs)
   const res = await fetch('https://api.tavily.com/search', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
     body: JSON.stringify({
-      api_key: apiKey,
       query,
       max_results: num,
       include_answer: false,
@@ -342,7 +346,28 @@ async function searchWithTavily(query: string, num: number, apiKey: string): Pro
   })
 
   if (!res.ok) {
-    throw new Error(`Tavily ${res.status}`)
+    // Fallback: try the legacy api_key body field
+    const fallbackRes = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query,
+        max_results: num,
+        include_answer: false,
+      }),
+    })
+    if (!fallbackRes.ok) {
+      const text = await fallbackRes.text()
+      throw new Error(`Tavily ${fallbackRes.status}: ${text.slice(0, 200)}`)
+    }
+    const fallbackData = await fallbackRes.json() as any
+    return (fallbackData.results ?? []).map((r: any) => ({
+      url: r.url ?? '',
+      name: r.title ?? r.url ?? '',
+      snippet: r.content ?? '',
+      host_name: (() => { try { return new URL(r.url).hostname } catch { return '' } })(),
+    }))
   }
 
   const data = await res.json() as any
