@@ -135,7 +135,7 @@ async function callChatProvider(
       return await chatWithAnthropic(options, config.anthropicApiKey, config.anthropicModel ?? 'claude-3-5-sonnet-20241022')
     case 'gemini':
       if (!config.geminiApiKey) return null
-      return await chatWithGemini(options, config.geminiApiKey, config.geminiModel ?? 'gemini-flash-latest')
+      return await chatWithGemini(options, config.geminiApiKey, config.geminiModel ?? 'gemini-2.5-flash')
     default:
       return null
   }

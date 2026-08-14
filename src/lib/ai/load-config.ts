@@ -30,7 +30,7 @@ export async function loadProviderConfig(): Promise<void> {
       anthropicModel: config?.anthropicModel ?? 'claude-3-5-sonnet-20241022',
       // Platform-managed Gemini (user never sees this key)
       geminiApiKey: config?.geminiApiKey ?? platformGeminiKey,
-      geminiModel: config?.geminiModel ?? 'gemini-flash-latest',
+      geminiModel: config?.geminiModel ?? 'gemini-2.5-flash',
       // Platform-managed search + page reader (users never see these)
       tavilyApiKey: config?.tavilyApiKey ?? platformTavilyKey,
       jinaApiKey: config?.jinaApiKey ?? platformJinaKey,
