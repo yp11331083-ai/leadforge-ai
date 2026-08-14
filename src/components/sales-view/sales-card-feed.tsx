@@ -81,9 +81,13 @@ export function SalesCardFeed({ onEditLead }: SalesCardFeedProps) {
 
   const handleSkip = async () => {
     if (!current) return
-    await updateLead(current.id, { status: 'new', tags: `${current.tags ?? ''},skipped`.replace(/^,/, '') })
+    // Optimistic skip — immediately advance the card, don't wait for the API call.
+    // The DB update happens in the background; if it fails the user doesn't notice.
     setCurrentIdx((i) => Math.min(i + 1, queue.length - 1))
     toast.info(`已跳過：${current.company}`)
+    // Fire-and-forget — don't await
+    updateLead(current.id, { status: 'new', tags: `${current.tags ?? ''},skipped`.replace(/^,/, '') })
+      .catch((e) => console.error('Skip DB update failed:', e))
   }
   if (queue.length === 0) {
     return <EmptyState />
@@ -224,20 +228,20 @@ function SalesCard({
   return (
     <Card className="overflow-hidden border-0 shadow-xl shadow-slate-200/50 dark:shadow-black/30">
       {/* Header: gradient band with company info */}
-      <div className={`relative bg-gradient-to-br ${scoreColor} p-5 text-white`}>
-        <div className="absolute top-3 right-3 text-[10px] font-mono opacity-80">
+      <div className={`relative bg-gradient-to-br ${scoreColor} p-6 text-white`}>
+        <div className="absolute top-4 right-4 text-[11px] font-mono opacity-80">
           {rank} / {total}
         </div>
-        <div className="flex items-start gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm text-xl font-bold border border-white/30">
+        <div className="flex items-start gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm text-2xl font-bold border border-white/30">
             {lead.company.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="text-xl font-bold tracking-tight truncate">{lead.company}</h2>
-            <div className="flex items-center gap-2 mt-1 flex-wrap text-xs opacity-90">
+            <h2 className="text-2xl font-bold tracking-tight truncate">{lead.company}</h2>
+            <div className="flex items-center gap-3 mt-1.5 flex-wrap text-xs opacity-90">
               {lead.industry && (
                 <span className="inline-flex items-center gap-1">
-                  <Building2 className="h-3 w-3" /> {lead.industry}
+                  <Building2 className="h-3.5 w-3.5" /> {lead.industry}
                 </span>
               )}
               {lead.website && (
@@ -247,7 +251,7 @@ function SalesCard({
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 hover:underline"
                 >
-                  <Globe className="h-3 w-3" />{' '}
+                  <Globe className="h-3.5 w-3.5" />{' '}
                   {lead.website.replace(/^https?:\/\//, '').split('/')[0]}
                 </a>
               )}
@@ -255,34 +259,40 @@ function SalesCard({
           </div>
           <div className="text-right shrink-0">
             <p className="text-[10px] uppercase tracking-wider opacity-80">Fit Score</p>
-            <p className="text-3xl font-bold tabular-nums leading-none">{score}</p>
-          </div>
-        </div>
-
-        {/* Quick stats row */}
-        <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
-          <div className="rounded-md bg-white/10 backdrop-blur-sm p-1.5 border border-white/20">
-            <p className="opacity-70 text-[10px]">Contact</p>
-            <p className="font-medium truncate">{lead.contactName ?? '—'}</p>
-          </div>
-          <div className="rounded-md bg-white/10 backdrop-blur-sm p-1.5 border border-white/20">
-            <p className="opacity-70 text-[10px]">Title</p>
-            <p className="font-medium truncate">{lead.title ?? '—'}</p>
-          </div>
-          <div className="rounded-md bg-white/10 backdrop-blur-sm p-1.5 border border-white/20">
-            <p className="opacity-70 text-[10px]">收件</p>
-            <p className="font-medium truncate">{lead.email ? '✓ 已Confirm' : '未填'}</p>
+            <p className="text-4xl font-bold tabular-nums leading-none mt-0.5">{score}</p>
           </div>
         </div>
       </div>
 
       {/* Body */}
-      <div className="p-5 space-y-4">
+      <div className="p-6 space-y-5">
+        {/* Contact info — single row, more breathing room */}
+        <div className="flex items-center gap-3 flex-wrap text-sm">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/40">
+            <span className="text-xs text-muted-foreground">Contact</span>
+            <span className="font-medium">{lead.contactName ?? '—'}</span>
+          </div>
+          {lead.title && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/40">
+              <span className="text-xs text-muted-foreground">Title</span>
+              <span className="font-medium truncate">{lead.title}</span>
+            </div>
+          )}
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${
+            lead.email
+              ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300'
+              : 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300'
+          }`}>
+            <span className="text-xs opacity-80">{lead.email ? '收件' : 'Email'}</span>
+            <span className="font-medium truncate max-w-[200px]">{lead.email ?? '未填'}</span>
+          </div>
+        </div>
+
         {/* Decision maker (if enriched) */}
         {parsedEnriched && (
-          <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 p-3 border border-amber-200 dark:border-amber-900">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white text-xs font-bold shrink-0">
+          <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 p-3.5 border border-amber-200 dark:border-amber-900">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white text-sm font-bold shrink-0">
                 {parsedEnriched.name.charAt(0)}
               </div>
               <div className="min-w-0 flex-1">
@@ -298,7 +308,7 @@ function SalesCard({
               </div>
             </div>
             {parsedEnriched.reason && (
-              <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1.5">{parsedEnriched.reason}</p>
+              <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-2">{parsedEnriched.reason}</p>
             )}
           </div>
         )}
@@ -306,13 +316,13 @@ function SalesCard({
         {/* Pain points */}
         {parsedResearch?.pain_points && parsedResearch.pain_points.length > 0 && (
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-              <Target className="h-3 w-3" /> Pain Points
+            <p className="text-xs font-medium text-muted-foreground mb-2.5 flex items-center gap-1">
+              <Target className="h-3.5 w-3.5" /> Pain Points
             </p>
-            <ul className="space-y-1">
+            <ul className="space-y-1.5">
               {parsedResearch.pain_points.slice(0, 3).map((p, i) => (
-                <li key={i} className="text-sm flex gap-2">
-                  <span className="text-rose-500 font-bold">•</span>
+                <li key={i} className="text-sm flex gap-2 leading-relaxed">
+                  <span className="text-rose-500 font-bold shrink-0">•</span>
                   <span>{p}</span>
                 </li>
               ))}
@@ -324,7 +334,7 @@ function SalesCard({
         <div className="rounded-lg border border-emerald-200 dark:border-emerald-900 bg-gradient-to-br from-emerald-50/50 to-teal-50/50 dark:from-emerald-950/20 dark:to-teal-950/20 p-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
-              <Sparkles className="h-3 w-3" /> AI 個人化Email
+              <Sparkles className="h-3.5 w-3.5" /> AI 個人化Email
             </p>
             <Button variant="ghost" size="sm" onClick={onEdit} className="h-6 px-2 text-xs">
               <Edit3 className="mr-1 h-3 w-3" /> Edit
@@ -339,7 +349,7 @@ function SalesCard({
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-2 pt-1">
+        <div className="flex gap-2.5 pt-1">
           <Button
             variant="outline"
             size="lg"

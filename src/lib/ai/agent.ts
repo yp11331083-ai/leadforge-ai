@@ -805,13 +805,15 @@ export async function evaluateProspectFit(params: {
   companyUrl: string
   companyName: string
   websiteContent: string
+  targetLocation?: string
+  targetCompanySize?: string
 }): Promise<{
   success: boolean
   data: ProspectCandidate | null
   raw: string
 }> {
   const zai = await getAI().catch(() => null as any)
-  const { serviceName, description, keyBenefits, idealCustomerSignals, companyUrl, companyName, websiteContent } = params
+  const { serviceName, description, keyBenefits, idealCustomerSignals, companyUrl, companyName, websiteContent, targetLocation, targetCompanySize } = params
 
   const prompt = `你是頂級 B2B 業務分析師，擅長判斷一家公司是否需要某個服務。
 
@@ -821,6 +823,8 @@ export async function evaluateProspectFit(params: {
 **服務描述**：${description}
 ${keyBenefits ? `**核心價值**：${keyBenefits}` : ''}
 ${idealCustomerSignals ? `**理想客戶訊號**：${idealCustomerSignals}` : ''}
+${targetLocation ? `**目標地區**：${targetLocation}（如果候選公司不在這個地區，fit_score 必須 ≤ 20）` : ''}
+${targetCompanySize ? `**目標規模**：${targetCompanySize}（如果候選公司規模差太多，fit_score 必須 ≤ 30）` : ''}
 
 ## 候選公司
 
@@ -999,6 +1003,8 @@ export async function autoProspect(params: {
         companyUrl: c.url,
         companyName: c.name,
         websiteContent: websiteText || `(無法抓取網站內容，僅依 URL 判斷：${c.url})`,
+        targetLocation,
+        targetCompanySize,
       })
 
       if (fitResult.success && fitResult.data) {
