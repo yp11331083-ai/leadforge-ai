@@ -141,7 +141,7 @@ async function callChatProvider(
       return await chatWithGemini(options, config.geminiApiKey, config.geminiModel ?? 'gemini-2.5-flash')
     case 'groq':
       if (!config.groqApiKey) return null
-      return await chatWithGroq(options, config.groqApiKey, config.groqModel ?? 'llama-3.3-70b-versatile')
+      return await chatWithGroq(options, config.groqApiKey, config.groqModel ?? 'llama-3.1-8b-instant')
     default:
       return null
   }

@@ -34,7 +34,7 @@ export async function loadProviderConfig(): Promise<void> {
       geminiModel: config?.geminiModel ?? 'gemini-2.5-flash',
       // Platform-managed Groq (user never sees this key) — free + fast Llama 3.3 70B
       groqApiKey: config?.groqApiKey ?? platformGroqKey,
-      groqModel: config?.groqModel ?? 'llama-3.3-70b-versatile',
+      groqModel: config?.groqModel ?? 'llama-3.1-8b-instant',
       // Platform-managed search + page reader (users never see these)
       tavilyApiKey: config?.tavilyApiKey ?? platformTavilyKey,
       jinaApiKey: config?.jinaApiKey ?? platformJinaKey,

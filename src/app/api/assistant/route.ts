@@ -135,6 +135,17 @@ export async function POST(req: NextRequest) {
       // If all parsing fails, reply is the raw text (which is fine for plain text responses)
     }
 
+    // If the raw reply looks like it contains JSON, strip it
+    if (reply.includes('{"reply"') || reply.includes('{ "reply"')) {
+      const jsonStart = reply.search(/\{["\s]*reply["\s]*:/)
+      if (jsonStart >= 0) {
+        const beforeJson = reply.slice(0, jsonStart).trim()
+        if (beforeJson) {
+          reply = beforeJson
+        }
+      }
+    }
+
     return NextResponse.json({
       reply,
       action,

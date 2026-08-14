@@ -1,6 +1,6 @@
 // Update EmailConfig row in Supabase:
 // 1. Update chatProviderOrder to put Groq first
-// 2. Add groqModel column (set to 'llama-3.3-70b-versatile')
+// 2. Add groqModel column (set to 'llama-3.1-8b-instant')
 //
 // NOTE: This assumes the new groqApiKey/groqModel columns have been added by
 // `bunx prisma db push --accept-data-loss` during the Vercel build. If the
@@ -45,7 +45,7 @@ async function main() {
       ? 'groq,zai,gemini,openai,anthropic'
       : oldOrder
 
-    const newModel = r.groqModel || 'llama-3.3-70b-versatile'
+    const newModel = r.groqModel || 'llama-3.1-8b-instant'
 
     await client.query(`
       UPDATE "EmailConfig"

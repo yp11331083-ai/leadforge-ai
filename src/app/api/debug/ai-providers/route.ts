@@ -38,7 +38,7 @@ export async function GET() {
   // Test 1: Groq chat directly (the new primary provider)
   if (config.groqApiKey) {
     try {
-      const model = config.groqModel || 'llama-3.3-70b-versatile'
+      const model = config.groqModel || 'llama-3.1-8b-instant'
       const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {

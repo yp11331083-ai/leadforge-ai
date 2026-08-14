@@ -49,7 +49,7 @@ async function generateOne(product) {
       'Authorization': 'Bearer ' + process.env.GROQ_API_KEY,
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: 'llama-3.1-8b-instant',
       messages: [
         { role: 'system', content: 'You are a B2B sales research AI. Respond in pure JSON. Be specific and realistic.' },
         { role: 'user', content: prompt },
