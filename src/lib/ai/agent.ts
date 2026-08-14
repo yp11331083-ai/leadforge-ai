@@ -9,6 +9,9 @@ import {
   type PageContent,
 } from './providers'
 
+// Re-export so callers can import ProviderConfig from a single module path.
+export type { ProviderConfig, ChatMessage, SearchResultItem, PageContent } from './providers'
+
 let zaiInstance: ZAI | null = null
 
 export async function getAI() {

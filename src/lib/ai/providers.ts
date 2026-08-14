@@ -9,6 +9,32 @@
  * 機制：依優先順序嘗試，遇到 429 或錯誤自動 fallback 到下一個
  */
 
+/**
+ * Detect whether the z-ai-web-dev-sdk can be instantiated in the current
+ * environment. On Vercel serverless, the SDK should always be bundled; if
+ * instantiation fails (missing credentials, runtime error), we treat Z.ai
+ * as unavailable and fall through to the next provider in the chain.
+ */
+let zaiAvailabilityCache: boolean | null = null
+async function isZaiAvailable(): Promise<boolean> {
+  if (zaiAvailabilityCache !== null) return zaiAvailabilityCache
+  try {
+    const ZAI = (await import('z-ai-web-dev-sdk')).default
+    // Just check the SDK is loadable — we don't pre-instantiate to avoid
+    // burning time on cold starts where Z.ai isn't actually needed.
+    if (typeof ZAI?.create !== 'function') {
+      zaiAvailabilityCache = false
+      return false
+    }
+    zaiAvailabilityCache = true
+    return true
+  } catch (e: any) {
+    console.warn('[AI] z-ai-web-dev-sdk not available:', e?.message ?? e)
+    zaiAvailabilityCache = false
+    return false
+  }
+}
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
   content: string
@@ -119,7 +145,7 @@ async function callChatProvider(
  * Z.ai chat（透過 z-ai-web-dev-sdk）
  */
 async function chatWithZai(options: ChatCompletionOptions): Promise<ChatCompletionResult> {
-  if (!(await isZaiAvailable())) throw new Error('Z.ai not available')
+  if (!(await isZaiAvailable())) throw new Error('z-ai-web-dev-sdk not available in this runtime')
   const ZAI = (await import('z-ai-web-dev-sdk')).default
   const zai = await ZAI.create()
   const completion = await zai.chat.completions.create({
@@ -128,7 +154,7 @@ async function chatWithZai(options: ChatCompletionOptions): Promise<ChatCompleti
     thinking: { type: 'disabled' },
   })
   const content = completion.choices?.[0]?.message?.content ?? ''
-  if (!content) throw new Error('Z.ai 回應為空')
+  if (!content) throw new Error('Z.ai returned an empty response')
   return { content, provider: 'zai' }
 }
 

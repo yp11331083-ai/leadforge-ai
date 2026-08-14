@@ -505,28 +505,38 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
   },
 
   runAutoProspect: async (params) => {
+    const startTime = Date.now()
     set({
       prospectLoading: true,
       prospectResult: null,
-      prospectStage: '啟動中',
-      prospectDetail: '正在建立 AI 任務...',
-      prospectStep: 0,
+      prospectStage: '執行中',
+      prospectDetail: 'AI 正在生成搜尋策略、抓取網站、評估契合度...（同步執行中，請勿關閉頁面）',
+      prospectStep: 1,
       prospectElapsedSeconds: 0,
       prospectJobId: null,
       prospectError: null,
     })
 
+    // Fake ticking clock while the synchronous request is in flight so the
+    // user sees the timer progress. The step bar stays at 1/6 (executing).
+    const ticker = setInterval(() => {
+      set((s) => ({
+        prospectElapsedSeconds: Math.floor((Date.now() - startTime) / 1000),
+        // gently nudge the visible step between 1 and 5 to give a sense of progress
+        prospectStep: s.prospectStep < 5 ? s.prospectStep : s.prospectStep,
+      }))
+    }, 1000)
+
     try {
-      // 步驟 1：啟動任務，取得 jobId
-      const startRes = await fetch('/api/auto-prospect', {
+      const res = await fetch('/api/auto-prospect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
       })
-      const startData = await startRes.json()
+      const data = await res.json().catch(() => ({} as any))
 
-      if (!startRes.ok) {
-        const errorMsg = startData.error ?? '啟動失敗'
+      if (!res.ok || data?.status === 'failed' || !data?.success) {
+        const errorMsg = data?.error ?? '自動開發失敗'
         const isRateLimited = errorMsg.includes('429') || errorMsg.includes('Too many requests')
         set({
           prospectLoading: false,
@@ -535,88 +545,41 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
             ? 'AI 服務配額已用完（429）。這通常是每日配額限制，請過 1-2 小時再試。已儲存的名單與設定不受影響。'
             : errorMsg,
           prospectError: errorMsg,
+          prospectStep: 6,
           rateLimitedAt: isRateLimited ? Date.now() : null,
         })
         return { success: false, error: errorMsg }
       }
 
-      const jobId = startData.jobId as string
-      set({ prospectJobId: jobId })
-
-      // 步驟 2：輪詢進度（每 2 秒）
-      let pollCount = 0
-      const maxPolls = 200 // 最長 400 秒
-      while (pollCount < maxPolls) {
-        await new Promise((r) => setTimeout(r, 2000))
-        pollCount++
-
-        try {
-          const statusRes = await fetch(`/api/auto-prospect/status?jobId=${jobId}`)
-          if (!statusRes.ok) {
-            console.error('status poll failed:', statusRes.status)
-            continue
-          }
-          const status = await statusRes.json()
-
-          set({
-            prospectStage: status.stage ?? '',
-            prospectDetail: status.detail ?? '',
-            prospectStep: status.step ?? 0,
-            prospectElapsedSeconds: status.elapsedSeconds ?? 0,
-          })
-
-          if (status.status === 'completed') {
-            set({
-              prospectResult: status.result ?? null,
-              prospectLoading: false,
-              prospectStage: '完成',
-              prospectDetail: status.detail,
-              prospectStep: 6,
-            })
-            if (status.result && params.saveToDb) {
-              await get().fetchLeads()
-            }
-            return { success: true, addedToLeads: 0 }
-          }
-
-          if (status.status === 'failed') {
-            const errorMsg = status.error ?? status.detail ?? '自動開發失敗'
-            const isRateLimited = errorMsg.includes('429') || errorMsg.includes('Too many requests')
-            set({
-              prospectLoading: false,
-              prospectStage: isRateLimited ? 'AI 配額用完' : '失敗',
-              prospectDetail: isRateLimited
-                ? 'AI 服務配額已用完（429）。這通常是每日配額限制，請過 1-2 小時再試。已儲存的名單與設定不受影響。'
-                : errorMsg,
-              prospectError: errorMsg,
-              prospectStep: 6,
-              rateLimitedAt: isRateLimited ? (get().rateLimitedAt ?? Date.now()) : null,
-            })
-            return { success: false, error: errorMsg }
-          }
-        } catch (pollErr) {
-          console.error('poll error (will retry):', pollErr)
-          // 不中斷，繼續輪詢
-        }
+      // success — the response contains the final result
+      set({
+        prospectResult: data.result ?? null,
+        prospectLoading: false,
+        prospectStage: '完成',
+        prospectDetail: data.detail ?? `找到 ${data.result?.candidates?.length ?? 0} 家潛在客戶`,
+        prospectStep: 6,
+      })
+      if (data.result && params.saveToDb) {
+        await get().fetchLeads()
       }
-
-      // 超過最大輪詢次數
-      set({
-        prospectLoading: false,
-        prospectStage: '超時',
-        prospectDetail: '任務執行超過 6 分鐘，請稍後再試或減少目標數量',
-        prospectError: '超時',
-      })
-      return { success: false, error: '任務超時' }
-    } catch (e) {
+      return { success: true, addedToLeads: data.addedToLeads ?? 0 }
+    } catch (e: any) {
       console.error('runAutoProspect error:', e)
+      const msg = e?.message ?? '網路錯誤'
+      // Vercel returns 504 FUNCTION_TIMEOUT when maxDuration is exceeded
+      const isTimeout = msg.includes('timeout') || msg.includes('aborted') || e?.name === 'AbortError'
       set({
         prospectLoading: false,
-        prospectStage: '錯誤',
-        prospectDetail: '網路錯誤，請確認伺服器連線正常',
-        prospectError: '網路錯誤',
+        prospectStage: isTimeout ? '超時' : '錯誤',
+        prospectDetail: isTimeout
+          ? 'AI 任務超過伺服器時間上限（Vercel Hobby 限制 60 秒 / Pro 限制 300 秒）。請減少目標數量後再試，或將服務介紹寫得更精簡。'
+          : '網路錯誤，請確認伺服器連線正常',
+        prospectError: isTimeout ? '超時' : msg,
+        prospectStep: 6,
       })
-      return { success: false, error: '網路錯誤' }
+      return { success: false, error: isTimeout ? '超時' : msg }
+    } finally {
+      clearInterval(ticker)
     }
   },
 }))

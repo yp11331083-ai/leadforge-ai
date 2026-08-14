@@ -1,31 +1,22 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { jobs, cleanupOldJobs } from '@/lib/prospect-jobs'
+import { NextResponse } from 'next/server'
 
-export async function GET(req: NextRequest) {
-  try {
-    cleanupOldJobs()
-
-    const { searchParams } = new URL(req.url)
-    const jobId = searchParams.get('jobId')
-    if (!jobId) {
-      return NextResponse.json({ error: 'jobId is required' }, { status: 400 })
-    }
-
-    const job = jobs.get(jobId)
-    if (!job) {
-      return NextResponse.json({ error: 'Job not found' }, { status: 404 })
-    }
-
-    // 計算已執行時間
-    const elapsedMs = Date.now() - job.startedAt
-
-    return NextResponse.json({
-      ...job,
-      elapsedMs,
-      elapsedSeconds: Math.floor(elapsedMs / 1000),
-    })
-  } catch (error) {
-    console.error('GET /api/auto-prospect/status error:', error)
-    return NextResponse.json({ error: 'Failed' }, { status: 500 })
-  }
+/**
+ * DEPRECATED — auto-prospect is now synchronous.
+ *
+ * The previous implementation used an in-memory Map to track job state
+ * across requests, which fundamentally breaks on Vercel serverless
+ * (each request hits a different instance, so polling can never find
+ * the job). The new /api/auto-prospect POST runs the full pipeline
+ * synchronously and returns the result directly — no polling needed.
+ *
+ * This endpoint is kept only to avoid breaking deep-linked bookmarks.
+ */
+export async function GET() {
+  return NextResponse.json(
+    {
+      error: 'Job polling is no longer supported. Use POST /api/auto-prospect which returns the result synchronously.',
+      status: 'deprecated',
+    },
+    { status: 410 }
+  )
 }
