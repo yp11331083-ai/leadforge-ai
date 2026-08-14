@@ -28,6 +28,18 @@ export async function GET() {
       JINA_API_KEY: process.env.JINA_API_KEY
         ? `set (len=${process.env.JINA_API_KEY.length}, prefix=${process.env.JINA_API_KEY.slice(0, 6)}...)`
         : 'NOT SET',
+      GROQ_API_KEY: process.env.GROQ_API_KEY
+        ? `set (len=${process.env.GROQ_API_KEY.length}, prefix=${process.env.GROQ_API_KEY.slice(0, 6)}...)`
+        : 'NOT SET',
+      STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY
+        ? `set (len=${process.env.STRIPE_SECRET_KEY.length})`
+        : 'NOT SET',
+      STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET
+        ? `set (len=${process.env.STRIPE_WEBHOOK_SECRET.length})`
+        : 'NOT SET',
+      STRIPE_PRICE_STARTER: process.env.STRIPE_PRICE_STARTER || 'NOT SET',
+      STRIPE_PRICE_GROWTH: process.env.STRIPE_PRICE_GROWTH || 'NOT SET',
+      STRIPE_PRICE_AGENCY: process.env.STRIPE_PRICE_AGENCY || 'NOT SET',
       NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET
         ? `set (len=${process.env.NEXTAUTH_SECRET.length})`
         : 'NOT SET',
