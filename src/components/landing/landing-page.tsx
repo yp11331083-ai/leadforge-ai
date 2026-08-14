@@ -43,12 +43,16 @@ export function LandingPage() {
   const [phase, setPhase] = useState<Phase>('typing')
   const [isHovered, setIsHovered] = useState(false)
   const [showResult, setShowResult] = useState(false)
-  const [dotProgress, setDotProgress] = useState(0) // 0-1 for active dot fill
+  const [dotProgress, setDotProgress] = useState(0)
+
+  // Track accumulated time in refs so pause/resume doesn't restart
+  const elapsedRef = useRef(0)
+  const rafRef = useRef<number | null>(null)
 
   const targetProduct = DEMOS[demoIdx]?.product ?? ''
   const currentResult = DEMOS[demoIdx]?.result
 
-  // Typewriter + showing + deleting state machine
+  // Typewriter effect
   useEffect(() => {
     if (isHovered) return
 
@@ -56,32 +60,17 @@ export function LandingPage() {
       if (typedText.length < targetProduct.length) {
         const timer = setTimeout(() => {
           setTypedText(targetProduct.slice(0, typedText.length + 1))
-        }, TYPE_SPEED + Math.random() * 40) // slight randomness for natural feel
+        }, TYPE_SPEED + Math.random() * 40)
         return () => clearTimeout(timer)
       } else {
         const timer = setTimeout(() => {
           setShowResult(true)
           setPhase('showing')
+          elapsedRef.current = 0
           setDotProgress(0)
         }, PAUSE_AFTER_TYPE)
         return () => clearTimeout(timer)
       }
-    }
-
-    if (phase === 'showing') {
-      const startTime = Date.now()
-      const timer = setInterval(() => {
-        if (isHovered) return
-        const elapsed = Date.now() - startTime
-        const pct = Math.min(1, elapsed / PAUSE_MS)
-        setDotProgress(pct)
-        if (pct >= 1) {
-          clearInterval(timer)
-          setShowResult(false)
-          setPhase('deleting')
-        }
-      }, 50)
-      return () => clearInterval(timer)
     }
 
     if (phase === 'deleting') {
@@ -94,6 +83,7 @@ export function LandingPage() {
         const timer = setTimeout(() => {
           setDemoIdx((prev) => (prev + 1) % DEMOS.length)
           setPhase('typing')
+          elapsedRef.current = 0
           setDotProgress(0)
         }, PAUSE_AFTER_DELETE)
         return () => clearTimeout(timer)
@@ -101,8 +91,38 @@ export function LandingPage() {
     }
   }, [phase, typedText, targetProduct, isHovered])
 
+  // Smooth progress using requestAnimationFrame — resumes from where it paused
+  useEffect(() => {
+    if (phase !== 'showing') return
+    if (isHovered) return // pause
+
+    let lastTime = performance.now()
+
+    const tick = (now: number) => {
+      const delta = now - lastTime
+      lastTime = now
+      elapsedRef.current += delta
+      const pct = Math.min(1, elapsedRef.current / PAUSE_MS)
+      setDotProgress(pct)
+
+      if (pct >= 1) {
+        setShowResult(false)
+        setPhase('deleting')
+        elapsedRef.current = 0
+        return
+      }
+      rafRef.current = requestAnimationFrame(tick)
+    }
+
+    rafRef.current = requestAnimationFrame(tick)
+
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    }
+  }, [phase, isHovered])
+
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900">
+    <div className="min-h-screen bg-gradient-to-b from-stone-50 via-stone-50 to-violet-50/30 text-stone-900">
       {/* Nav */}
       <nav className="sticky top-0 z-50 border-b border-stone-200/60 bg-stone-50/80 backdrop-blur-lg">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between">
@@ -121,10 +141,11 @@ export function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero — violet/fuchsia accent */}
+      {/* Hero */}
       <section className="relative mx-auto max-w-6xl px-4 sm:px-6 pt-20 pb-16">
+        {/* Gradient backdrop */}
         <div className="absolute inset-0 -z-10 overflow-hidden">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-gradient-to-b from-violet-100/40 via-fuchsia-50/30 to-transparent rounded-full blur-3xl" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-gradient-to-b from-violet-200/30 via-fuchsia-100/20 to-transparent rounded-full blur-3xl" />
         </div>
 
         <div className="text-center max-w-3xl mx-auto">
@@ -158,7 +179,7 @@ export function LandingPage() {
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
-          <div className="rounded-2xl border border-stone-200 bg-white/60 shadow-xl shadow-stone-300/30 overflow-hidden">
+          <div className="rounded-2xl border border-stone-200 bg-white/70 shadow-xl shadow-stone-300/30 overflow-hidden">
             {/* Window chrome */}
             <div className="flex items-center gap-2 px-4 py-3 border-b border-stone-200/60 bg-stone-100/50">
               <div className="flex gap-1.5">
@@ -169,13 +190,10 @@ export function LandingPage() {
               <div className="flex-1 text-center">
                 <span className="text-xs text-stone-400 font-mono">outrovo.com/prospect</span>
               </div>
-              {isHovered && (
-                <span className="text-[10px] text-stone-400">Paused</span>
-              )}
             </div>
 
-            {/* Demo content */}
-            <div className="p-6 sm:p-8">
+            {/* Demo content — fixed min-height to prevent page scroll on result change */}
+            <div className="p-6 sm:p-8 min-h-[520px]">
               <div className="mb-6">
                 <label className="text-xs font-medium text-stone-400 uppercase tracking-wider">
                   Describe your product
@@ -191,98 +209,96 @@ export function LandingPage() {
                 </div>
               </div>
 
-              {/* Result */}
-              {showResult && currentResult ? (
-                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  {/* Company card */}
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-violet-50 to-fuchsia-50 border border-violet-100">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-lg font-bold text-stone-700 shadow-sm">
-                        {currentResult.company.charAt(0)}
+              {/* Result — always renders container, content swaps */}
+              <div className="space-y-4">
+                {showResult && currentResult ? (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    {/* Company card */}
+                    <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-violet-50 to-fuchsia-50 border border-violet-100">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-lg font-bold text-stone-700 shadow-sm">
+                          {currentResult.company.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-stone-900">{currentResult.company}</p>
+                          <p className="text-xs text-stone-500">{currentResult.industry} · {currentResult.website}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-semibold text-stone-900">{currentResult.company}</p>
-                        <p className="text-xs text-stone-500">{currentResult.industry} · {currentResult.website}</p>
+                      <div className="text-right">
+                        <p className="text-[10px] text-stone-400 uppercase tracking-wider">Fit Score</p>
+                        <p className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
+                          {currentResult.fit_score}
+                        </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-[10px] text-stone-400 uppercase tracking-wider">Fit Score</p>
-                      <p className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
-                        {currentResult.fit_score}
+
+                    {/* Pain point */}
+                    <div className="p-4 rounded-xl bg-stone-100/60 border border-stone-200/60">
+                      <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <Target className="h-3 w-3" /> Pain Point
                       </p>
+                      <p className="text-sm text-stone-600 leading-relaxed">{currentResult.pain_point}</p>
                     </div>
-                  </div>
 
-                  {/* Pain point */}
-                  <div className="p-4 rounded-xl bg-stone-100/60 border border-stone-200/60">
-                    <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                      <Target className="h-3 w-3" /> Pain Point
+                    {/* Email hook */}
+                    <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
+                      <p className="text-xs font-medium text-emerald-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <Mail className="h-3 w-3" /> Email Opener
+                      </p>
+                      <p className="text-sm text-stone-700 italic leading-relaxed">"{currentResult.email_hook}"</p>
+                    </div>
+
+                    {/* Why they need it */}
+                    <div className="p-4 rounded-xl bg-stone-100/60 border border-stone-200/60">
+                      <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <Sparkles className="h-3 w-3" /> Why They Need You
+                      </p>
+                      <p className="text-sm text-stone-600 leading-relaxed">{currentResult.why_they_need_it}</p>
+                    </div>
+
+                    <p className="text-center text-xs text-stone-400 pt-2">
+                      ↑ Generated by Outrovo. Sign up to try your own product.
                     </p>
-                    <p className="text-sm text-stone-600 leading-relaxed">{currentResult.pain_point}</p>
                   </div>
-
-                  {/* Email hook */}
-                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
-                    <p className="text-xs font-medium text-emerald-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                      <Mail className="h-3 w-3" /> Email Opener
-                    </p>
-                    <p className="text-sm text-stone-700 italic leading-relaxed">"{currentResult.email_hook}"</p>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="h-16 bg-stone-100/60 rounded-lg animate-pulse" />
+                    <div className="h-20 bg-stone-100/60 rounded-lg animate-pulse" />
+                    <div className="h-16 bg-stone-100/60 rounded-lg animate-pulse" />
                   </div>
+                )}
+              </div>
 
-                  {/* Why they need it */}
-                  <div className="p-4 rounded-xl bg-stone-100/60 border border-stone-200/60">
-                    <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                      <Sparkles className="h-3 w-3" /> Why They Need You
-                    </p>
-                    <p className="text-sm text-stone-600 leading-relaxed">{currentResult.why_they_need_it}</p>
-                  </div>
-
-                  <p className="text-center text-xs text-stone-400 pt-2">
-                    ↑ Generated by Outrovo. Sign up to try your own product.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="h-16 bg-stone-100/60 rounded-lg" />
-                  <div className="h-20 bg-stone-100/60 rounded-lg" />
-                  <div className="h-16 bg-stone-100/60 rounded-lg" />
-                </div>
-              )}
-
-              {/* Dot indicators with filling effect — no separate progress bar */}
-              {showResult && (
-                <div className="mt-6 flex justify-center gap-1.5">
-                  {DEMOS.map((_, i) => {
-                    const isActive = i === demoIdx
-                    const isPast = i < demoIdx
-                    return (
-                      <div
-                        key={i}
-                        className="relative h-1.5 rounded-full bg-stone-200 overflow-hidden"
-                        style={{ width: isActive ? '32px' : '6px' }}
-                      >
-                        {/* Fill for active dot — grows from left over time */}
-                        {isActive && (
-                          <div
-                            className="absolute inset-y-0 left-0 bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-full"
-                            style={{ width: `${dotProgress * 100}%` }}
-                          />
-                        )}
-                        {/* Past dots are fully filled */}
-                        {isPast && (
-                          <div className="absolute inset-0 bg-stone-400 rounded-full" />
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+              {/* Dot indicators with smooth fill — no separate progress bar */}
+              <div className="mt-6 flex justify-center gap-1.5">
+                {DEMOS.map((_, i) => {
+                  const isActive = i === demoIdx
+                  const isPast = i < demoIdx
+                  return (
+                    <div
+                      key={i}
+                      className="relative h-1.5 rounded-full bg-stone-200 overflow-hidden transition-all duration-300"
+                      style={{ width: isActive ? '32px' : '6px' }}
+                    >
+                      {isActive && (
+                        <div
+                          className="absolute inset-y-0 left-0 bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-full"
+                          style={{ width: `${dotProgress * 100}%` }}
+                        />
+                      )}
+                      {isPast && (
+                        <div className="absolute inset-0 bg-stone-400 rounded-full" />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Metrics — emerald accent */}
+      {/* Metrics */}
       <section className="mx-auto max-w-6xl px-4 sm:px-6 py-20 border-t border-stone-200/60">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-4">
           {[
@@ -299,7 +315,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Features — blue/indigo accent */}
+      {/* Features */}
       <section className="mx-auto max-w-6xl px-4 sm:px-6 py-20 border-t border-stone-200/60">
         <div className="text-center mb-16">
           <h2 className="text-4xl font-bold tracking-tight text-stone-900">One platform. Everything you need.</h2>
@@ -323,7 +339,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Integrations — amber accent */}
+      {/* Integrations */}
       <section className="mx-auto max-w-6xl px-4 sm:px-6 py-20 border-t border-stone-200/60">
         <div className="text-center mb-12">
           <h2 className="text-4xl font-bold tracking-tight text-stone-900">Built on infrastructure you trust</h2>
@@ -348,7 +364,7 @@ export function LandingPage() {
         </p>
       </section>
 
-      {/* CTA — back to violet/fuchsia */}
+      {/* CTA */}
       <section className="mx-auto max-w-6xl px-4 sm:px-6 py-20 border-t border-stone-200/60">
         <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-violet-600 to-fuchsia-600 p-12 sm:p-16 text-center">
           <h2 className="text-4xl sm:text-5xl font-bold tracking-tight text-white">Get 50% off lifetime.</h2>
