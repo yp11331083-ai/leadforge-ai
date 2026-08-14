@@ -4,15 +4,15 @@ import { requireUser } from '@/lib/auth/session'
 import { loadProviderConfig } from '@/lib/ai/load-config'
 import { autoProspect } from '@/lib/ai/agent'
 import { deductCredits, hasCredits } from '@/lib/credits'
+import { autoProspectCost } from '@/lib/credit-pricing'
 
 // Vercel: 300s on Pro, 60s on Hobby (auto-clamped)
 export const maxDuration = 300
 // Force dynamic, never statically optimize this route
 export const dynamic = 'force-dynamic'
 
-// Credit cost — 1 AI auto-prospect run = 10 credits
-// (covers ~5+ AI calls: 1 query-gen + ~8 web searches + 1 page-read + 1 fit-eval per company × N)
-const CREDIT_COST_PER_RUN = 10
+// Credit cost for auto-prospect is computed dynamically via autoProspectCost(targetCount)
+// defined in @/lib/credit-pricing.
 
 /**
  * AI Auto-Prospect — Server-Sent Events (SSE) streaming endpoint.
@@ -51,12 +51,14 @@ export async function POST(req: NextRequest) {
     }
 
     // === Credit check ===
-    const hasBalance = await hasCredits(user.tenantId, CREDIT_COST_PER_RUN)
+    // Cost is dynamic: base 5 + 2 per target company (e.g. target=10 → 25 credits)
+    const creditCost = autoProspectCost(targetCount)
+    const hasBalance = await hasCredits(user.tenantId, creditCost)
     if (!hasBalance) {
       return new Response(
         JSON.stringify({
-          error: `AI 點數不足。自動開發需要 ${CREDIT_COST_PER_RUN} 點。請至計費頁面加購或升級方案。`,
-          creditsRequired: CREDIT_COST_PER_RUN,
+          error: `AI 點數不足。自動開發需要 ${creditCost} 點（5 + ${targetCount}×2）。請至計費頁面加購或升級方案。`,
+          creditsRequired: creditCost,
         }),
         { status: 402 }
       )
@@ -65,7 +67,7 @@ export async function POST(req: NextRequest) {
     // === Deduct credits upfront (atomic) ===
     const creditResult = await deductCredits(
       user.tenantId,
-      CREDIT_COST_PER_RUN,
+      creditCost,
       `AI Auto-Prospect: ${serviceName} (target ${targetCount})`
     )
     if (!creditResult.success) {
@@ -74,7 +76,7 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       )
     }
-    const creditsBefore = creditResult.balanceAfter + CREDIT_COST_PER_RUN
+    const creditsBefore = creditResult.balanceAfter + creditCost
 
     // === Stream SSE ===
     const encoder = new TextEncoder()
@@ -107,11 +109,11 @@ export async function POST(req: NextRequest) {
 
           if (!result.success || !result.result) {
             // Refund credits on failure
-            await refundCredits(user.tenantId, CREDIT_COST_PER_RUN, 'AI Auto-Prospect 失敗退還')
+            await refundCredits(user.tenantId, creditCost, 'AI Auto-Prospect 失敗退還')
             send({
               type: 'error',
               error: result.error ?? '自動開發失敗',
-              creditsRefunded: CREDIT_COST_PER_RUN,
+              creditsRefunded: creditCost,
               creditsRemaining: creditsBefore,
             })
             controller.close()
@@ -138,18 +140,18 @@ export async function POST(req: NextRequest) {
             type: 'complete',
             result: result.result,
             addedToLeads,
-            creditsUsed: CREDIT_COST_PER_RUN,
+            creditsUsed: creditCost,
             creditsRemaining: creditResult.balanceAfter,
             detail: `找到 ${result.result.candidates.length} 家潛在客戶${addedToLeads ? `，已加入 ${addedToLeads} 家` : ''}`,
           })
           controller.close()
         } catch (e: any) {
           // Refund on unexpected error
-          await refundCredits(user.tenantId, CREDIT_COST_PER_RUN, 'AI Auto-Prospect 例外錯誤退還')
+          await refundCredits(user.tenantId, creditCost, 'AI Auto-Prospect 例外錯誤退還')
           send({
             type: 'error',
             error: e?.message ?? 'Unknown error',
-            creditsRefunded: CREDIT_COST_PER_RUN,
+            creditsRefunded: creditCost,
             creditsRemaining: creditsBefore,
           })
           controller.close()

@@ -1,5 +1,8 @@
 /**
  * Credit system — atomic debit/credit operations
+ *
+ * Pricing constants + plan allowances live in `@/lib/credit-pricing`.
+ * Import from there if you need to display costs in the UI.
  */
 import { db } from '@/lib/db'
 
@@ -84,16 +87,17 @@ export async function hasCredits(tenantId: string, amount: number): Promise<bool
 }
 
 /**
- * Get plan-based credit allowance
+ * Get plan-based credit allowance (DEPRECATED — import from credit-pricing.ts).
+ * Kept for backwards compatibility with existing imports.
  */
 export function getPlanCredits(plan: string): number {
   const credits: Record<string, number> = {
-    freemium: 100,
-    starter: 1500,
-    growth: 5000,
-    agency: 20000,
+    freemium: 30,
+    starter: 500,
+    growth: 2000,
+    agency: 8000,
   }
-  return credits[plan] ?? 100
+  return credits[plan] ?? 30
 }
 
 /**

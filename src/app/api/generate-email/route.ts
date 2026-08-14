@@ -3,6 +3,17 @@ import { db } from '@/lib/db'
 import { requireUser, leadFilter } from '@/lib/auth/session'
 import { loadProviderConfig } from '@/lib/ai/load-config'
 import { generateColdEmail } from '@/lib/ai/agent'
+import { deductCredits, hasCredits, addCredits } from '@/lib/credits'
+import { CREDIT_COSTS } from '@/lib/credit-pricing'
+
+/** Refund credits if email generation fails. */
+async function refundCredits(tenantId: string, amount: number, reason: string): Promise<void> {
+  try {
+    await addCredits(tenantId, amount, 'CREDIT_RESET', `[REFUND] ${reason}`)
+  } catch (e) {
+    console.error('refundCredits failed:', e)
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,8 +24,29 @@ export async function POST(req: NextRequest) {
 
     if (!leadId) return NextResponse.json({ error: 'leadId is required' }, { status: 400 })
 
+    // === Credit check ===
+    const creditCost = CREDIT_COSTS.EMAIL_GENERATION
+    const hasBalance = await hasCredits(user.tenantId, creditCost)
+    if (!hasBalance) {
+      return NextResponse.json({
+        error: `AI 點數不足。生成 Email 需要 ${creditCost} 點。請至計費頁面加購或升級方案。`,
+        creditsRequired: creditCost,
+      }, { status: 402 })
+    }
+
     const lead = await db.lead.findFirst({ where: { id: leadId, ...leadFilter(user) } })
     if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
+
+    // === Deduct credits upfront ===
+    const creditResult = await deductCredits(
+      user.tenantId,
+      creditCost,
+      `AI Email Gen: ${lead.company}`
+    )
+    if (!creditResult.success) {
+      return NextResponse.json({ error: 'AI 點數扣除失敗' }, { status: 500 })
+    }
+    const creditsBefore = creditResult.balanceAfter + creditCost
 
     let research: any = {}
     let hiringSignals: string[] = []
@@ -45,8 +77,14 @@ export async function POST(req: NextRequest) {
     })
 
     if (!result.success) {
+      // Refund credits — email generation failed
+      await refundCredits(user.tenantId, creditCost, `Email gen fail: ${lead.company}`)
       await db.lead.update({ where: { id: leadId }, data: { status: 'researched' } })
-      return NextResponse.json({ error: 'Email generation failed' }, { status: 500 })
+      return NextResponse.json({
+        error: 'Email generation failed',
+        creditsRefunded: creditCost,
+        creditsRemaining: creditsBefore,
+      }, { status: 500 })
     }
 
     const emailData = result.data
@@ -60,7 +98,13 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    return NextResponse.json({ success: true, leadId, email: emailData })
+    return NextResponse.json({
+      success: true,
+      leadId,
+      email: emailData,
+      creditsUsed: creditCost,
+      creditsRemaining: creditResult.balanceAfter,
+    })
   } catch (error: any) {
     if (error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: '請先登入' }, { status: 401 })

@@ -3,6 +3,17 @@ import { db } from '@/lib/db'
 import { requireUser, leadFilter } from '@/lib/auth/session'
 import { loadProviderConfig } from '@/lib/ai/load-config'
 import { fetchWebsiteContent, htmlToText, researchCompany, researchCompanyDeep } from '@/lib/ai/agent'
+import { deductCredits, hasCredits, addCredits } from '@/lib/credits'
+import { CREDIT_COSTS } from '@/lib/credit-pricing'
+
+/** Refund credits if research fails. */
+async function refundCredits(tenantId: string, amount: number, reason: string): Promise<void> {
+  try {
+    await addCredits(tenantId, amount, 'CREDIT_RESET', `[REFUND] ${reason}`)
+  } catch (e) {
+    console.error('refundCredits failed:', e)
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,6 +25,27 @@ export async function POST(req: NextRequest) {
     if (!website && !leadId) {
       return NextResponse.json({ error: 'website or leadId is required' }, { status: 400 })
     }
+
+    // === Credit check (BEFORE doing any AI work) ===
+    const creditCost = mode === 'deep' ? CREDIT_COSTS.RESEARCH_DEEP : CREDIT_COSTS.RESEARCH_BASIC
+    const hasBalance = await hasCredits(user.tenantId, creditCost)
+    if (!hasBalance) {
+      return NextResponse.json({
+        error: `AI 點數不足。${mode === 'deep' ? '深度' : '基本'}研究需要 ${creditCost} 點。請至計費頁面加購或升級方案。`,
+        creditsRequired: creditCost,
+      }, { status: 402 })
+    }
+
+    // === Deduct credits upfront ===
+    const creditResult = await deductCredits(
+      user.tenantId,
+      creditCost,
+      `AI Research (${mode}): ${company ?? 'unknown'}`
+    )
+    if (!creditResult.success) {
+      return NextResponse.json({ error: 'AI 點數扣除失敗' }, { status: 500 })
+    }
+    const creditsBefore = creditResult.balanceAfter + creditCost
 
     let targetWebsite = website as string
     let targetCompany = company as string
@@ -33,8 +65,14 @@ export async function POST(req: NextRequest) {
 
     const websiteData = await fetchWebsiteContent(targetWebsite)
     if (!websiteData) {
+      // Refund credits — we couldn't even fetch the website
+      await refundCredits(user.tenantId, creditCost, `Research fetch-fail: ${targetCompany}`)
       if (leadId) await db.lead.update({ where: { id: leadId }, data: { status: 'new' } })
-      return NextResponse.json({ error: 'Failed to fetch website' }, { status: 502 })
+      return NextResponse.json({
+        error: 'Failed to fetch website',
+        creditsRefunded: creditCost,
+        creditsRemaining: creditsBefore,
+      }, { status: 502 })
     }
 
     const websiteText = htmlToText(websiteData.html)
@@ -96,11 +134,15 @@ export async function POST(req: NextRequest) {
     })
 
     if (!research.success) {
+      // Refund credits — AI call didn't produce parseable output
+      await refundCredits(user.tenantId, creditCost, `Research parse-fail: ${targetCompany}`)
       if (leadId) await db.lead.update({ where: { id: leadId }, data: { status: 'new' } })
       // Include the raw AI response in the error so we can debug parsing failures
       return NextResponse.json({
         error: 'AI research parsing failed',
         raw: research.raw?.slice(0, 1500),
+        creditsRefunded: creditCost,
+        creditsRemaining: creditsBefore,
       }, { status: 500 })
     }
 

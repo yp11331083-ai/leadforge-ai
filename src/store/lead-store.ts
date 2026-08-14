@@ -151,6 +151,10 @@ interface LeadStore {
   emailConfig: EmailConfig | null
   smartleadCampaigns: SmartleadCampaign[]
   serviceOffering: ServiceOffering | null
+  // Credit balance — fetched after every AI operation so UI stays fresh
+  creditBalance: number | null
+  creditAllowance: number | null
+  fetchCredits: () => Promise<void>
   prospectResult: AutoProspectResult | null
   prospectLoading: boolean
   prospectStage: string
@@ -238,6 +242,18 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
   prospectJobId: null,
   prospectError: null,
   rateLimitedAt: null,
+  creditBalance: null,
+  creditAllowance: null,
+  fetchCredits: async () => {
+    try {
+      const res = await fetch('/api/credits/balance')
+      if (!res.ok) return
+      const data = await res.json()
+      set({ creditBalance: data.balance, creditAllowance: data.monthlyAllowance })
+    } catch (e) {
+      console.error('fetchCredits error:', e)
+    }
+  },
   viewMode: 'admin',
   setViewMode: (mode) => set({ viewMode: mode }),
   currentUser: null,
@@ -311,10 +327,14 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
         if (isRateLimited) {
           set({ rateLimitedAt: Date.now() })
         }
+        // Refresh credits even on failure (may have been refunded)
+        get().fetchCredits()
         console.error('researchLead failed:', data.error)
         return false
       }
       await get().fetchLeads()
+      // Refresh credit balance — research just deducted credits
+      get().fetchCredits()
       return true
     } catch (e) {
       console.error('researchLead error:', e)
@@ -336,10 +356,14 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
         if (isRateLimited) {
           set({ rateLimitedAt: Date.now() })
         }
+        // Refresh credits even on failure (may have been refunded)
+        get().fetchCredits()
         console.error('generateEmail failed:', data.error)
         return false
       }
       await get().fetchLeads()
+      // Refresh credit balance — email gen just deducted credits
+      get().fetchCredits()
       return true
     } catch (e) {
       console.error('generateEmail error:', e)
@@ -421,8 +445,12 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
       const data = await res.json()
       if (res.ok) {
         await get().fetchLeads()
+        // Refresh credit balance — sending email costs 1 credit
+        get().fetchCredits()
         return { success: true }
       }
+      // Refresh credits on failure too (insufficient credits error path)
+      get().fetchCredits()
       return { success: false, error: data.error ?? '發信失敗' }
     } catch (e) {
       console.error('sendEmail error:', e)
@@ -459,6 +487,8 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
       const data = await res.json()
       if (res.ok) {
         await get().fetchLeads()
+        // Refresh credit balance — enrichment just deducted credits
+        get().fetchCredits()
         return {
           success: true,
           result: {
@@ -473,6 +503,8 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
       if (isRateLimited) {
         set({ rateLimitedAt: Date.now() })
       }
+      // Refresh credits even on failure (may have been refunded)
+      get().fetchCredits()
       return { success: false, error: data.error ?? 'Email enrichment 失敗' }
     } catch (e) {
       console.error('enrichEmail error:', e)
@@ -616,6 +648,8 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
               prospectDetail: data.detail ?? `找到 ${data.result?.candidates?.length ?? 0} 家潛在客戶`,
               prospectStep: 6,
             })
+            // Refresh credit balance so UI shows the deduction immediately
+            get().fetchCredits()
           } else if (data.type === 'error') {
             hadError = true
             const errorMsg = data.error ?? '自動開發失敗'
@@ -630,6 +664,8 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
               prospectStep: 6,
               rateLimitedAt: isRateLimited ? Date.now() : null,
             })
+            // Refresh credit balance (may have been refunded)
+            get().fetchCredits()
           }
         }
       }
