@@ -152,9 +152,9 @@ export function LandingPage() {
               {/* Window chrome */}
               <div className="flex items-center gap-2 px-4 py-3 border-b border-stone-200/60 bg-stone-100/50">
                 <div className="flex gap-1.5">
-                  <div className="h-3 w-3 rounded-full bg-stone-300" />
-                  <div className="h-3 w-3 rounded-full bg-stone-300" />
-                  <div className="h-3 w-3 rounded-full bg-stone-300" />
+                  <div className="h-3 w-3 rounded-full" style={{ backgroundColor: '#FF5F57' }} />
+                  <div className="h-3 w-3 rounded-full" style={{ backgroundColor: '#FEBC2E' }} />
+                  <div className="h-3 w-3 rounded-full" style={{ backgroundColor: '#28C840' }} />
                 </div>
                 <div className="flex-1 text-center">
                   <span className="text-xs text-stone-400 font-mono">outrovo.com/prospect</span>
@@ -243,9 +243,9 @@ export function LandingPage() {
                       >
                         {isActive && showResult && (
                           <div
-                            className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500"
+                            className="absolute inset-y-0 left-0 w-full rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 origin-left"
                             style={{
-                              width: '100%',
+                              transform: 'scaleX(0)',
                               animation: `progressFill ${PAUSE_MS}ms linear forwards`,
                               animationPlayState: isHovered ? 'paused' : 'running',
                             }}
@@ -264,8 +264,8 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Metrics — subtle emerald background */}
-      <section className="bg-emerald-50/40 border-y border-emerald-100/60">
+      {/* Metrics — warm gray layer */}
+      <section className="bg-stone-100/50 border-y border-stone-200/60">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 py-20">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-4">
             {[
@@ -274,7 +274,7 @@ export function LandingPage() {
               { value: '0', label: 'API keys to configure', desc: 'Platform-managed search, page reading, and writing' },
             ].map((m) => (
               <div key={m.label} className="text-center">
-                <p className="text-5xl font-bold text-emerald-600">{m.value}</p>
+                <p className="text-5xl font-bold text-violet-600">{m.value}</p>
                 <p className="mt-2 text-sm font-medium text-stone-700">{m.label}</p>
                 <p className="mt-2 text-xs text-stone-400 leading-relaxed max-w-[200px] mx-auto">{m.desc}</p>
               </div>
@@ -283,8 +283,8 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Features — subtle blue background */}
-      <section className="bg-blue-50/30">
+      {/* Features — clean white with shadow cards */}
+      <section className="bg-stone-50">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 py-20">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold tracking-tight text-stone-900">One platform. Everything you need.</h2>
@@ -297,9 +297,9 @@ export function LandingPage() {
               { icon: Mail, title: 'Email Writer', desc: 'Generates personalized cold emails with spam-filtered subject lines and specific icebreakers. Under 125 words.' },
               { icon: Calendar, title: 'Smart Meeting Tracking', desc: 'When a prospect books a meeting via Cal.com, Outrovo auto-stops sending follow-ups. No more awkward duplicates.' },
             ].map(({ icon: Icon, title, desc }) => (
-              <div key={title} className="p-6 rounded-2xl border border-stone-200/60 bg-white/60 hover:border-blue-200 transition-colors">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 border border-blue-100 mb-4">
-                  <Icon className="h-5 w-5 text-blue-600" />
+              <div key={title} className="p-6 rounded-2xl border border-stone-200 bg-white shadow-sm hover:shadow-md hover:border-violet-200 transition-all">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 border border-violet-100 mb-4">
+                  <Icon className="h-5 w-5 text-violet-600" />
                 </div>
                 <h3 className="text-lg font-semibold text-stone-900">{title}</h3>
                 <p className="mt-2 text-sm text-stone-500 leading-relaxed">{desc}</p>
@@ -309,8 +309,8 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Integrations — subtle amber background */}
-      <section className="bg-amber-50/30">
+      {/* Integrations — warm gray layer for rhythm */}
+      <section className="bg-stone-100/50 border-y border-stone-200/60">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 py-20">
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold tracking-tight text-stone-900">Built on infrastructure you trust</h2>
@@ -324,7 +324,7 @@ export function LandingPage() {
               { name: 'Groq', desc: 'Inference engine' },
               { name: 'Gemini', desc: 'Fallback engine' },
             ].map((int) => (
-              <div key={int.name} className="p-5 rounded-xl border border-stone-200/60 bg-white/60 text-center hover:border-amber-300 transition-colors">
+              <div key={int.name} className="p-5 rounded-xl border border-stone-200 bg-white shadow-sm hover:shadow-md hover:border-violet-200 transition-all text-center">
                 <p className="font-semibold text-sm text-stone-900">{int.name}</p>
                 <p className="text-xs text-stone-400 mt-1">{int.desc}</p>
               </div>
