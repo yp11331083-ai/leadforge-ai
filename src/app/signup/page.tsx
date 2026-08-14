@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 
 export default function SignupPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-emerald-500" /></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-stone-50"><Loader2 className="h-6 w-6 animate-spin text-violet-500" /></div>}>
       <SignupForm />
     </Suspense>
   )
@@ -77,18 +77,18 @@ function SignupForm() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-emerald-50/30 to-teal-50 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950/20 px-4">
-        <Card className="p-8 max-w-md text-center space-y-4 shadow-xl">
-          <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/50 mx-auto">
-            <CheckCircle2 className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
+      <div className="min-h-screen flex items-center justify-center bg-stone-50 px-4">
+        <Card className="p-8 max-w-md text-center space-y-4 shadow-xl border-stone-200 bg-white/70">
+          <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-violet-50 border border-violet-100 mx-auto">
+            <CheckCircle2 className="h-7 w-7 text-violet-600" />
           </div>
           <div>
-            <h2 className="text-xl font-bold">Welcome to Outrovo!</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Your account is ready. You get <b>100 free credits</b> to start.
+            <h2 className="text-xl font-bold text-stone-900">Welcome to Outrovo!</h2>
+            <p className="text-sm text-stone-500 mt-1">
+              Your account is ready. You get <b>30 free credits</b> to start.
             </p>
           </div>
-          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center justify-center gap-2 text-sm text-stone-400">
             <Loader2 className="h-4 w-4 animate-spin" />
             Signing you in...
           </div>
@@ -98,95 +98,92 @@ function SignupForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-emerald-50/30 to-teal-50 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950/20 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-stone-50 px-4">
       <div className="w-full max-w-md space-y-6">
         {/* Logo */}
         <div className="text-center">
           <img src="/logo.png" alt="Outrovo" className="h-14 w-14 rounded-2xl shadow-lg mx-auto mb-3" />
-          <h1 className="text-2xl font-bold tracking-tight">
-            <span>Outrovo</span>
+          <h1 className="text-2xl font-bold tracking-tight text-stone-900">
+            Outrovo
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            AI Cold Outreach & Lead Generation Platform
+          <p className="text-sm text-stone-500 mt-1">
+            Cold Outreach & Lead Generation Platform
           </p>
         </div>
 
         {/* Signup form */}
-        <Card className="p-6 space-y-4 shadow-xl">
+        <Card className="p-6 space-y-4 shadow-xl border-stone-200 bg-white/70">
           <div>
-            <h2 className="text-lg font-semibold">Create your account</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Use your work email to get 100 free credits — no credit card required
+            <h2 className="text-lg font-semibold text-stone-900">Create your account</h2>
+            <p className="text-xs text-stone-400 mt-0.5">
+              Use your work email to get 30 free credits — no credit card required
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="name">Full Name *</Label>
+              <Label htmlFor="name" className="text-stone-700">Full Name *</Label>
               <div className="relative">
-                <User className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <User className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
                 <Input
                   id="name"
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                   placeholder="John Smith"
-                  className="pl-9"
+                  className="pl-9 bg-stone-50 border-stone-200"
                   autoComplete="name"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="email">Work Email *</Label>
+              <Label htmlFor="email" className="text-stone-700">Work Email *</Label>
               <div className="relative">
-                <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
                 <Input
                   id="email"
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                   placeholder="john@yourcompany.com"
-                  className="pl-9"
+                  className="pl-9 bg-stone-50 border-stone-200"
                   autoComplete="email"
                 />
               </div>
-              <p className="text-[10px] text-muted-foreground">
-                Must be a work email (Gmail/Yahoo not allowed)
-              </p>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="password">Password *</Label>
+              <Label htmlFor="password" className="text-stone-700">Password *</Label>
               <div className="relative">
-                <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
                 <Input
                   id="password"
                   type="password"
                   value={form.password}
                   onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
                   placeholder="At least 6 characters"
-                  className="pl-9"
+                  className="pl-9 bg-stone-50 border-stone-200"
                   autoComplete="new-password"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="company">Company Name (optional)</Label>
+              <Label htmlFor="company" className="text-stone-700">Company Name (optional)</Label>
               <div className="relative">
-                <Building2 className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Building2 className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
                 <Input
                   id="company"
                   value={form.companyName}
                   onChange={(e) => setForm((f) => ({ ...f, companyName: e.target.value }))}
                   placeholder="Acme Inc."
-                  className="pl-9"
+                  className="pl-9 bg-stone-50 border-stone-200"
                 />
               </div>
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 rounded-md bg-rose-50 dark:bg-rose-950/40 p-2 text-xs text-rose-700 dark:text-rose-300">
+              <div className="flex items-center gap-2 rounded-md bg-rose-50 p-2 text-xs text-rose-600">
                 <AlertCircle className="h-3.5 w-3.5" />
                 {error}
               </div>
@@ -194,7 +191,7 @@ function SignupForm() {
 
             <Button
               type="submit"
-              className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700"
+              className="w-full bg-stone-900 hover:bg-stone-800 rounded-full"
               disabled={loading}
             >
               {loading ? (
@@ -203,16 +200,16 @@ function SignupForm() {
                   Creating account...
                 </>
               ) : (
-                'Create Account — Get 100 Free Credits'
+                'Create Account — Get 30 Free Credits'
               )}
             </Button>
           </form>
 
           {/* Divider */}
           <div className="flex items-center gap-3 py-1">
-            <div className="flex-1 h-px bg-border/60" />
-            <span className="text-xs text-muted-foreground">or sign up with</span>
-            <div className="flex-1 h-px bg-border/60" />
+            <div className="flex-1 h-px bg-stone-200" />
+            <span className="text-xs text-stone-400">or sign up with</span>
+            <div className="flex-1 h-px bg-stone-200" />
           </div>
 
           {/* Google OAuth */}
@@ -220,7 +217,7 @@ function SignupForm() {
             variant="outline"
             onClick={() => signIn('google', { callbackUrl: '/' })}
             disabled={loading}
-            className="w-full h-11"
+            className="w-full h-11 border-stone-200 bg-white hover:bg-stone-50 rounded-full"
           >
             <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -231,10 +228,10 @@ function SignupForm() {
             Continue with Google
           </Button>
 
-          <div className="pt-3 border-t border-border/60 text-center">
-            <p className="text-xs text-muted-foreground">
+          <div className="pt-3 border-t border-stone-200 text-center">
+            <p className="text-xs text-stone-400">
               Already have an account?{' '}
-              <Link href="/login" className="text-emerald-600 dark:text-emerald-400 hover:underline font-medium">
+              <Link href="/login" className="text-violet-600 hover:underline font-medium">
                 Sign in
               </Link>
             </p>

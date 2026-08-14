@@ -43,19 +43,12 @@ export function LandingPage() {
   const [phase, setPhase] = useState<Phase>('typing')
   const [isHovered, setIsHovered] = useState(false)
   const [showResult, setShowResult] = useState(false)
-  const [dotProgress, setDotProgress] = useState(0)
-
-  // Track accumulated time in refs so pause/resume doesn't restart
-  const elapsedRef = useRef(0)
-  const rafRef = useRef<number | null>(null)
 
   const targetProduct = DEMOS[demoIdx]?.product ?? ''
   const currentResult = DEMOS[demoIdx]?.result
 
-  // Typewriter effect
+  // Typewriter — continues even when hovered (only 'showing' phase pauses)
   useEffect(() => {
-    if (isHovered) return
-
     if (phase === 'typing') {
       if (typedText.length < targetProduct.length) {
         const timer = setTimeout(() => {
@@ -66,8 +59,6 @@ export function LandingPage() {
         const timer = setTimeout(() => {
           setShowResult(true)
           setPhase('showing')
-          elapsedRef.current = 0
-          setDotProgress(0)
         }, PAUSE_AFTER_TYPE)
         return () => clearTimeout(timer)
       }
@@ -83,46 +74,24 @@ export function LandingPage() {
         const timer = setTimeout(() => {
           setDemoIdx((prev) => (prev + 1) % DEMOS.length)
           setPhase('typing')
-          elapsedRef.current = 0
-          setDotProgress(0)
         }, PAUSE_AFTER_DELETE)
         return () => clearTimeout(timer)
       }
     }
-  }, [phase, typedText, targetProduct, isHovered])
 
-  // Smooth progress using requestAnimationFrame — resumes from where it paused
-  useEffect(() => {
-    if (phase !== 'showing') return
-    if (isHovered) return // pause
-
-    let lastTime = performance.now()
-
-    const tick = (now: number) => {
-      const delta = now - lastTime
-      lastTime = now
-      elapsedRef.current += delta
-      const pct = Math.min(1, elapsedRef.current / PAUSE_MS)
-      setDotProgress(pct)
-
-      if (pct >= 1) {
+    // 'showing' phase — use a simple timeout, NOT affected by hover for advancing
+    // BUT we use CSS animation-play-state for the visual progress bar pause
+    if (phase === 'showing' && !isHovered) {
+      const timer = setTimeout(() => {
         setShowResult(false)
         setPhase('deleting')
-        elapsedRef.current = 0
-        return
-      }
-      rafRef.current = requestAnimationFrame(tick)
+      }, PAUSE_MS)
+      return () => clearTimeout(timer)
     }
-
-    rafRef.current = requestAnimationFrame(tick)
-
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current)
-    }
-  }, [phase, isHovered])
+  }, [phase, typedText, targetProduct, isHovered])
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-stone-50 via-stone-50 to-violet-50/30 text-stone-900">
+    <div className="min-h-screen text-stone-900">
       {/* Nav */}
       <nav className="sticky top-0 z-50 border-b border-stone-200/60 bg-stone-50/80 backdrop-blur-lg">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between">
@@ -141,248 +110,253 @@ export function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="relative mx-auto max-w-6xl px-4 sm:px-6 pt-20 pb-16">
-        {/* Gradient backdrop */}
+      {/* Hero — warm stone background with gradient glow */}
+      <section className="relative bg-stone-50">
         <div className="absolute inset-0 -z-10 overflow-hidden">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-gradient-to-b from-violet-200/30 via-fuchsia-100/20 to-transparent rounded-full blur-3xl" />
         </div>
 
-        <div className="text-center max-w-3xl mx-auto">
-          <h1 className="text-5xl sm:text-7xl font-bold tracking-tight leading-[1.05] text-stone-900">
-            Outrovo finds customers.
-            <br />
-            <span className="bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
-              You close deals.
-            </span>
-          </h1>
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 pt-20 pb-16">
+          <div className="text-center max-w-3xl mx-auto">
+            <h1 className="text-5xl sm:text-7xl font-bold tracking-tight leading-[1.05] text-stone-900">
+              Outrovo finds customers.
+              <br />
+              <span className="bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
+                You close deals.
+              </span>
+            </h1>
 
-          <p className="mt-6 text-lg sm:text-xl text-stone-500 max-w-2xl mx-auto leading-relaxed">
-            Outrovo searches the web, researches companies, and writes personalized
-            cold emails — automatically. No API keys. No setup.
-          </p>
+            <p className="mt-6 text-lg sm:text-xl text-stone-500 max-w-2xl mx-auto leading-relaxed">
+              Outrovo searches the web, researches companies, and writes personalized
+              cold emails — automatically.
+            </p>
 
-          <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
-            <Button asChild size="lg" className="bg-stone-900 text-white hover:bg-stone-800 rounded-full text-base px-6 h-12">
-              <a href="/signup">Start free — 30 credits <ArrowRight className="ml-2 h-4 w-4" /></a>
-            </Button>
-            <a href="#demo" className="px-6 py-3 text-sm text-stone-500 hover:text-stone-900 transition-colors flex items-center justify-center">
-              See it work ↓
-            </a>
-          </div>
-        </div>
-
-        {/* Live Demo */}
-        <div
-          id="demo"
-          className="mt-20 max-w-4xl mx-auto scroll-mt-20"
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-        >
-          <div className="rounded-2xl border border-stone-200 bg-white/70 shadow-xl shadow-stone-300/30 overflow-hidden">
-            {/* Window chrome */}
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-stone-200/60 bg-stone-100/50">
-              <div className="flex gap-1.5">
-                <div className="h-3 w-3 rounded-full bg-stone-300" />
-                <div className="h-3 w-3 rounded-full bg-stone-300" />
-                <div className="h-3 w-3 rounded-full bg-stone-300" />
-              </div>
-              <div className="flex-1 text-center">
-                <span className="text-xs text-stone-400 font-mono">outrovo.com/prospect</span>
-              </div>
+            <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
+              <Button asChild size="lg" className="bg-stone-900 text-white hover:bg-stone-800 rounded-full text-base px-6 h-12">
+                <a href="/signup">Start free — 30 credits <ArrowRight className="ml-2 h-4 w-4" /></a>
+              </Button>
+              <a href="#demo" className="px-6 py-3 text-sm text-stone-500 hover:text-stone-900 transition-colors flex items-center justify-center">
+                See it work ↓
+              </a>
             </div>
+          </div>
 
-            {/* Demo content — fixed min-height to prevent page scroll on result change */}
-            <div className="p-6 sm:p-8 min-h-[520px]">
-              <div className="mb-6">
-                <label className="text-xs font-medium text-stone-400 uppercase tracking-wider">
-                  Describe your product
-                </label>
-                <div className="mt-2 flex gap-2">
-                  <div className="flex-1 bg-stone-50 border border-stone-200 rounded-lg px-4 py-3 text-sm text-stone-700 flex items-center min-h-[48px]">
-                    <span className="truncate">{typedText}</span>
-                    <span className={`inline-block w-0.5 h-4 ml-0.5 ${phase === 'typing' || phase === 'deleting' ? 'bg-violet-500 animate-pulse' : 'bg-transparent'}`} />
-                  </div>
-                  <div className="px-5 py-3 rounded-lg bg-stone-900 text-sm font-medium text-white flex items-center gap-2 whitespace-nowrap">
-                    <Search className="h-4 w-4" /> Search
-                  </div>
+          {/* Live Demo */}
+          <div
+            id="demo"
+            className="mt-20 max-w-4xl mx-auto scroll-mt-20"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+          >
+            <div className="rounded-2xl border border-stone-200 bg-white/70 shadow-xl shadow-stone-300/30 overflow-hidden">
+              {/* Window chrome */}
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-stone-200/60 bg-stone-100/50">
+                <div className="flex gap-1.5">
+                  <div className="h-3 w-3 rounded-full bg-stone-300" />
+                  <div className="h-3 w-3 rounded-full bg-stone-300" />
+                  <div className="h-3 w-3 rounded-full bg-stone-300" />
+                </div>
+                <div className="flex-1 text-center">
+                  <span className="text-xs text-stone-400 font-mono">outrovo.com/prospect</span>
                 </div>
               </div>
 
-              {/* Result — always renders container, content swaps */}
-              <div className="space-y-4">
-                {showResult && currentResult ? (
-                  <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    {/* Company card */}
-                    <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-violet-50 to-fuchsia-50 border border-violet-100">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-lg font-bold text-stone-700 shadow-sm">
-                          {currentResult.company.charAt(0)}
+              {/* Demo content — fixed min-height to prevent page scroll */}
+              <div className="p-6 sm:p-8 min-h-[480px]">
+                <div className="mb-6">
+                  <label className="text-xs font-medium text-stone-400 uppercase tracking-wider">
+                    Describe your product
+                  </label>
+                  <div className="mt-2 flex gap-2">
+                    <div className="flex-1 bg-stone-50 border border-stone-200 rounded-lg px-4 py-3 text-sm text-stone-700 flex items-center min-h-[48px]">
+                      <span className="truncate">{typedText}</span>
+                      <span className={`inline-block w-0.5 h-4 ml-0.5 ${phase === 'typing' || phase === 'deleting' ? 'bg-violet-500 animate-pulse' : 'bg-transparent'}`} />
+                    </div>
+                    <div className="px-5 py-3 rounded-lg bg-stone-900 text-sm font-medium text-white flex items-center gap-2 whitespace-nowrap">
+                      <Search className="h-4 w-4" /> Search
+                    </div>
+                  </div>
+                </div>
+
+                {/* Result */}
+                <div className="space-y-4">
+                  {showResult && currentResult ? (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                      <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-violet-50 to-fuchsia-50 border border-violet-100">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-lg font-bold text-stone-700 shadow-sm">
+                            {currentResult.company.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="font-semibold text-stone-900">{currentResult.company}</p>
+                            <p className="text-xs text-stone-500">{currentResult.industry} · {currentResult.website}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-semibold text-stone-900">{currentResult.company}</p>
-                          <p className="text-xs text-stone-500">{currentResult.industry} · {currentResult.website}</p>
+                        <div className="text-right">
+                          <p className="text-[10px] text-stone-400 uppercase tracking-wider">Fit Score</p>
+                          <p className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
+                            {currentResult.fit_score}
+                          </p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-[10px] text-stone-400 uppercase tracking-wider">Fit Score</p>
-                        <p className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
-                          {currentResult.fit_score}
+
+                      <div className="p-4 rounded-xl bg-stone-100/60 border border-stone-200/60">
+                        <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <Target className="h-3 w-3" /> Pain Point
                         </p>
+                        <p className="text-sm text-stone-600 leading-relaxed">{currentResult.pain_point}</p>
+                      </div>
+
+                      <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
+                        <p className="text-xs font-medium text-emerald-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <Mail className="h-3 w-3" /> Email Opener
+                        </p>
+                        <p className="text-sm text-stone-700 italic leading-relaxed">"{currentResult.email_hook}"</p>
+                      </div>
+
+                      <div className="p-4 rounded-xl bg-stone-100/60 border border-stone-200/60">
+                        <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <Sparkles className="h-3 w-3" /> Why They Need You
+                        </p>
+                        <p className="text-sm text-stone-600 leading-relaxed">{currentResult.why_they_need_it}</p>
                       </div>
                     </div>
-
-                    {/* Pain point */}
-                    <div className="p-4 rounded-xl bg-stone-100/60 border border-stone-200/60">
-                      <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                        <Target className="h-3 w-3" /> Pain Point
-                      </p>
-                      <p className="text-sm text-stone-600 leading-relaxed">{currentResult.pain_point}</p>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="h-16 bg-stone-100/60 rounded-lg animate-pulse" />
+                      <div className="h-20 bg-stone-100/60 rounded-lg animate-pulse" />
+                      <div className="h-16 bg-stone-100/60 rounded-lg animate-pulse" />
                     </div>
+                  )}
+                </div>
 
-                    {/* Email hook */}
-                    <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
-                      <p className="text-xs font-medium text-emerald-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                        <Mail className="h-3 w-3" /> Email Opener
-                      </p>
-                      <p className="text-sm text-stone-700 italic leading-relaxed">"{currentResult.email_hook}"</p>
-                    </div>
-
-                    {/* Why they need it */}
-                    <div className="p-4 rounded-xl bg-stone-100/60 border border-stone-200/60">
-                      <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                        <Sparkles className="h-3 w-3" /> Why They Need You
-                      </p>
-                      <p className="text-sm text-stone-600 leading-relaxed">{currentResult.why_they_need_it}</p>
-                    </div>
-
-                    <p className="text-center text-xs text-stone-400 pt-2">
-                      ↑ Generated by Outrovo. Sign up to try your own product.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="h-16 bg-stone-100/60 rounded-lg animate-pulse" />
-                    <div className="h-20 bg-stone-100/60 rounded-lg animate-pulse" />
-                    <div className="h-16 bg-stone-100/60 rounded-lg animate-pulse" />
-                  </div>
-                )}
-              </div>
-
-              {/* Dot indicators with smooth fill — no separate progress bar */}
-              <div className="mt-6 flex justify-center gap-1.5">
-                {DEMOS.map((_, i) => {
-                  const isActive = i === demoIdx
-                  const isPast = i < demoIdx
-                  return (
-                    <div
-                      key={i}
-                      className="relative h-1.5 rounded-full bg-stone-200 overflow-hidden transition-all duration-300"
-                      style={{ width: isActive ? '32px' : '6px' }}
-                    >
-                      {isActive && (
-                        <div
-                          className="absolute inset-y-0 left-0 bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-full"
-                          style={{ width: `${dotProgress * 100}%` }}
-                        />
-                      )}
-                      {isPast && (
-                        <div className="absolute inset-0 bg-stone-400 rounded-full" />
-                      )}
-                    </div>
-                  )
-                })}
+                {/* Progress — CSS animation, GPU-accelerated, truly smooth */}
+                <div className="mt-6 flex justify-center gap-1.5">
+                  {DEMOS.map((_, i) => {
+                    const isActive = i === demoIdx
+                    const isPast = i < demoIdx
+                    return (
+                      <div
+                        key={i}
+                        className="relative h-1.5 rounded-full bg-stone-200 overflow-hidden transition-all duration-300"
+                        style={{ width: isActive ? '32px' : '6px' }}
+                      >
+                        {isActive && showResult && (
+                          <div
+                            className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500"
+                            style={{
+                              width: '100%',
+                              animation: `progressFill ${PAUSE_MS}ms linear forwards`,
+                              animationPlayState: isHovered ? 'paused' : 'running',
+                            }}
+                          />
+                        )}
+                        {isPast && (
+                          <div className="absolute inset-0 bg-stone-400 rounded-full" />
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Metrics */}
-      <section className="mx-auto max-w-6xl px-4 sm:px-6 py-20 border-t border-stone-200/60">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-4">
-          {[
-            { value: '~10s', label: 'per company researched', desc: 'Outrovo analyzes website, hiring signals, and pain points' },
-            { value: '10', label: 'search strategies per run', desc: 'Diverse queries covering hiring, funding, industry, location, and more' },
-            { value: '0', label: 'API keys to configure', desc: 'Platform-managed search, page reading, and writing' },
-          ].map((m) => (
-            <div key={m.label} className="text-center">
-              <p className="text-5xl font-bold text-emerald-600">{m.value}</p>
-              <p className="mt-2 text-sm font-medium text-stone-700">{m.label}</p>
-              <p className="mt-2 text-xs text-stone-400 leading-relaxed max-w-[200px] mx-auto">{m.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="mx-auto max-w-6xl px-4 sm:px-6 py-20 border-t border-stone-200/60">
-        <div className="text-center mb-16">
-          <h2 className="text-4xl font-bold tracking-tight text-stone-900">One platform. Everything you need.</h2>
-          <p className="mt-3 text-stone-400">From finding companies to landing in their inbox.</p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {[
-            { icon: Search, title: 'Auto-Prospect', desc: 'Outrovo searches the web and finds companies that need your product — ranked by fit score. No manual research.' },
-            { icon: Target, title: 'Deep Company Research', desc: 'Outrovo analyzes each company\'s website, hiring signals, and pain points. Outputs a structured report in seconds.' },
-            { icon: Mail, title: 'Email Writer', desc: 'Generates personalized cold emails with spam-filtered subject lines and specific icebreakers. Under 125 words.' },
-            { icon: Calendar, title: 'Smart Meeting Tracking', desc: 'When a prospect books a meeting via Cal.com, Outrovo auto-stops sending follow-ups. No more awkward duplicates.' },
-          ].map(({ icon: Icon, title, desc }) => (
-            <div key={title} className="p-6 rounded-2xl border border-stone-200/60 hover:border-blue-200 transition-colors">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 border border-blue-100 mb-4">
-                <Icon className="h-5 w-5 text-blue-600" />
+      {/* Metrics — subtle emerald background */}
+      <section className="bg-emerald-50/40 border-y border-emerald-100/60">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-20">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-4">
+            {[
+              { value: '~10s', label: 'per company researched', desc: 'Outrovo analyzes website, hiring signals, and pain points' },
+              { value: '10', label: 'search strategies per run', desc: 'Diverse queries covering hiring, funding, industry, location, and more' },
+              { value: '0', label: 'API keys to configure', desc: 'Platform-managed search, page reading, and writing' },
+            ].map((m) => (
+              <div key={m.label} className="text-center">
+                <p className="text-5xl font-bold text-emerald-600">{m.value}</p>
+                <p className="mt-2 text-sm font-medium text-stone-700">{m.label}</p>
+                <p className="mt-2 text-xs text-stone-400 leading-relaxed max-w-[200px] mx-auto">{m.desc}</p>
               </div>
-              <h3 className="text-lg font-semibold text-stone-900">{title}</h3>
-              <p className="mt-2 text-sm text-stone-500 leading-relaxed">{desc}</p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* Integrations */}
-      <section className="mx-auto max-w-6xl px-4 sm:px-6 py-20 border-t border-stone-200/60">
-        <div className="text-center mb-12">
-          <h2 className="text-4xl font-bold tracking-tight text-stone-900">Built on infrastructure you trust</h2>
-          <p className="mt-3 text-stone-400">Enterprise-grade integrations, live today.</p>
+      {/* Features — subtle blue background */}
+      <section className="bg-blue-50/30">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-20">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold tracking-tight text-stone-900">One platform. Everything you need.</h2>
+            <p className="mt-3 text-stone-400">From finding companies to landing in their inbox.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[
+              { icon: Search, title: 'Auto-Prospect', desc: 'Outrovo searches the web and finds companies that need your product — ranked by fit score. No manual research.' },
+              { icon: Target, title: 'Deep Company Research', desc: 'Outrovo analyzes each company\'s website, hiring signals, and pain points. Outputs a structured report in seconds.' },
+              { icon: Mail, title: 'Email Writer', desc: 'Generates personalized cold emails with spam-filtered subject lines and specific icebreakers. Under 125 words.' },
+              { icon: Calendar, title: 'Smart Meeting Tracking', desc: 'When a prospect books a meeting via Cal.com, Outrovo auto-stops sending follow-ups. No more awkward duplicates.' },
+            ].map(({ icon: Icon, title, desc }) => (
+              <div key={title} className="p-6 rounded-2xl border border-stone-200/60 bg-white/60 hover:border-blue-200 transition-colors">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 border border-blue-100 mb-4">
+                  <Icon className="h-5 w-5 text-blue-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-stone-900">{title}</h3>
+                <p className="mt-2 text-sm text-stone-500 leading-relaxed">{desc}</p>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-          {[
-            { name: 'Stripe', desc: 'Payments' },
-            { name: 'Smartlead', desc: 'Email warm-up' },
-            { name: 'Cal.com', desc: 'Meeting tracking' },
-            { name: 'Groq', desc: 'Inference engine' },
-            { name: 'Gemini', desc: 'Fallback engine' },
-          ].map((int) => (
-            <div key={int.name} className="p-5 rounded-xl border border-stone-200/60 bg-stone-50 text-center hover:border-amber-200 transition-colors">
-              <p className="font-semibold text-sm text-stone-900">{int.name}</p>
-              <p className="text-xs text-stone-400 mt-1">{int.desc}</p>
-            </div>
-          ))}
-        </div>
-        <p className="text-center text-xs text-stone-400 mt-8">
-          Google Workspace & Microsoft 365 OAuth — coming soon
-        </p>
       </section>
 
-      {/* CTA */}
-      <section className="mx-auto max-w-6xl px-4 sm:px-6 py-20 border-t border-stone-200/60">
-        <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-violet-600 to-fuchsia-600 p-12 sm:p-16 text-center">
-          <h2 className="text-4xl sm:text-5xl font-bold tracking-tight text-white">Get 50% off lifetime.</h2>
-          <p className="mt-4 text-lg text-white/80 max-w-xl mx-auto">
-            We're building Outrovo with early users, not for them. Join now,
-            lock in founding member pricing forever, and shape the product.
+      {/* Integrations — subtle amber background */}
+      <section className="bg-amber-50/30">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-20">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold tracking-tight text-stone-900">Built on infrastructure you trust</h2>
+            <p className="mt-3 text-stone-400">Enterprise-grade integrations, live today.</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            {[
+              { name: 'Stripe', desc: 'Payments' },
+              { name: 'Smartlead', desc: 'Email warm-up' },
+              { name: 'Cal.com', desc: 'Meeting tracking' },
+              { name: 'Groq', desc: 'Inference engine' },
+              { name: 'Gemini', desc: 'Fallback engine' },
+            ].map((int) => (
+              <div key={int.name} className="p-5 rounded-xl border border-stone-200/60 bg-white/60 text-center hover:border-amber-300 transition-colors">
+                <p className="font-semibold text-sm text-stone-900">{int.name}</p>
+                <p className="text-xs text-stone-400 mt-1">{int.desc}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-xs text-stone-400 mt-8">
+            Google Workspace & Microsoft 365 OAuth — coming soon
           </p>
-          <div className="mt-8">
-            <Button asChild size="lg" className="bg-white text-violet-700 hover:bg-white/90 rounded-full text-base px-8 h-12">
-              <a href="/signup">Claim founding access <ArrowRight className="ml-2 h-4 w-4" /></a>
-            </Button>
+        </div>
+      </section>
+
+      {/* CTA — violet gradient */}
+      <section className="bg-stone-50">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-20">
+          <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-violet-600 to-fuchsia-600 p-12 sm:p-16 text-center">
+            <h2 className="text-4xl sm:text-5xl font-bold tracking-tight text-white">Get 50% off lifetime.</h2>
+            <p className="mt-4 text-lg text-white/80 max-w-xl mx-auto">
+              We're building Outrovo with early users, not for them. Join now,
+              lock in founding member pricing forever, and shape the product.
+            </p>
+            <div className="mt-8">
+              <Button asChild size="lg" className="bg-white text-violet-700 hover:bg-white/90 rounded-full text-base px-8 h-12">
+                <a href="/signup">Claim founding access <ArrowRight className="ml-2 h-4 w-4" /></a>
+              </Button>
+            </div>
+            <p className="mt-4 text-sm text-white/60">30 free credits to start · No credit card required</p>
           </div>
-          <p className="mt-4 text-sm text-white/60">30 free credits to start · No credit card required</p>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-stone-200/60 py-8">
+      <footer className="bg-stone-100 border-t border-stone-200/60 py-8">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-stone-400">
           <div className="flex items-center gap-2">
             <img src="/logo.png" alt="Outrovo" className="h-5 w-5 rounded" />

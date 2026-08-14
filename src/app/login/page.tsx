@@ -13,8 +13,8 @@ import { toast } from 'sonner'
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <Loader2 className="h-6 w-6 animate-spin text-violet-500" />
       </div>
     }>
       <LoginForm />
@@ -70,63 +70,63 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-emerald-50/30 to-teal-50 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950/20 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-stone-50 px-4">
       <div className="w-full max-w-md space-y-6">
         {/* Logo */}
         <div className="text-center">
           <img src="/logo.png" alt="Outrovo" className="h-14 w-14 rounded-2xl shadow-lg mx-auto mb-3" />
-          <h1 className="text-2xl font-bold tracking-tight">
-            <span>Outrovo</span>
+          <h1 className="text-2xl font-bold tracking-tight text-stone-900">
+            Outrovo
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            AI Cold Outreach & Lead Generation Platform
+          <p className="text-sm text-stone-500 mt-1">
+            Cold Outreach & Lead Generation Platform
           </p>
         </div>
 
         {/* Login form */}
-        <Card className="p-6 space-y-4 shadow-xl">
+        <Card className="p-6 space-y-4 shadow-xl border-stone-200 bg-white/70">
           <div>
-            <h2 className="text-lg font-semibold">Sign in to your account</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <h2 className="text-lg font-semibold text-stone-900">Sign in to your account</h2>
+            <p className="text-xs text-stone-400 mt-0.5">
               Enter your email and password to access your workspace
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-stone-700">Email</Label>
               <div className="relative">
-                <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
                 <Input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@company.com"
-                  className="pl-9"
+                  className="pl-9 bg-stone-50 border-stone-200"
                   autoComplete="email"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" className="text-stone-700">Password</Label>
               <div className="relative">
-                <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
                 <Input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="pl-9"
+                  className="pl-9 bg-stone-50 border-stone-200"
                   autoComplete="current-password"
                 />
               </div>
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 rounded-md bg-rose-50 dark:bg-rose-950/40 p-2 text-xs text-rose-700 dark:text-rose-300">
+              <div className="flex items-center gap-2 rounded-md bg-rose-50 p-2 text-xs text-rose-600">
                 <AlertCircle className="h-3.5 w-3.5" />
                 {error}
               </div>
@@ -134,7 +134,7 @@ function LoginForm() {
 
             <Button
               type="submit"
-              className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700"
+              className="w-full bg-stone-900 hover:bg-stone-800 rounded-full"
               disabled={loading}
             >
               {loading ? (
@@ -150,9 +150,9 @@ function LoginForm() {
 
           {/* Divider */}
           <div className="flex items-center gap-3 py-1">
-            <div className="flex-1 h-px bg-border/60" />
-            <span className="text-xs text-muted-foreground">or continue with</span>
-            <div className="flex-1 h-px bg-border/60" />
+            <div className="flex-1 h-px bg-stone-200" />
+            <span className="text-xs text-stone-400">or continue with</span>
+            <div className="flex-1 h-px bg-stone-200" />
           </div>
 
           {/* Google OAuth */}
@@ -160,7 +160,7 @@ function LoginForm() {
             variant="outline"
             onClick={() => signIn('google', { callbackUrl: '/' })}
             disabled={loading}
-            className="w-full h-11"
+            className="w-full h-11 border-stone-200 bg-white hover:bg-stone-50 rounded-full"
           >
             <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -172,45 +172,45 @@ function LoginForm() {
           </Button>
 
           {/* Demo accounts */}
-          <div className="pt-3 border-t border-border/60">
-            <p className="text-[11px] text-muted-foreground text-center mb-2">
+          <div className="pt-3 border-t border-stone-200">
+            <p className="text-[11px] text-stone-400 text-center mb-2">
               Demo accounts (click to fill)
             </p>
             <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => handleQuickLogin('admin')}
-                className="text-[11px] p-2 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-950/60 transition-colors"
+                className="text-[11px] p-2 rounded-lg border border-stone-200 bg-stone-50 hover:bg-stone-100 transition-colors"
               >
-                <Crown className="h-3.5 w-3.5 mx-auto mb-1 text-amber-600 dark:text-amber-400" />
-                <span className="font-medium">Admin</span>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Full access</p>
+                <Crown className="h-3.5 w-3.5 mx-auto mb-1 text-amber-600" />
+                <span className="font-medium text-stone-700">Admin</span>
+                <p className="text-[10px] text-stone-400 mt-0.5">Full access</p>
               </button>
               <button
                 onClick={() => handleQuickLogin('manager')}
-                className="text-[11px] p-2 rounded-md border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/30 hover:bg-violet-100 dark:hover:bg-violet-950/60 transition-colors"
+                className="text-[11px] p-2 rounded-lg border border-stone-200 bg-stone-50 hover:bg-stone-100 transition-colors"
               >
-                <Users className="h-3.5 w-3.5 mx-auto mb-1 text-violet-600 dark:text-violet-400" />
-                <span className="font-medium">Manager</span>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Team view</p>
+                <Users className="h-3.5 w-3.5 mx-auto mb-1 text-violet-600" />
+                <span className="font-medium text-stone-700">Manager</span>
+                <p className="text-[10px] text-stone-400 mt-0.5">Team view</p>
               </button>
               <button
                 onClick={() => handleQuickLogin('sdr')}
-                className="text-[11px] p-2 rounded-md border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 transition-colors"
+                className="text-[11px] p-2 rounded-lg border border-stone-200 bg-stone-50 hover:bg-stone-100 transition-colors"
               >
-                <Send className="h-3.5 w-3.5 mx-auto mb-1 text-emerald-600 dark:text-emerald-400" />
-                <span className="font-medium">SDR</span>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Send emails</p>
+                <Send className="h-3.5 w-3.5 mx-auto mb-1 text-emerald-600" />
+                <span className="font-medium text-stone-700">SDR</span>
+                <p className="text-[10px] text-stone-400 mt-0.5">Send emails</p>
               </button>
             </div>
-            <p className="text-[10px] text-muted-foreground text-center mt-2">
-              Password for all: <code className="px-1 py-0.5 rounded bg-muted">demo1234</code>
+            <p className="text-[10px] text-stone-400 text-center mt-2">
+              Password for all: <code className="px-1 py-0.5 rounded bg-stone-100">demo1234</code>
             </p>
           </div>
         </Card>
 
-        <p className="text-center text-xs text-muted-foreground">
+        <p className="text-center text-xs text-stone-400">
           Don't have an account?{' '}
-          <a href="/signup" className="text-emerald-600 dark:text-emerald-400 hover:underline font-medium">
+          <a href="/signup" className="text-violet-600 hover:underline font-medium">
             Sign up free →
           </a>
         </p>
