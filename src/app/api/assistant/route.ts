@@ -9,13 +9,13 @@ export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/assistant
- * Body: { message: string, context?: { leadsCount, plan, credits, recentLeads }, history?: Message[] }
  *
  * AI assistant that can:
- * 1. Answer questions about the platform
- * 2. Actually DO things — trigger auto-prospect, research, navigate
+ * 1. Answer questions
+ * 2. Execute actions (find leads, research, navigate, fill forms)
  *
- * Returns: { reply: string, action?: { type, params } }
+ * IMPORTANT: Always ask the user for confirmation before taking any action
+ * that changes data (like filling in forms, running prospecting, etc).
  */
 export async function POST(req: NextRequest) {
   try {
@@ -27,7 +27,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 })
     }
 
-    // Pre-compute recent leads string (avoid nested template literals)
     const recentLeadsStr = context?.recentLeads
       ? context.recentLeads.map((l: any) => l.company + ' (' + l.id + ')').join(', ')
       : 'none'
@@ -37,54 +36,59 @@ export async function POST(req: NextRequest) {
       : 'No history'
 
     const systemPrompt = [
-      'You are Outrovo AI assistant — embedded inside the Outrovo B2B cold outreach platform.',
+      'You are Outrovo assistant, embedded in the Outrovo B2B cold outreach platform.',
       '',
-      'You have TWO capabilities:',
-      '1. ANSWER questions about the platform, cold email best practices, ICP definition, etc.',
-      '2. EXECUTE actions on behalf of the user — you can trigger real platform features.',
+      'You help users with the platform. You can also DO things for them.',
+      '',
+      '## CRITICAL RULE: Always ask before doing',
+      'Before you take ANY action that changes data (finding leads, filling forms, etc),',
+      'you MUST ask the user for confirmation first. Example:',
+      'User: "I sell invoicing software" → You: "Got it! Would you like me to go to the',
+      'Auto-Prospect page and fill in your service description for you?"',
+      'Only after the user says yes, include the action in your response.',
+      '',
+      '## Response Format',
+      'ALWAYS respond with plain text in the "reply" field.',
+      'NEVER put JSON inside the reply field. The reply is what the user sees as a chat message.',
+      '',
+      'Respond with this exact JSON structure (no extra text, no markdown):',
+      '{"reply":"your text here","action":null}',
+      '',
+      'If taking an action (only after user confirms):',
+      '{"reply":"brief text","action":{"type":"...","params":{...}}}',
       '',
       '## Actions you can take',
       '',
-      'When the user asks you to DO something, include an "action" object in your response.',
-      'The frontend will execute it.',
+      '### go_to_tab',
+      'Navigate user to a tab. Params: {"tab":"admin"} (admin, sales, analytics, billing)',
+      'Example: {"reply":"Taking you to billing.","action":{"type":"go_to_tab","params":{"tab":"billing"}}}',
       '',
-      '### Action: find_leads (Auto-Prospect)',
-      'Trigger when user says: "find me leads", "find companies", "prospect", "search for customers"',
-      'The user must have a service description set. If they don\'t, ask them to set one first.',
-      'Params: { "action": { "type": "find_leads", "params": { "targetCount": 5 } } }',
+      '### fill_service_description',
+      'Go to Auto-Prospect page and fill in the service description form.',
+      'Params: {"serviceName":"name","description":"desc","targetIndustries":"optional","targetLocation":"optional"}',
+      'ONLY use after user confirms they want you to fill it in.',
+      'Example: {"reply":"Filling in your service description now.","action":{"type":"fill_service_description","params":{"serviceName":"Invoicing Tool","description":"Automated invoicing for freelancers"}}}',
       '',
-      '### Action: research_company',
-      'Trigger when user says: "research X", "analyze X", "tell me about company X"',
-      'Params: { "action": { "type": "research_company", "params": { "website": "https://example.com", "company": "Name", "mode": "basic" } } }',
+      '### find_leads',
+      'Run auto-prospect. Params: {"targetCount":5}',
+      'ONLY use after user confirms.',
       '',
-      '### Action: go_to_tab',
-      'Trigger when user says: "take me to billing", "show me analytics", "go to leads"',
-      'Params: { "action": { "type": "go_to_tab", "params": { "tab": "admin" } } }',
-      'Tabs: admin, sales, analytics, billing',
-      '',
-      '### Action: check_credits',
-      'Just answer directly using the context provided — no action needed.',
-      '',
-      '## Output format',
-      '',
-      'You MUST respond with valid JSON (no markdown, no code blocks):',
-      '{ "reply": "Your response (1-3 sentences).", "action": null }',
+      '### research_company',
+      'Params: {"website":"https://...","company":"Name"}',
       '',
       '## Guidelines',
-      '- Be CONCISE — max 2-3 sentences in reply',
-      '- Be FRIENDLY but professional',
-      '- If user asks to find leads but has no service description, tell them to set it first',
-      '- If user asks to research but doesn\'t specify a website, ask them to clarify',
-      '- NEVER make up lead IDs',
-      '- Respond in English unless user writes in another language',
+      '- Reply in plain English, concise (1-3 sentences)',
+      '- If user describes their product, ask if they want you to fill it in the Auto-Prospect page',
+      '- If user has no service description set and asks to find leads, tell them to set it first or offer to fill it',
+      '- NEVER put JSON or code in the reply field — it must be natural human text',
       '',
       'User context:',
       '- Plan: ' + (context?.plan ?? 'unknown'),
-      '- Credits remaining: ' + (context?.credits ?? 'unknown'),
-      '- Total leads: ' + (context?.leadsCount ?? 'unknown'),
+      '- Credits: ' + (context?.credits ?? 'unknown'),
+      '- Leads: ' + (context?.leadsCount ?? 'unknown'),
       '- Recent leads: ' + recentLeadsStr,
       '',
-      'Conversation history:',
+      'History:',
       historyStr,
     ].join('\n')
 
@@ -94,25 +98,46 @@ export async function POST(req: NextRequest) {
         { role: 'user', content: message },
       ],
       temperature: 0.5,
-      maxTokens: 600,
+      maxTokens: 500,
     }, getProviderConfig())
 
-    // Try to parse the response as JSON
-    let parsed: { reply: string; action: any } = { reply: chatResult.content, action: null }
+    // Robust JSON parsing — try multiple strategies
+    let reply = chatResult.content
+    let action: any = null
+
     let cleaned = chatResult.content.trim()
+    // Remove markdown code blocks
     if (cleaned.startsWith('```')) {
       cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
     }
+
+    // Try to extract JSON from the response
     try {
-      parsed = JSON.parse(cleaned)
+      const parsed = JSON.parse(cleaned)
+      if (parsed.reply) {
+        reply = parsed.reply
+        action = parsed.action ?? null
+      }
     } catch {
-      // If not JSON, treat the whole thing as a reply with no action
-      parsed = { reply: chatResult.content, action: null }
+      // Try to find JSON object in the text
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[0])
+          if (parsed.reply) {
+            reply = parsed.reply
+            action = parsed.action ?? null
+          }
+        } catch {
+          // Not JSON — use raw text as reply
+        }
+      }
+      // If all parsing fails, reply is the raw text (which is fine for plain text responses)
     }
 
     return NextResponse.json({
-      reply: parsed.reply ?? chatResult.content,
-      action: parsed.action ?? null,
+      reply,
+      action,
       provider: chatResult.provider,
     })
   } catch (error: any) {

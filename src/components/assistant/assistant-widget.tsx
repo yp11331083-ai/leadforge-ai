@@ -58,10 +58,44 @@ export function AssistantWidget() {
         case 'go_to_tab': {
           const tab = action.params?.tab
           if (tab && ['admin', 'sales', 'analytics', 'billing'].includes(tab)) {
-            setViewMode(tab as any)  // 'billing' works at runtime even though the type doesn't include it
+            setViewMode(tab as any)
             return { success: true, label: 'Switched to ' + tab }
           }
           return { success: false, label: 'Invalid tab' }
+        }
+
+        case 'fill_service_description': {
+          // Navigate to admin tab (where Auto-Prospect is)
+          setViewMode('admin' as any)
+
+          // Save the service description to DB
+          const { serviceName, description, targetIndustries, targetLocation } = action.params || {}
+
+          if (!serviceName || !description) {
+            return { success: false, label: 'Missing service name or description' }
+          }
+
+          try {
+            const res = await fetch('/api/service-offering', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                serviceName,
+                description,
+                targetIndustries: targetIndustries || undefined,
+                targetLocation: targetLocation || undefined,
+              }),
+            })
+
+            if (res.ok) {
+              // Refresh the store so the form picks up the new values
+              await fetchServiceOffering()
+              return { success: true, label: 'Service description filled in — check the Auto-Prospect tab' }
+            }
+            return { success: false, label: 'Failed to save service description' }
+          } catch {
+            return { success: false, label: 'Network error saving description' }
+          }
         }
 
         case 'find_leads': {
