@@ -214,7 +214,7 @@ interface LeadStore {
 
 const DEFAULT_SENDER: SenderConfig = {
   senderName: 'Alex Chen',
-  senderCompany: 'GrowthForge',
+  senderCompany: 'Outrovo',
   senderProduct:
     'AI 驅動的銷售開發自動化平台，幫助 B2B 團隊用更少人力開發更多高品質潛在客戶',
   tone: 'professional',

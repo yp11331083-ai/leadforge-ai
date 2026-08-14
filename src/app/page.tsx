@@ -156,7 +156,7 @@ export default function Home() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <img src="/logo.png" alt="Forge AI" className="h-12 w-12 rounded-xl shadow-lg mb-3 animate-pulse" />
+          <img src="/logo.png" alt="Outrovo" className="h-12 w-12 rounded-xl shadow-lg mb-3 animate-pulse" />
           <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
@@ -180,10 +180,10 @@ export default function Home() {
       <header className="sticky top-0 z-30 border-b border-border/60 bg-background/80 backdrop-blur-lg">
         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <img src="/logo.png" alt="Forge AI" className="h-9 w-9 rounded-xl object-cover shadow-md" />
+            <img src="/logo.png" alt="Outrovo" className="h-9 w-9 rounded-xl object-cover shadow-md" />
             <div>
               <h1 className="text-base font-bold tracking-tight leading-none">
-                Forge<span className="text-emerald-600 dark:text-emerald-400"> AI</span>
+                <span>Outrovo</span>
               </h1>
               <p className="text-[11px] text-muted-foreground mt-0.5 leading-none">
                 {user.tenantName}
@@ -344,7 +344,7 @@ export default function Home() {
       <footer className="mt-auto border-t border-border/60 py-4">
         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 flex items-center justify-between text-xs text-muted-foreground">
           <span>
-            Forge AI · {leads.length} leads
+            Outrovo · {leads.length} leads
             <span className="ml-2 px-1.5 py-0.5 rounded bg-muted/60">{ROLE_LABELS[user.role]}</span>
           </span>
           <span className="flex items-center gap-1">

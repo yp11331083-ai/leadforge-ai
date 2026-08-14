@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
         company: lead.company,
         contact_name: lead.contactName ?? '',
         title: lead.title ?? '',
-        source: 'LeadForge AI',
+        source: 'LeadOutrovo',
       },
       sequence: [{ subject: lead.emailSubject, email_body: lead.emailBody }],
     }

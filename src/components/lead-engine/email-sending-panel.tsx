@@ -233,7 +233,7 @@ export function EmailSendingPanel() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="smtp-from-name">From Name</Label>
-                  <Input id="smtp-from-name" value={form.smtpFromName} onChange={(e) => setForm((f) => ({ ...f, smtpFromName: e.target.value }))} placeholder="Alex from Forge" />
+                  <Input id="smtp-from-name" value={form.smtpFromName} onChange={(e) => setForm((f) => ({ ...f, smtpFromName: e.target.value }))} placeholder="Alex from Outrovo" />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="smtp-from-email">From Email</Label>
@@ -285,7 +285,7 @@ export function EmailSendingPanel() {
                 <CheckCircle2 className="mr-1 h-3 w-3" /> Active
               </Badge>
             </h2>
-            <p className="text-xs text-muted-foreground">AI-powered email finding & enrichment — powered by Forge AI</p>
+            <p className="text-xs text-muted-foreground">AI-powered email finding & enrichment — powered by Outrovo</p>
           </div>
         </div>
         <div className="flex items-center gap-3 rounded-md bg-white/60 dark:bg-cyan-950/20 p-3">
@@ -423,7 +423,7 @@ export function EmailSendingPanel() {
       <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/20 p-4 flex items-center gap-3">
         <CreditCard className="h-5 w-5 text-slate-400 shrink-0" />
         <div className="text-xs text-muted-foreground">
-          <p className="font-medium text-slate-600 dark:text-slate-400">Billing is managed by Forge AI</p>
+          <p className="font-medium text-slate-600 dark:text-slate-400">Billing is managed by Outrovo</p>
           <p>Subscription and credits are handled automatically. Visit the Billing tab to view your plan and usage.</p>
         </div>
       </div>

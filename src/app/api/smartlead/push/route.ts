@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
         title: lead.title ?? '',
         icebreaker: lead.icebreaker ?? '',
         pain_points: lead.painPoints ?? '',
-        source: 'LeadForge AI',
+        source: 'LeadOutrovo',
       },
       // 自訂序章（使用我們 AI 生成的內容）
       sequence: [

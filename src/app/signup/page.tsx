@@ -83,7 +83,7 @@ function SignupForm() {
             <CheckCircle2 className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div>
-            <h2 className="text-xl font-bold">Welcome to Forge!</h2>
+            <h2 className="text-xl font-bold">Welcome to Outrovo!</h2>
             <p className="text-sm text-muted-foreground mt-1">
               Your account is ready. You get <b>100 free credits</b> to start.
             </p>
@@ -102,9 +102,9 @@ function SignupForm() {
       <div className="w-full max-w-md space-y-6">
         {/* Logo */}
         <div className="text-center">
-          <img src="/logo.png" alt="Forge AI" className="h-14 w-14 rounded-2xl shadow-lg mx-auto mb-3" />
+          <img src="/logo.png" alt="Outrovo" className="h-14 w-14 rounded-2xl shadow-lg mx-auto mb-3" />
           <h1 className="text-2xl font-bold tracking-tight">
-            Forge<span className="text-emerald-600 dark:text-emerald-400"> AI</span>
+            <span>Outrovo</span>
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             AI Cold Outreach & Lead Generation Platform

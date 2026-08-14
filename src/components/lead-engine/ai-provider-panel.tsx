@@ -80,7 +80,7 @@ export function AiProviderPanel() {
                 <CheckCircle2 className="mr-1 h-3 w-3" /> Active
               </Badge>
             </h2>
-            <p className="text-xs text-muted-foreground">Powered by Forge AI's high-availability cluster</p>
+            <p className="text-xs text-muted-foreground">Powered by Outrovo's high-availability cluster</p>
           </div>
         </div>
 
