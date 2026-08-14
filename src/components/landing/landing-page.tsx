@@ -153,36 +153,36 @@ export function LandingPage() {
               <div className="flex items-center gap-2 px-4 py-2.5 border-b border-stone-200/60 bg-stone-100/50">
                 <div className="flex gap-2 group/dots">
                   {/* Close */}
-                  <button className="relative h-3.5 w-3.5 rounded-full flex items-center justify-center transition-all"
+                  <button className="relative h-3 w-3 rounded-full flex items-center justify-center transition-all"
                     style={{
                       backgroundColor: '#FF5F57',
-                      boxShadow: 'inset 0 0 0 0.5px rgba(0,0,0,0.15), 0 0 1px rgba(0,0,0,0.1)',
+                      boxShadow: 'inset 0 0 0 0.5px rgba(0,0,0,0.2)',
                     }}
                   >
-                    <svg className="h-2 w-2 opacity-0 group-hover/dots:opacity-100 transition-opacity" viewBox="0 0 12 12" fill="none">
-                      <path d="M3 3L9 9M9 3L3 9" stroke="rgba(0,0,0,0.5)" strokeWidth="1.5" strokeLinecap="round" />
+                    <svg className="h-[7px] w-[7px] opacity-0 group-hover/dots:opacity-100 transition-opacity" viewBox="0 0 12 12" fill="none">
+                      <path d="M4 4L8 8M8 4L4 8" stroke="rgba(0,0,0,0.6)" strokeWidth="1.5" strokeLinecap="round" />
                     </svg>
                   </button>
                   {/* Minimize */}
-                  <button className="relative h-3.5 w-3.5 rounded-full flex items-center justify-center transition-all"
+                  <button className="relative h-3 w-3 rounded-full flex items-center justify-center transition-all"
                     style={{
                       backgroundColor: '#FEBC2E',
-                      boxShadow: 'inset 0 0 0 0.5px rgba(0,0,0,0.15), 0 0 1px rgba(0,0,0,0.1)',
+                      boxShadow: 'inset 0 0 0 0.5px rgba(0,0,0,0.2)',
                     }}
                   >
-                    <svg className="h-2 w-2 opacity-0 group-hover/dots:opacity-100 transition-opacity" viewBox="0 0 12 12" fill="none">
-                      <path d="M3 6H9" stroke="rgba(0,0,0,0.5)" strokeWidth="1.5" strokeLinecap="round" />
+                    <svg className="h-[7px] w-[7px] opacity-0 group-hover/dots:opacity-100 transition-opacity" viewBox="0 0 12 12" fill="none">
+                      <path d="M4 6H8" stroke="rgba(0,0,0,0.6)" strokeWidth="1.5" strokeLinecap="round" />
                     </svg>
                   </button>
                   {/* Maximize */}
-                  <button className="relative h-3.5 w-3.5 rounded-full flex items-center justify-center transition-all"
+                  <button className="relative h-3 w-3 rounded-full flex items-center justify-center transition-all"
                     style={{
                       backgroundColor: '#28C840',
-                      boxShadow: 'inset 0 0 0 0.5px rgba(0,0,0,0.15), 0 0 1px rgba(0,0,0,0.1)',
+                      boxShadow: 'inset 0 0 0 0.5px rgba(0,0,0,0.2)',
                     }}
                   >
-                    <svg className="h-2 w-2 opacity-0 group-hover/dots:opacity-100 transition-opacity" viewBox="0 0 12 12" fill="none">
-                      <path d="M3 5L5 5L5 3Z M7 7L9 7L9 9Z" fill="rgba(0,0,0,0.5)" />
+                    <svg className="h-[7px] w-[7px] opacity-0 group-hover/dots:opacity-100 transition-opacity" viewBox="0 0 12 12" fill="none">
+                      <path d="M5 4.5L5 6L4 6Z M7 7.5L7 6L8 6Z" fill="rgba(0,0,0,0.6)" />
                     </svg>
                   </button>
                 </div>
