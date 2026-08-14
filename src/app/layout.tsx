@@ -19,8 +19,11 @@ export const metadata: Metadata = {
   description: "AI finds your customers. You close the deal. Outrovo searches the web, researches companies, and writes personalized cold emails — all in one platform.",
   keywords: ["B2B", "Cold Outreach", "Lead Generation", "AI", "SaaS", "Sales Automation", "Prospecting"],
   icons: {
-    icon: "/logo.png",
-    apple: "/logo.png",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/logo.png", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
   },
   openGraph: {
     title: "Outrovo — AI Cold Outreach & Lead Generation",
