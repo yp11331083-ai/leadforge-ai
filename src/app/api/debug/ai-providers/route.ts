@@ -72,9 +72,11 @@ export async function GET() {
     try {
       const tavilyRes = await fetch('https://api.tavily.com/search', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.tavilyApiKey}`,
+        },
         body: JSON.stringify({
-          api_key: config.tavilyApiKey,
           query: 'Stripe payment company',
           max_results: 2,
           include_answer: false,
