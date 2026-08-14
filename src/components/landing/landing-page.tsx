@@ -2,18 +2,14 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
-  Sparkles,
-  Zap,
+  ArrowRight,
+  Loader2,
   Target,
   Mail,
   Search,
-  Shield,
-  ArrowRight,
   Calendar,
-  Loader2,
-  CheckCircle2,
+  Sparkles,
 } from 'lucide-react'
 
 interface DemoResult {
@@ -54,7 +50,6 @@ export function LandingPage() {
       })
       const data = await res.json()
       if (res.ok && data.result) {
-        // Typewriter effect for the result
         setResult(data.result)
       } else {
         setError(data.error ?? 'Demo failed — please try again.')
@@ -66,52 +61,46 @@ export function LandingPage() {
     }
   }, [])
 
-  // Auto-run demo on first load
+  // Auto-run demo immediately on load — no waiting for user
   useEffect(() => {
     if (hasAutoRun) return
     setHasAutoRun(true)
-    // Slight delay so the page animation finishes first
-    const timer = setTimeout(() => runDemo(DEMO_EXAMPLES[0]), 1200)
-    return () => clearTimeout(timer)
+    runDemo(DEMO_EXAMPLES[0])
   }, [hasAutoRun, runDemo])
 
-  // Cycle through examples every 15 seconds (only when not loading and user hasn't typed)
+  // Cycle through examples every 15 seconds (only when user hasn't typed)
   useEffect(() => {
-    if (loading || product !== DEMO_EXAMPLES[exampleIdx]) return
+    if (loading) return
+    if (product !== DEMO_EXAMPLES[exampleIdx]) return // user typed something
     const timer = setInterval(() => {
-      const nextIdx = (exampleIdx + 1) % DEMO_EXAMPLES.length
-      setExampleIdx(nextIdx)
-      setProduct(DEMO_EXAMPLES[nextIdx])
-      runDemo(DEMO_EXAMPLES[nextIdx])
+      setExampleIdx((prev) => {
+        const next = (prev + 1) % DEMO_EXAMPLES.length
+        setProduct(DEMO_EXAMPLES[next])
+        runDemo(DEMO_EXAMPLES[next])
+        return next
+      })
     }, 15000)
     return () => clearInterval(timer)
   }, [exampleIdx, loading, product, runDemo])
 
   const handleManualRun = () => {
-    // Stop the auto-cycling by setting product to something that doesn't match
     runDemo(product)
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white overflow-x-hidden">
-      {/* Background gradient effect */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-gradient-to-br from-violet-600/20 to-fuchsia-600/20 blur-[120px] rounded-full" />
-        <div className="absolute top-1/3 right-0 w-[400px] h-[400px] bg-gradient-to-br from-emerald-600/10 to-teal-600/10 blur-[100px] rounded-full" />
-      </div>
-
+    <div className="min-h-screen bg-white text-slate-900">
       {/* Nav */}
-      <nav className="sticky top-0 z-50 border-b border-white/5 backdrop-blur-xl bg-[#0a0a0f]/80">
+      <nav className="sticky top-0 z-50 border-b border-slate-100 bg-white/80 backdrop-blur-lg">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <img src="/logo.png" alt="Outrovo" className="h-7 w-7 rounded-lg" />
             <span className="text-lg font-semibold tracking-tight">Outrovo</span>
           </div>
-          <div className="flex items-center gap-2">
-            <a href="/login" className="px-3 py-1.5 text-sm text-white/60 hover:text-white transition-colors">
+          <div className="flex items-center gap-1">
+            <a href="/login" className="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900 transition-colors">
               Sign in
             </a>
-            <Button asChild size="sm" className="bg-white text-black hover:bg-white/90 rounded-full">
+            <Button asChild size="sm" className="bg-slate-900 text-white hover:bg-slate-800 rounded-full">
               <a href="/signup">Start free</a>
             </Button>
           </div>
@@ -120,58 +109,63 @@ export function LandingPage() {
 
       {/* Hero */}
       <section className="relative mx-auto max-w-6xl px-4 sm:px-6 pt-20 pb-16">
+        {/* Subtle gradient backdrop */}
+        <div className="absolute inset-0 -z-10 overflow-hidden">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-gradient-to-b from-violet-100/60 via-fuchsia-50/40 to-transparent rounded-full blur-3xl" />
+        </div>
+
         <div className="text-center max-w-3xl mx-auto">
           <a
             href="/signup"
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-white/5 border border-white/10 text-white/80 hover:bg-white/10 transition-colors mb-8"
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 transition-colors mb-8"
           >
-            <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <Sparkles className="h-3 w-3 text-violet-600" />
             Founding members get 50% off lifetime
             <ArrowRight className="h-3 w-3" />
           </a>
 
-          <h1 className="text-5xl sm:text-7xl font-bold tracking-tight leading-[1.05]">
+          <h1 className="text-5xl sm:text-7xl font-bold tracking-tight leading-[1.05] text-slate-900">
             AI finds customers.
             <br />
-            <span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-violet-400 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-violet-600 via-fuchsia-600 to-violet-600 bg-clip-text text-transparent">
               You close deals.
             </span>
           </h1>
 
-          <p className="mt-6 text-lg sm:text-xl text-white/50 max-w-2xl mx-auto leading-relaxed">
+          <p className="mt-6 text-lg sm:text-xl text-slate-500 max-w-2xl mx-auto leading-relaxed">
             Outrovo searches the web, researches companies, and writes personalized
             cold emails — automatically. No API keys. No setup.
           </p>
 
           <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
-            <Button asChild size="lg" className="bg-white text-black hover:bg-white/90 rounded-full text-base px-6">
+            <Button asChild size="lg" className="bg-slate-900 text-white hover:bg-slate-800 rounded-full text-base px-6 h-12">
               <a href="/signup">Start free — 30 credits <ArrowRight className="ml-2 h-4 w-4" /></a>
             </Button>
-            <a href="#demo" className="px-6 py-3 text-sm text-white/60 hover:text-white transition-colors flex items-center justify-center">
+            <a href="#demo" className="px-6 py-3 text-sm text-slate-500 hover:text-slate-900 transition-colors flex items-center justify-center">
               See it work ↓
             </a>
           </div>
         </div>
 
-        {/* Live Demo — looks like a real product screenshot */}
+        {/* Live Demo */}
         <div id="demo" className="mt-20 max-w-4xl mx-auto scroll-mt-20">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] backdrop-blur-sm shadow-2xl overflow-hidden">
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50 overflow-hidden">
             {/* Window chrome */}
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5 bg-white/[0.02]">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 bg-slate-50/50">
               <div className="flex gap-1.5">
-                <div className="h-3 w-3 rounded-full bg-white/10" />
-                <div className="h-3 w-3 rounded-full bg-white/10" />
-                <div className="h-3 w-3 rounded-full bg-white/10" />
+                <div className="h-3 w-3 rounded-full bg-slate-200" />
+                <div className="h-3 w-3 rounded-full bg-slate-200" />
+                <div className="h-3 w-3 rounded-full bg-slate-200" />
               </div>
               <div className="flex-1 text-center">
-                <span className="text-xs text-white/30 font-mono">outrovo.com/prospect</span>
+                <span className="text-xs text-slate-400 font-mono">outrovo.com/prospect</span>
               </div>
             </div>
 
             {/* Demo content */}
             <div className="p-6 sm:p-8">
               <div className="mb-6">
-                <label className="text-xs font-medium text-white/40 uppercase tracking-wider">
+                <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">
                   Describe your product
                 </label>
                 <div className="mt-2 flex gap-2">
@@ -183,13 +177,13 @@ export function LandingPage() {
                       if (e.key === 'Enter') handleManualRun()
                     }}
                     placeholder="e.g. AI-powered CRM for real estate agents"
-                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 transition-all"
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all"
                     disabled={loading}
                   />
                   <button
                     onClick={handleManualRun}
                     disabled={loading || !product.trim()}
-                    className="px-5 py-3 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 text-sm font-medium hover:from-violet-500 hover:to-fuchsia-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                    className="px-5 py-3 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 text-sm font-medium text-white hover:from-violet-700 hover:to-fuchsia-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
                   >
                     {loading ? (
                       <><Loader2 className="h-4 w-4 animate-spin" /> Analyzing</>
@@ -200,75 +194,69 @@ export function LandingPage() {
                 </div>
               </div>
 
-              {/* Result area */}
+              {/* Result area — no empty state, always shows something */}
               {loading && (
                 <div className="space-y-3 animate-pulse">
-                  <div className="h-16 bg-white/5 rounded-lg" />
-                  <div className="h-20 bg-white/5 rounded-lg" />
-                  <div className="h-16 bg-white/5 rounded-lg" />
+                  <div className="h-16 bg-slate-100 rounded-lg" />
+                  <div className="h-20 bg-slate-100 rounded-lg" />
+                  <div className="h-16 bg-slate-100 rounded-lg" />
                 </div>
               )}
 
               {result && !loading && (
                 <div className="space-y-4">
                   {/* Company card */}
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-violet-600/10 to-fuchsia-600/10 border border-violet-500/20">
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-violet-50 to-fuchsia-50 border border-violet-100">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 text-lg font-bold">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-lg font-bold text-slate-700 shadow-sm">
                         {result.company.charAt(0)}
                       </div>
                       <div>
-                        <p className="font-semibold text-white">{result.company}</p>
-                        <p className="text-xs text-white/40">{result.industry} · {result.website}</p>
+                        <p className="font-semibold text-slate-900">{result.company}</p>
+                        <p className="text-xs text-slate-500">{result.industry} · {result.website}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-[10px] text-white/30 uppercase tracking-wider">Fit Score</p>
-                      <p className="text-2xl font-bold bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wider">Fit Score</p>
+                      <p className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
                         {result.fit_score}
                       </p>
                     </div>
                   </div>
 
                   {/* Pain point */}
-                  <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5">
-                    <p className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                    <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                       <Target className="h-3 w-3" /> Pain Point
                     </p>
-                    <p className="text-sm text-white/70 leading-relaxed">{result.pain_point}</p>
+                    <p className="text-sm text-slate-600 leading-relaxed">{result.pain_point}</p>
                   </div>
 
                   {/* Email hook */}
-                  <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
-                    <p className="text-xs font-medium text-emerald-400/60 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
+                    <p className="text-xs font-medium text-emerald-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                       <Mail className="h-3 w-3" /> Email Opener
                     </p>
-                    <p className="text-sm text-white/80 italic leading-relaxed">"{result.email_hook}"</p>
+                    <p className="text-sm text-slate-700 italic leading-relaxed">"{result.email_hook}"</p>
                   </div>
 
                   {/* Why they need it */}
-                  <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5">
-                    <p className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                    <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                       <Sparkles className="h-3 w-3" /> Why They Need You
                     </p>
-                    <p className="text-sm text-white/70 leading-relaxed">{result.why_they_need_it}</p>
+                    <p className="text-sm text-slate-600 leading-relaxed">{result.why_they_need_it}</p>
                   </div>
 
-                  <p className="text-center text-xs text-white/30 pt-2">
+                  <p className="text-center text-xs text-slate-400 pt-2">
                     ↑ Generated in real-time. Try your own product above.
                   </p>
                 </div>
               )}
 
               {error && !loading && (
-                <div className="p-4 rounded-xl bg-rose-500/5 border border-rose-500/20 text-sm text-rose-300">
+                <div className="p-4 rounded-xl bg-rose-50 border border-rose-100 text-sm text-rose-600">
                   {error}
-                </div>
-              )}
-
-              {!result && !loading && !error && (
-                <div className="py-12 text-center">
-                  <p className="text-sm text-white/30">Type your product and click "Find customer"</p>
                 </div>
               )}
             </div>
@@ -277,102 +265,99 @@ export function LandingPage() {
       </section>
 
       {/* Metrics */}
-      <section className="mx-auto max-w-6xl px-4 sm:px-6 py-20 border-t border-white/5">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-white/5 rounded-2xl overflow-hidden">
+      <section className="mx-auto max-w-6xl px-4 sm:px-6 py-20 border-t border-slate-100">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-4">
           {[
             { value: '~10s', label: 'per company researched', desc: 'AI analyzes website, hiring signals, and pain points' },
             { value: '5', label: 'AI providers with failover', desc: 'Groq → Gemini → OpenAI → Anthropic — always available' },
             { value: '0', label: 'API keys to configure', desc: 'Platform-managed AI, search, and page reading' },
           ].map((m) => (
-            <div key={m.label} className="p-8 bg-[#0a0a0f] text-center">
-              <p className="text-4xl font-bold bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent">{m.value}</p>
-              <p className="mt-2 text-sm font-medium text-white/80">{m.label}</p>
-              <p className="mt-2 text-xs text-white/40 leading-relaxed">{m.desc}</p>
+            <div key={m.label} className="text-center">
+              <p className="text-5xl font-bold text-slate-900">{m.value}</p>
+              <p className="mt-2 text-sm font-medium text-slate-700">{m.label}</p>
+              <p className="mt-2 text-xs text-slate-400 leading-relaxed max-w-[200px] mx-auto">{m.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* Features */}
-      <section className="mx-auto max-w-6xl px-4 sm:px-6 py-20 border-t border-white/5">
+      <section className="mx-auto max-w-6xl px-4 sm:px-6 py-20 border-t border-slate-100">
         <div className="text-center mb-16">
-          <h2 className="text-4xl font-bold tracking-tight">One platform. Everything you need.</h2>
-          <p className="mt-3 text-white/40">From finding companies to landing in their inbox.</p>
+          <h2 className="text-4xl font-bold tracking-tight text-slate-900">One platform. Everything you need.</h2>
+          <p className="mt-3 text-slate-400">From finding companies to landing in their inbox.</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-white/5 rounded-2xl overflow-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {[
             { icon: Search, title: 'AI Auto-Prospect', desc: 'AI searches the web and finds companies that need your product — ranked by fit score. No manual research.' },
             { icon: Target, title: 'Deep Company Research', desc: 'AI analyzes each company\'s website, hiring signals, and pain points. Outputs a structured report in seconds.' },
             { icon: Mail, title: 'AI Email Writer', desc: 'Generates personalized cold emails with spam-filtered subject lines and specific icebreakers. Under 125 words.' },
             { icon: Calendar, title: 'Smart Meeting Tracking', desc: 'When a prospect books a meeting via Cal.com, Outrovo auto-stops sending follow-ups. No more awkward duplicates.' },
           ].map(({ icon: Icon, title, desc }) => (
-            <div key={title} className="p-8 bg-[#0a0a0f] hover:bg-white/[0.02] transition-colors">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/5 border border-white/10 mb-4">
-                <Icon className="h-5 w-5 text-violet-400" />
+            <div key={title} className="p-6 rounded-2xl border border-slate-100 hover:border-slate-200 transition-colors">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 border border-violet-100 mb-4">
+                <Icon className="h-5 w-5 text-violet-600" />
               </div>
-              <h3 className="text-lg font-semibold">{title}</h3>
-              <p className="mt-2 text-sm text-white/50 leading-relaxed">{desc}</p>
+              <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+              <p className="mt-2 text-sm text-slate-500 leading-relaxed">{desc}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* Integrations */}
-      <section className="mx-auto max-w-6xl px-4 sm:px-6 py-20 border-t border-white/5">
+      <section className="mx-auto max-w-6xl px-4 sm:px-6 py-20 border-t border-slate-100">
         <div className="text-center mb-12">
-          <h2 className="text-4xl font-bold tracking-tight">Built on infrastructure you trust</h2>
-          <p className="mt-3 text-white/40">Enterprise-grade integrations, live today.</p>
+          <h2 className="text-4xl font-bold tracking-tight text-slate-900">Built on infrastructure you trust</h2>
+          <p className="mt-3 text-slate-400">Enterprise-grade integrations, live today.</p>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           {[
-            { name: 'Stripe', desc: 'Payments', live: true },
-            { name: 'Smartlead', desc: 'Email warm-up', live: true },
-            { name: 'Cal.com', desc: 'Meeting tracking', live: true },
-            { name: 'Groq', desc: 'AI inference', live: true },
-            { name: 'Gemini', desc: 'AI fallback', live: true },
+            { name: 'Stripe', desc: 'Payments' },
+            { name: 'Smartlead', desc: 'Email warm-up' },
+            { name: 'Cal.com', desc: 'Meeting tracking' },
+            { name: 'Groq', desc: 'AI inference' },
+            { name: 'Gemini', desc: 'AI fallback' },
           ].map((int) => (
-            <div key={int.name} className="p-5 rounded-xl border border-white/10 bg-white/[0.02] text-center hover:border-white/20 transition-colors">
-              <p className="font-semibold text-sm">{int.name}</p>
-              <p className="text-xs text-white/40 mt-1">{int.desc}</p>
-              <div className="mt-3 inline-flex items-center gap-1 text-[10px] text-emerald-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Live
-              </div>
+            <div key={int.name} className="p-5 rounded-xl border border-slate-100 bg-white text-center hover:border-slate-200 transition-colors">
+              <p className="font-semibold text-sm text-slate-900">{int.name}</p>
+              <p className="text-xs text-slate-400 mt-1">{int.desc}</p>
             </div>
           ))}
         </div>
-        <p className="text-center text-xs text-white/30 mt-8">
+        <p className="text-center text-xs text-slate-400 mt-8">
           Google Workspace & Microsoft 365 OAuth — coming soon
         </p>
       </section>
 
       {/* CTA */}
-      <section className="mx-auto max-w-6xl px-4 sm:px-6 py-20 border-t border-white/5">
-        <div className="relative rounded-3xl overflow-hidden border border-white/10 bg-gradient-to-br from-violet-600/20 via-fuchsia-600/10 to-transparent p-12 sm:p-16 text-center">
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#0a0a0f]/50 pointer-events-none" />
-          <div className="relative">
-            <h2 className="text-4xl sm:text-5xl font-bold tracking-tight">Get 50% off lifetime.</h2>
-            <p className="mt-4 text-lg text-white/50 max-w-xl mx-auto">
-              We're building Outrovo with early users, not for them. Join now,
-              lock in founding member pricing forever, and shape the product.
-            </p>
-            <div className="mt-8">
-              <Button asChild size="lg" className="bg-white text-black hover:bg-white/90 rounded-full text-base px-8 h-12">
-                <a href="/signup">Claim founding access <ArrowRight className="ml-2 h-4 w-4" /></a>
-              </Button>
-            </div>
-            <p className="mt-4 text-sm text-white/40">30 free credits to start · No credit card required</p>
+      <section className="mx-auto max-w-6xl px-4 sm:px-6 py-20 border-t border-slate-100">
+        <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-violet-600 to-fuchsia-600 p-12 sm:p-16 text-center">
+          <h2 className="text-4xl sm:text-5xl font-bold tracking-tight text-white">Get 50% off lifetime.</h2>
+          <p className="mt-4 text-lg text-white/80 max-w-xl mx-auto">
+            We're building Outrovo with early users, not for them. Join now,
+            lock in founding member pricing forever, and shape the product.
+          </p>
+          <div className="mt-8">
+            <Button asChild size="lg" className="bg-white text-violet-700 hover:bg-white/90 rounded-full text-base px-8 h-12">
+              <a href="/signup">Claim founding access <ArrowRight className="ml-2 h-4 w-4" /></a>
+            </Button>
           </div>
+          <p className="mt-4 text-sm text-white/60">30 free credits to start · No credit card required</p>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/5 py-8">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 flex items-center justify-between text-xs text-white/30">
+      <footer className="border-t border-slate-100 py-8">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
           <div className="flex items-center gap-2">
             <img src="/logo.png" alt="Outrovo" className="h-5 w-5 rounded" />
-            <span>Outrovo</span>
+            <span>© 2026 Outrovo. All rights reserved.</span>
           </div>
-          <span>© 2026 Outrovo. All rights reserved.</span>
+          <div className="flex items-center gap-4">
+            <a href="/privacy" className="hover:text-slate-600 transition-colors">Privacy Policy</a>
+            <a href="/terms" className="hover:text-slate-600 transition-colors">Terms of Service</a>
+          </div>
         </div>
       </footer>
     </div>
