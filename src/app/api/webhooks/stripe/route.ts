@@ -1,24 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import Stripe from 'stripe'
+import { PLAN_CREDITS } from '@/lib/credit-pricing'
+import { addCredits } from '@/lib/credits'
 
 /**
- * Stripe Webhook 接收端
+ * Stripe Webhook Receiver
  *
- * 設定方式：
- * 1. 至 Stripe Dashboard → Developers → Webhooks
+ * Setup:
+ * 1. Stripe Dashboard → Developers → Webhooks
  * 2. URL: https://your-domain.com/api/webhooks/stripe
- * 3. 訂閱事件：
+ * 3. Subscribe to:
+ *    - checkout.session.completed
  *    - customer.subscription.created
  *    - customer.subscription.updated
  *    - customer.subscription.deleted
  *    - invoice.payment_succeeded
  *    - invoice.payment_failed
  *
- * 用量計費流程：
- * - 客戶每次發信，後台建立 UsageEvent（stripeUsageRecorded = false）
- * - 定期 cron job（或手動觸發）將未上報的 usage 報到 Stripe
- * - Stripe 月底依總用量自動扣款
+ * How it works:
+ * - When a user subscribes via /api/stripe/checkout, Stripe sends
+ *   `checkout.session.completed` + `customer.subscription.created` here.
+ * - We update the tenant's plan + grant the monthly credit allowance.
+ * - On renewal (`invoice.payment_succeeded`), we grant the credits again.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -29,80 +33,168 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing stripe-signature header' }, { status: 400 })
     }
 
-    // 從 webhook signature 找出對應的 tenant（每個 tenant 有自己的 stripeWebhookSecret）
-    // 嘗試所有 tenants 的 webhook secret 來驗證
-    const tenants = await db.tenant.findMany({
-      where: {
-        emailConfig: { stripeWebhookSecret: { not: null } },
-      },
-      include: { emailConfig: true },
-    })
+    const stripeSecretKey = process.env.STRIPE_SECRET_KEY
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
 
-    let stripeEvent: Stripe.Event | null = null
-    let matchedTenantId: string | null = null
-
-    for (const tenant of tenants) {
-      const secret = tenant.emailConfig?.stripeWebhookSecret
-      if (!secret) continue
-
-      try {
-        const config = await db.emailConfig.findUnique({ where: { tenantId: tenant.id } })
-        const stripeKey = config?.stripeSecretKey
-        if (!stripeKey) continue
-
-        const stripe = new Stripe(stripeKey)
-        stripeEvent = stripe.webhooks.constructEvent(body, signature, secret)
-        matchedTenantId = tenant.id
-        break
-      } catch {
-        // 此 secret 不對，繼續試下一個
-        continue
-      }
+    if (!stripeSecretKey || !webhookSecret) {
+      return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 })
     }
 
-    if (!stripeEvent || !matchedTenantId) {
-      return NextResponse.json({ error: 'Webhook signature verification failed' }, { status: 400 })
+    const stripe = new Stripe(stripeSecretKey)
+    let stripeEvent: Stripe.Event
+
+    try {
+      stripeEvent = stripe.webhooks.constructEvent(body, signature, webhookSecret)
+    } catch (err: any) {
+      console.error('Webhook signature verification failed:', err.message)
+      return NextResponse.json({ error: `Webhook signature verification failed: ${err.message}` }, { status: 400 })
     }
 
     const eventType = stripeEvent.type
     const data = stripeEvent.data.object as any
 
-    console.log(`Stripe webhook: ${eventType} for tenant ${matchedTenantId}`)
+    console.log(`Stripe webhook: ${eventType}`)
 
-    // 處理訂閱事件
-    if (eventType === 'customer.subscription.created' || eventType === 'customer.subscription.updated') {
-      const subscription = data as Stripe.Subscription
-      const customerId = subscription.customer as string
+    // === checkout.session.completed ===
+    // Fires when user completes the Stripe Checkout page.
+    // Handles both subscription upgrades AND one-time credit pack purchases.
+    if (eventType === 'checkout.session.completed') {
+      const session = data as Stripe.Checkout.Session
+      const tenantId = session.metadata?.tenantId
+      const type = session.metadata?.type
+      const customerId = session.customer as string
 
-      // 更新 tenant 的 stripe 資訊
-      await db.tenant.updateMany({
-        where: { stripeCustomerId: customerId },
-        data: {
-          stripeSubscriptionId: subscription.id,
-          status: subscription.status === 'active' || subscription.status === 'trialing' ? 'active' : 'suspended',
-          plan: determinePlan(subscription),
-        },
-      })
+      if (!tenantId) {
+        console.warn('Missing tenantId in checkout.session.completed:', session.metadata)
+        return NextResponse.json({ received: true, warning: 'missing tenantId' })
+      }
+
+      const tenant = await db.tenant.findUnique({ where: { id: tenantId } })
+      if (!tenant) {
+        console.warn(`Tenant ${tenantId} not found`)
+        return NextResponse.json({ received: true, warning: 'tenant not found' })
+      }
+
+      if (type === 'credit_pack') {
+        // One-time credit pack purchase — grant credits immediately
+        const credits = parseInt(session.metadata?.credits ?? '0', 10)
+        if (credits > 0) {
+          await addCredits(
+            tenantId,
+            credits,
+            'ADD_ON_PURCHASE',
+            `Credit pack purchase: ${credits} credits (Stripe session ${session.id})`,
+            session.id
+          )
+          console.log(`✓ Tenant ${tenantId} bought ${credits} credit pack`)
+        }
+      } else if (type === 'subscription') {
+        // Subscription upgrade — update plan + grant monthly credits
+        const planId = session.metadata?.planId
+        if (!planId) {
+          console.warn('Missing planId in subscription checkout metadata')
+          return NextResponse.json({ received: true, warning: 'missing planId' })
+        }
+
+        const planInfo = PLAN_CREDITS[planId]
+        if (!planInfo) {
+          console.warn(`Unknown planId: ${planId}`)
+          return NextResponse.json({ received: true, warning: 'unknown plan' })
+        }
+
+        await db.tenant.update({
+          where: { id: tenantId },
+          data: {
+            plan: planId,
+            stripeCustomerId: customerId,
+            stripeSubscriptionId: session.subscription as string,
+            status: 'active',
+            monthlyCreditAllowance: planInfo.credits,
+            billingCycleResetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          },
+        })
+
+        // Grant the monthly credits
+        await addCredits(
+          tenantId,
+          planInfo.credits,
+          'ADD_ON_PURCHASE',
+          `Subscription activated: ${planId} plan (${planInfo.credits} credits)`,
+          session.id
+        )
+
+        console.log(`✓ Tenant ${tenantId} upgraded to ${planId}, granted ${planInfo.credits} credits`)
+      }
     }
 
+    // === customer.subscription.updated ===
+    // Fires on upgrade/downgrade via Customer Portal
+    if (eventType === 'customer.subscription.updated') {
+      const subscription = data as Stripe.Subscription
+      const customerId = subscription.customer as string
+      const tenant = await db.tenant.findFirst({ where: { stripeCustomerId: customerId } })
+
+      if (tenant) {
+        const newPlanId = determinePlanFromPrice(subscription.items.data[0]?.price?.id)
+        if (newPlanId) {
+          const planInfo = PLAN_CREDITS[newPlanId]
+          await db.tenant.update({
+            where: { id: tenant.id },
+            data: {
+              plan: newPlanId,
+              stripeSubscriptionId: subscription.id,
+              status: subscription.status === 'active' || subscription.status === 'trialing' ? 'active' : 'suspended',
+              ...(planInfo ? { monthlyCreditAllowance: planInfo.credits } : {}),
+            },
+          })
+          console.log(`✓ Tenant ${tenant.id} subscription updated to ${newPlanId}`)
+        }
+      }
+    }
+
+    // === customer.subscription.deleted ===
     if (eventType === 'customer.subscription.deleted') {
       const subscription = data as Stripe.Subscription
       await db.tenant.updateMany({
         where: { stripeSubscriptionId: subscription.id },
-        data: { status: 'cancelled', plan: 'cancelled' },
+        data: { status: 'cancelled', plan: 'freemium', monthlyCreditAllowance: 30 },
       })
+      console.log(`Subscription ${subscription.id} cancelled — tenant downgraded to freemium`)
     }
 
+    // === invoice.payment_succeeded ===
+    // Fires on every successful payment (initial + monthly renewals)
     if (eventType === 'invoice.payment_succeeded') {
       const invoice = data as Stripe.Invoice
-      console.log(`Payment succeeded for customer ${invoice.customer}: $${invoice.amount_paid / 100}`)
-      // 可以在這裡發送 email 通知客戶
+      const customerId = invoice.customer as string
+
+      // Only grant credits on RENEWAL (not the first invoice — that's handled by checkout.session.completed)
+      if (invoice.billing_reason === 'subscription_cycle') {
+        const tenant = await db.tenant.findFirst({ where: { stripeCustomerId: customerId } })
+        if (tenant && tenant.plan !== 'freemium') {
+          const planInfo = PLAN_CREDITS[tenant.plan]
+          if (planInfo) {
+            await addCredits(
+              tenant.id,
+              planInfo.credits,
+              'CREDIT_RESET',
+              `Monthly renewal: ${tenant.plan} plan (${planInfo.credits} credits)`,
+              invoice.id
+            )
+            // Reset the billing cycle date
+            await db.tenant.update({
+              where: { id: tenant.id },
+              data: { billingCycleResetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
+            })
+            console.log(`✓ Tenant ${tenant.id} renewed: granted ${planInfo.credits} credits`)
+          }
+        }
+      }
     }
 
     if (eventType === 'invoice.payment_failed') {
       const invoice = data as Stripe.Invoice
       console.warn(`Payment failed for customer ${invoice.customer}`)
-      // 可以在這裡通知客戶付款失敗
     }
 
     return NextResponse.json({ received: true, type: eventType })
@@ -112,13 +204,15 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function determinePlan(subscription: Stripe.Subscription): string {
-  const priceId = subscription.items.data[0]?.price?.id
-  // 從 priceId 判斷方案（需依實際 Stripe 設定）
-  if (priceId?.includes('enterprise')) return 'enterprise'
-  if (priceId?.includes('pro')) return 'pro'
-  if (priceId?.includes('starter')) return 'starter'
-  return 'pro'
+/**
+ * Map a Stripe price ID back to a planId using the env vars we set.
+ */
+function determinePlanFromPrice(priceId?: string): string | null {
+  if (!priceId) return null
+  if (priceId === process.env.STRIPE_PRICE_STARTER) return 'starter'
+  if (priceId === process.env.STRIPE_PRICE_GROWTH) return 'growth'
+  if (priceId === process.env.STRIPE_PRICE_AGENCY) return 'agency'
+  return null
 }
 
 export async function GET() {
@@ -126,6 +220,7 @@ export async function GET() {
     endpoint: 'Stripe Webhook',
     status: 'active',
     events: [
+      'checkout.session.completed',
       'customer.subscription.created',
       'customer.subscription.updated',
       'customer.subscription.deleted',

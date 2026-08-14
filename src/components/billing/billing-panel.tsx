@@ -85,10 +85,50 @@ export function BillingPanel() {
   const [usage, setUsage] = useState<UsageData | null>(null)
   const [loading, setLoading] = useState(true)
   const [recordingUsage, setRecordingUsage] = useState(false)
+  const [upgradingPlan, setUpgradingPlan] = useState<string | null>(null)
 
   useEffect(() => {
     fetchUsage()
   }, [])
+
+  const handleUpgrade = async (planId: string) => {
+    setUpgradingPlan(planId)
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId }),
+      })
+      const data = await res.json()
+      if (res.ok && data.url) {
+        // Redirect to Stripe Checkout
+        window.location.href = data.url
+      } else {
+        toast.error(data.error ?? 'Failed to start checkout')
+      }
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Checkout failed')
+    } finally {
+      setUpgradingPlan(null)
+    }
+  }
+
+  const handleManageSubscription = async () => {
+    setUpgradingPlan('portal')
+    try {
+      const res = await fetch('/api/stripe/portal', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok && data.url) {
+        window.location.href = data.url
+      } else {
+        toast.error(data.error ?? 'Failed to open customer portal')
+      }
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Portal failed')
+    } finally {
+      setUpgradingPlan(null)
+    }
+  }
 
   const fetchUsage = async () => {
     try {
@@ -169,14 +209,30 @@ export function BillingPanel() {
             Manage subscription and usage
           </p>
         </div>
-        <Button onClick={handleReportUsage} disabled={recordingUsage} variant="outline" size="sm">
-          {recordingUsage ? (
-            <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Reporting...</>
-          ) : (
-            <><Zap className="mr-1.5 h-3.5 w-3.5" />Report Usage to Stripe</>
+        <div className="flex gap-2">
+          {currentPlan.id !== 'freemium' && (
+            <Button onClick={handleManageSubscription} disabled={upgradingPlan === 'portal'} variant="outline" size="sm">
+              {upgradingPlan === 'portal' ? (
+                <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Loading...</>
+              ) : (
+                <><CreditCard className="mr-1.5 h-3.5 w-3.5" />Manage Subscription</>
+              )}
+            </Button>
           )}
-        </Button>
+        </div>
       </div>
+
+      {/* Checkout success / cancel banner */}
+      {typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('checkout') === 'success' && (
+        <div className="p-3 rounded-md bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-sm text-emerald-800 dark:text-emerald-300">
+          ✓ Subscription activated! Your credits have been added to your account.
+        </div>
+      )}
+      {typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('checkout') === 'cancelled' && (
+        <div className="p-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-sm text-amber-800 dark:text-amber-300">
+          Checkout cancelled. You can subscribe any time from this page.
+        </div>
+      )}
 
       {/* Current Plan */}
       <Card className={`p-5 bg-gradient-to-br ${currentPlan.color} text-white border-0 shadow-lg`}>
@@ -279,34 +335,62 @@ export function BillingPanel() {
                 className="w-full mt-4"
                 size="sm"
                 variant={plan.id === currentPlan.id ? 'outline' : 'default'}
-                disabled={plan.id === currentPlan.id}
-                onClick={() => toast.info(`Upgrade to ${plan.name} plan (requires Stripe Checkout)`)}
+                disabled={plan.id === currentPlan.id || upgradingPlan !== null || plan.price === 0}
+                onClick={() => handleUpgrade(plan.id)}
               >
-                {plan.id === currentPlan.id ? 'Current Plan' : `Upgrade to ${plan.name}`}
+                {upgradingPlan === plan.id ? (
+                  <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Redirecting...</>
+                ) : plan.id === currentPlan.id ? (
+                  'Current Plan'
+                ) : plan.price === 0 ? (
+                  'Free Forever'
+                ) : (
+                  `Upgrade to ${plan.name}`
+                )}
               </Button>
             </Card>
           ))}
         </div>
       </div>
 
-      {/* Stripe Settings提示 */}
-      <Card className="p-4 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border-amber-200 dark:border-amber-900">
-        <div className="flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-          <div className="text-sm space-y-1.5">
-            <p className="font-medium text-amber-800 dark:text-amber-300">Stripe Setup Steps</p>
-            <ol className="list-decimal ml-5 space-y-0.5 text-xs text-amber-700 dark:text-amber-400">
-              <li>Go to Stripe Dashboard, create Product and Metered Price</li>
-              <li>Go to Email settings, enter Stripe Secret Key, Webhook Secret, Price ID</li>
-              <li>Create Customer and subscribe to Price (with metered item)</li>
-              <li>Set Stripe Webhook URL to <code className="px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60">/api/webhooks/stripe</code></li>
-              <li>Each email sent creates a UsageEvent automatically</li>
-              <li>Click "Report Usage" button, or set up cron job</li>
-              <li>Stripe auto-charges at month end based on total usage</li>
-            </ol>
-          </div>
+      {/* Add-on credit packs (one-time purchase) */}
+      <div className="space-y-3">
+        <div>
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Zap className="h-4 w-4 text-amber-500" />
+            Top Up Credits
+          </h3>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Need more credits this month? Buy a one-time pack — credits never expire.
+          </p>
         </div>
-      </Card>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {[
+            { id: 'pack_100', name: 'Starter Pack', credits: 100, price: 9 },
+            { id: 'pack_500', name: 'Growth Pack', credits: 500, price: 39 },
+            { id: 'pack_2000', name: 'Agency Pack', credits: 2000, price: 129 },
+          ].map((pack) => (
+            <Card key={pack.id} className="p-4 flex flex-col">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">{pack.name}</p>
+              <p className="text-2xl font-bold mt-1">{pack.credits.toLocaleString()} <span className="text-xs font-normal text-muted-foreground">credits</span></p>
+              <p className="text-sm text-muted-foreground mt-0.5">${pack.price} one-time</p>
+              <Button
+                className="mt-3"
+                size="sm"
+                variant="outline"
+                disabled={upgradingPlan === pack.id}
+                onClick={() => handleUpgrade(pack.id)}
+              >
+                {upgradingPlan === pack.id ? (
+                  <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Loading...</>
+                ) : (
+                  <>Buy {pack.credits} Credits</>
+                )}
+              </Button>
+            </Card>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
