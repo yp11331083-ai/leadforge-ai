@@ -594,26 +594,29 @@ ${targetCompanySize ? `**目標公司規模**：${targetCompanySize}` : ''}
 ${targetLocation ? `**目標地區**：${targetLocation}` : ''}
 ${idealCustomerSignals ? `**理想客戶訊號**：${idealCustomerSignals}` : ''}
 
-請幫我設計 8 組**用於 Google 搜尋的查詢詞**，目標是找出「最可能需要我服務」的企業。
+請幫我設計 8 組**用於 Google 搜尋的查詢詞**，目標是找出「最可能需要我服務」的企業官網。
+
+⚠️ 重要：我們要的是公司的「官方網站」（例如 stripe.com、notion.so），不是 LinkedIn 頁面。
 
 查詢策略要多元，包含：
-1. **徵才訊號類**：搜尋正在招募與我服務相關職位的公司（例如 "hiring sales operations manager"）
-2. **融資/成長訊號類**：最近融資、擴編的公司（例如 "Series A SaaS 2024"）
-3. **產業 + 痛點類**：特定產業 + 我服務解決的痛點（例如 "logistics companies manual data entry problem"）
-4. **技術堆疊類**：使用特定技術堆疊的公司（例如 "companies using Salesforce looking for automation"）
-5. **地區 + 產業類**：特定地區的目標產業公司
-6. **規模 + 產業類**：特定規模的目標公司
-7. **競爭對手客戶類**：使用競爭對手產品的公司
-8. **行為訊號類**：近期發布特定內容/參加特定活動的公司
+1. **徵才訊號類**：搜尋正在招募與我服務相關職位的公司官網（例如 "hiring sales operations manager" site:com -site:linkedin.com）
+2. **融資/成長訊號類**：最近融資、擴編的公司官網（例如 "Series A SaaS 2024" -site:linkedin.com）
+3. **產業 + 痛點類**：特定產業 + 我服務解決的痛點的公司官網
+4. **技術堆疊類**：使用特定技術堆疊的公司官網（例如 "companies using Salesforce" -site:linkedin.com）
+5. **地區 + 產業類**：特定地區的目標產業公司官網
+6. **規模 + 產業類**：特定規模的目標公司官網
+7. **競爭對手客戶類**：使用競爭對手產品的公司官網
+8. **行為訊號類**：近期發布特定內容/參加特定活動的公司官網
 
 每組查詢詞要：
 - 英文（Google 搜尋效果較好）
 - 具體、可執行
-- 包含 site: 限定或進階搜尋運算子（如 site:linkedin.com/company、site:crunchbase.com）
+- **必須排除 LinkedIn**：每組查詢都要加上 \`-site:linkedin.com\` 運算子，確保只回傳公司官網
+- **不要使用** site:linkedin.com、site:crunchbase.com 這類限定到社交平台的運算子
 - 不要太寬泛（避免 "best SaaS companies"）
 
 請輸出純 JSON 陣列（不要 markdown code block）：
-["query 1", "query 2", ..., "query 8"]`
+["query 1 -site:linkedin.com", "query 2 -site:linkedin.com", ..., "query 8 -site:linkedin.com"]`
 
   const chatResult = await chatWithFallback({
     messages: [

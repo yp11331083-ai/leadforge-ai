@@ -122,9 +122,25 @@ export function BillingPanel() {
     }
   }
 
-  const currentPlan = PLANS.find((p) => p.id === currentUser?.tenantPlan) ?? PLANS[0]
-  const creditsUsed = usage?.stats?.sent ?? 0
-  const planLimit: Record<string, number> = {
+  // Map legacy/aliases to canonical plan IDs so the UI shows the right plan card
+  const planAliasMap: Record<string, string> = {
+    pro: 'growth',      // "pro" is an alias for "growth"
+    trial: 'freemium',  // "trial" maps to freemium
+    enterprise: 'agency',
+  }
+  const canonicalPlanId = planAliasMap[currentUser?.tenantPlan ?? ''] ?? currentUser?.tenantPlan ?? 'freemium'
+  const currentPlan = PLANS.find((p) => p.id === canonicalPlanId) ?? PLANS[0]
+  // Use REAL credit balance from /api/credits/balance (not email count)
+  const creditBalance = useLeadStore((s) => s.creditBalance)
+  const creditAllowance = useLeadStore((s) => s.creditAllowance)
+  const fetchCredits = useLeadStore((s) => s.fetchCredits)
+
+  useEffect(() => {
+    fetchCredits()
+  }, [fetchCredits])
+
+  // Fallback if /api/credits/balance hasn't loaded yet
+  const planLimitFallback: Record<string, number> = {
     freemium: 30,
     trial: 30,
     starter: 500,
@@ -133,8 +149,12 @@ export function BillingPanel() {
     agency: 8000,
     enterprise: 8000,
   }
-  const limit = planLimit[currentPlan.id] ?? 100
-  const usagePercent = Math.min(100, (creditsUsed / limit) * 100)
+
+  const creditsUsed = creditBalance !== null && creditAllowance !== null
+    ? Math.max(0, creditAllowance - creditBalance)
+    : 0
+  const limit = creditAllowance ?? (planLimitFallback[currentPlan.id] ?? 30)
+  const usagePercent = limit > 0 ? Math.min(100, (creditsUsed / limit) * 100) : 0
 
   return (
     <div className="space-y-5">
