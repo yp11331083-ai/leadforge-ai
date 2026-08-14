@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   ArrowRight,
@@ -30,29 +30,79 @@ interface DemoEntry {
 
 const DEMOS = demoData as DemoEntry[]
 
+const PAUSE_MS = 7000 // how long to show each result
+const TYPE_SPEED = 45 // ms per character when typing
+const DELETE_SPEED = 25 // ms per character when deleting
+const PAUSE_AFTER_TYPE = 500 // pause after typing before showing result
+const PAUSE_AFTER_DELETE = 300 // pause after deleting before next type
+
+type Phase = 'typing' | 'showing' | 'deleting'
+
 export function LandingPage() {
-  const [currentIdx, setCurrentIdx] = useState(0)
-  const [displayed, setDisplayed] = useState(false)
+  const [demoIdx, setDemoIdx] = useState(0)
+  const [typedText, setTypedText] = useState('')
+  const [phase, setPhase] = useState<Phase>('typing')
+  const [progress, setProgress] = useState(0) // 0-100 for the progress bar
+  const [isHovered, setIsHovered] = useState(false)
+  const [showResult, setShowResult] = useState(false)
 
-  // Show first demo immediately on load (after brief delay for page animation)
+  const targetProduct = DEMOS[demoIdx]?.product ?? ''
+  const currentResult = DEMOS[demoIdx]?.result
+
+  // Typewriter effect
   useEffect(() => {
-    const timer = setTimeout(() => setDisplayed(true), 800)
-    return () => clearTimeout(timer)
-  }, [])
+    if (isHovered) return
 
-  // Cycle through demos every 8 seconds
-  useEffect(() => {
-    if (!displayed) return
-    const timer = setInterval(() => {
-      setCurrentIdx((prev) => (prev + 1) % DEMOS.length)
-    }, 8000)
-    return () => clearInterval(timer)
-  }, [displayed])
+    if (phase === 'typing') {
+      if (typedText.length < targetProduct.length) {
+        const timer = setTimeout(() => {
+          setTypedText(targetProduct.slice(0, typedText.length + 1))
+        }, TYPE_SPEED)
+        return () => clearTimeout(timer)
+      } else {
+        // Finished typing — pause briefly, then show result
+        const timer = setTimeout(() => {
+          setShowResult(true)
+          setPhase('showing')
+          setProgress(0)
+        }, PAUSE_AFTER_TYPE)
+        return () => clearTimeout(timer)
+      }
+    }
 
-  const current = DEMOS[currentIdx]
-  if (!current) return null
+    if (phase === 'showing') {
+      // Progress bar fills over PAUSE_MS
+      const startTime = Date.now()
+      const timer = setInterval(() => {
+        if (isHovered) return
+        const elapsed = Date.now() - startTime
+        const pct = Math.min(100, (elapsed / PAUSE_MS) * 100)
+        setProgress(pct)
+        if (pct >= 100) {
+          clearInterval(timer)
+          setShowResult(false)
+          setPhase('deleting')
+        }
+      }, 50)
+      return () => clearInterval(timer)
+    }
 
-  const { product, result } = current
+    if (phase === 'deleting') {
+      if (typedText.length > 0) {
+        const timer = setTimeout(() => {
+          setTypedText(typedText.slice(0, -1))
+        }, DELETE_SPEED)
+        return () => clearTimeout(timer)
+      } else {
+        // Finished deleting — move to next demo
+        const timer = setTimeout(() => {
+          setDemoIdx((prev) => (prev + 1) % DEMOS.length)
+          setPhase('typing')
+        }, PAUSE_AFTER_DELETE)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [phase, typedText, targetProduct, isHovered])
 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900">
@@ -67,7 +117,7 @@ export function LandingPage() {
             <a href="/login" className="px-3 py-1.5 text-sm text-stone-600 hover:text-stone-900 transition-colors">
               Sign in
             </a>
-            <Button asChild size="sm" className="bg-slate-900 text-white hover:bg-stone-800 rounded-full">
+            <Button asChild size="sm" className="bg-stone-900 text-white hover:bg-stone-800 rounded-full">
               <a href="/signup">Start free</a>
             </Button>
           </div>
@@ -96,7 +146,7 @@ export function LandingPage() {
           </p>
 
           <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
-            <Button asChild size="lg" className="bg-slate-900 text-white hover:bg-stone-800 rounded-full text-base px-6 h-12">
+            <Button asChild size="lg" className="bg-stone-900 text-white hover:bg-stone-800 rounded-full text-base px-6 h-12">
               <a href="/signup">Start free — 30 credits <ArrowRight className="ml-2 h-4 w-4" /></a>
             </Button>
             <a href="#demo" className="px-6 py-3 text-sm text-stone-500 hover:text-stone-900 transition-colors flex items-center justify-center">
@@ -105,19 +155,27 @@ export function LandingPage() {
           </div>
         </div>
 
-        {/* Live Demo — pre-cached, no API calls */}
-        <div id="demo" className="mt-20 max-w-4xl mx-auto scroll-mt-20">
+        {/* Live Demo — typewriter + progress bar + pause on hover */}
+        <div
+          id="demo"
+          className="mt-20 max-w-4xl mx-auto scroll-mt-20"
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        >
           <div className="rounded-2xl border border-stone-200 bg-stone-50 shadow-xl shadow-stone-300/30 overflow-hidden">
             {/* Window chrome */}
             <div className="flex items-center gap-2 px-4 py-3 border-b border-stone-200/60 bg-stone-100/50">
               <div className="flex gap-1.5">
-                <div className="h-3 w-3 rounded-full bg-slate-200" />
-                <div className="h-3 w-3 rounded-full bg-slate-200" />
-                <div className="h-3 w-3 rounded-full bg-slate-200" />
+                <div className="h-3 w-3 rounded-full bg-stone-300" />
+                <div className="h-3 w-3 rounded-full bg-stone-300" />
+                <div className="h-3 w-3 rounded-full bg-stone-300" />
               </div>
               <div className="flex-1 text-center">
                 <span className="text-xs text-stone-400 font-mono">outrovo.com/prospect</span>
               </div>
+              {isHovered && (
+                <span className="text-[10px] text-stone-400">Paused</span>
+              )}
             </div>
 
             {/* Demo content */}
@@ -127,59 +185,50 @@ export function LandingPage() {
                   Describe your product
                 </label>
                 <div className="mt-2 flex gap-2">
-                  <div className="flex-1 bg-stone-100 border border-stone-200 rounded-lg px-4 py-3 text-sm text-stone-700 flex items-center min-h-[48px]">
-                    <span className="truncate">{product}</span>
+                  {/* Typewriter input */}
+                  <div className="flex-1 bg-white border border-stone-200 rounded-lg px-4 py-3 text-sm text-stone-700 flex items-center min-h-[48px]">
+                    <span className="truncate">{typedText}</span>
+                    {/* Blinking cursor */}
+                    <span className={`inline-block w-0.5 h-4 ml-0.5 ${phase === 'typing' || phase === 'deleting' ? 'bg-violet-500 animate-pulse' : 'bg-transparent'}`} />
                   </div>
-                  <div className="px-5 py-3 rounded-lg bg-slate-900 text-sm font-medium text-white flex items-center gap-2 whitespace-nowrap">
-                    <Sparkles className="h-4 w-4" /> Auto-demo
-                  </div>
-                </div>
-                <div className="mt-3 flex items-center justify-between">
-                  <p className="text-xs text-stone-400">
-                    Rotating through {DEMOS.length} live examples — sign up to use your own product
-                  </p>
-                  {/* Progress dots */}
-                  <div className="flex gap-1.5">
-                    {DEMOS.map((_, i) => (
-                      <div
-                        key={i}
-                        className={`h-1.5 rounded-full transition-all ${
-                          i === currentIdx ? 'w-4 bg-violet-600' : 'w-1.5 bg-slate-200'
-                        }`}
-                      />
-                    ))}
+                  {/* Search button (non-interactive, just visual) */}
+                  <div className="px-5 py-3 rounded-lg bg-stone-900 text-sm font-medium text-white flex items-center gap-2 whitespace-nowrap">
+                    <Search className="h-4 w-4" /> Search
                   </div>
                 </div>
+                <p className="mt-2 text-xs text-stone-400">
+                  {DEMOS.length} live examples rotating — sign up to search your own product
+                </p>
               </div>
 
-              {/* Result — always visible after initial delay */}
-              {displayed ? (
+              {/* Result — fades in when typing completes */}
+              {showResult && currentResult ? (
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   {/* Company card */}
                   <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-violet-50 to-fuchsia-50 border border-violet-100">
                     <div className="flex items-center gap-3">
                       <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-lg font-bold text-stone-700 shadow-sm">
-                        {result.company.charAt(0)}
+                        {currentResult.company.charAt(0)}
                       </div>
                       <div>
-                        <p className="font-semibold text-stone-900">{result.company}</p>
-                        <p className="text-xs text-stone-500">{result.industry} · {result.website}</p>
+                        <p className="font-semibold text-stone-900">{currentResult.company}</p>
+                        <p className="text-xs text-stone-500">{currentResult.industry} · {currentResult.website}</p>
                       </div>
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] text-stone-400 uppercase tracking-wider">Fit Score</p>
                       <p className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
-                        {result.fit_score}
+                        {currentResult.fit_score}
                       </p>
                     </div>
                   </div>
 
                   {/* Pain point */}
-                  <div className="p-4 rounded-xl bg-slate-50 border border-stone-200/60">
+                  <div className="p-4 rounded-xl bg-stone-100/60 border border-stone-200/60">
                     <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                       <Target className="h-3 w-3" /> Pain Point
                     </p>
-                    <p className="text-sm text-stone-600 leading-relaxed">{result.pain_point}</p>
+                    <p className="text-sm text-stone-600 leading-relaxed">{currentResult.pain_point}</p>
                   </div>
 
                   {/* Email hook */}
@@ -187,15 +236,15 @@ export function LandingPage() {
                     <p className="text-xs font-medium text-emerald-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                       <Mail className="h-3 w-3" /> Email Opener
                     </p>
-                    <p className="text-sm text-stone-700 italic leading-relaxed">"{result.email_hook}"</p>
+                    <p className="text-sm text-stone-700 italic leading-relaxed">"{currentResult.email_hook}"</p>
                   </div>
 
                   {/* Why they need it */}
-                  <div className="p-4 rounded-xl bg-slate-50 border border-stone-200/60">
+                  <div className="p-4 rounded-xl bg-stone-100/60 border border-stone-200/60">
                     <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                       <Sparkles className="h-3 w-3" /> Why They Need You
                     </p>
-                    <p className="text-sm text-stone-600 leading-relaxed">{result.why_they_need_it}</p>
+                    <p className="text-sm text-stone-600 leading-relaxed">{currentResult.why_they_need_it}</p>
                   </div>
 
                   <p className="text-center text-xs text-stone-400 pt-2">
@@ -203,10 +252,34 @@ export function LandingPage() {
                   </p>
                 </div>
               ) : (
-                <div className="space-y-3 animate-pulse">
-                  <div className="h-16 bg-stone-200/60 rounded-lg" />
-                  <div className="h-20 bg-stone-200/60 rounded-lg" />
-                  <div className="h-16 bg-stone-200/60 rounded-lg" />
+                /* Skeleton while typing/deleting */
+                <div className="space-y-3">
+                  <div className="h-16 bg-stone-100/60 rounded-lg" />
+                  <div className="h-20 bg-stone-100/60 rounded-lg" />
+                  <div className="h-16 bg-stone-100/60 rounded-lg" />
+                </div>
+              )}
+
+              {/* Progress bar — fills over time, advances when full */}
+              {showResult && (
+                <div className="mt-6">
+                  <div className="h-1 rounded-full bg-stone-200 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500 transition-all duration-75 ease-linear"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  {/* Demo indicator dots */}
+                  <div className="mt-3 flex justify-center gap-1.5">
+                    {DEMOS.map((_, i) => (
+                      <div
+                        key={i}
+                        className={`h-1.5 rounded-full transition-all ${
+                          i === demoIdx ? 'w-4 bg-violet-600' : 'w-1.5 bg-stone-300'
+                        }`}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -219,7 +292,7 @@ export function LandingPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-4">
           {[
             { value: '~10s', label: 'per company researched', desc: 'Outrovo analyzes website, hiring signals, and pain points' },
-            { value: '5', label: 'AI providers with failover', desc: 'Groq → Gemini → OpenAI → Anthropic — always available' },
+            { value: '10', label: 'search strategies per run', desc: 'Diverse queries covering hiring, funding, industry, location, and more' },
             { value: '0', label: 'API keys to configure', desc: 'Platform-managed search, page reading, and writing' },
           ].map((m) => (
             <div key={m.label} className="text-center">
@@ -244,7 +317,7 @@ export function LandingPage() {
             { icon: Mail, title: 'Email Writer', desc: 'Generates personalized cold emails with spam-filtered subject lines and specific icebreakers. Under 125 words.' },
             { icon: Calendar, title: 'Smart Meeting Tracking', desc: 'When a prospect books a meeting via Cal.com, Outrovo auto-stops sending follow-ups. No more awkward duplicates.' },
           ].map(({ icon: Icon, title, desc }) => (
-            <div key={title} className="p-6 rounded-2xl border border-stone-200/60 hover:border-stone-200 transition-colors">
+            <div key={title} className="p-6 rounded-2xl border border-stone-200/60 hover:border-stone-300 transition-colors">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 border border-violet-100 mb-4">
                 <Icon className="h-5 w-5 text-violet-600" />
               </div>
@@ -269,7 +342,7 @@ export function LandingPage() {
             { name: 'Groq', desc: 'Inference engine' },
             { name: 'Gemini', desc: 'Fallback engine' },
           ].map((int) => (
-            <div key={int.name} className="p-5 rounded-xl border border-stone-200/60 bg-stone-50 text-center hover:border-stone-200 transition-colors">
+            <div key={int.name} className="p-5 rounded-xl border border-stone-200/60 bg-stone-50 text-center hover:border-stone-300 transition-colors">
               <p className="font-semibold text-sm text-stone-900">{int.name}</p>
               <p className="text-xs text-stone-400 mt-1">{int.desc}</p>
             </div>
