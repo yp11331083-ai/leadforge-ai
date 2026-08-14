@@ -21,9 +21,9 @@ export async function POST(req: NextRequest) {
       query,
       results,
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('POST /api/web-search error:', error)
-    if (error.message === 'UNAUTHORIZED') {
+    if (error?.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: '請先登入' }, { status: 401 })
     }
     return NextResponse.json({ error: 'Search failed' }, { status: 500 })

@@ -641,102 +641,103 @@ ${idealCustomerSignals ? `**理想客戶訊號**：${idealCustomerSignals}` : ''
 
 /**
  * 步驟 2：從搜尋結果中萃取公司 URL（過濾掉非公司頁面）
+ *
+ * 優先順序（用戶要求）：
+ *   1. 公司官網 (Website URL) — 第一優先
+ *   2. LinkedIn 公司頁 / Crunchbase / Y Combinator — 第二優先（官網抓不到時的備援）
+ *
+ * 對同一家公司，如果搜尋結果中同時出現官網和 LinkedIn，只保留官網。
  */
 export function extractCompanyUrls(
   searchResults: Array<{ url?: string; name?: string; host_name?: string }>
 ): Array<{ url: string; name: string }> {
-  const companies: Array<{ url: string; name: string }> = []
-  const seen = new Set<string>()
+  // 第一階段：先收集所有「看起來像公司」的 URL，分為官網和社交平台兩類
+  const websites: Array<{ url: string; name: string; host: string }> = []
+  const socials: Array<{ url: string; name: string; host: string; platform: 'linkedin' | 'crunchbase' | 'yc' }> = []
+
+  const excludePatterns = [
+    /youtube\.com|facebook\.com|twitter\.com|x\.com|tiktok\.com/i,
+    /wikipedia\.org/i,
+    /\.pdf$|\.jpg$|\.png$/i,
+    /google\.com\/search/i,
+    /news\./i,
+    // 排除 LinkedIn 職缺頁（不是公司頁）
+    /linkedin\.com\/jobs\//i,
+    // 排除 LinkedIn 個人 profile
+    /linkedin\.com\/in\//i,
+    // 排除博客文章路徑
+    /\/blog\//i,
+    /\/learn\//i,
+    /\/articles?\//i,
+    /\/news\//i,
+    // 排除求職網
+    /indeed\.com|glassdoor\.com|monster\.com|ziprecruiter\.com/i,
+    // 排除文章網站
+    /medium\.com|substack\.com|wordpress\.com|dev\.to/i,
+    /techcrunch\.com|venturebeat\.com|thenextweb\.com|theverge\.com/i,
+    /bloomberg\.com|reuters\.com|forbes\.com|businessinsider\.com/i,
+    /github\.com|gitlab\.com|bitbucket\.org/i,
+    /g2\.com|capterra\.com|trustpilot\.com/i,  // 評論網站
+  ]
 
   for (const r of searchResults) {
     if (!r?.url) continue
     const url = r.url
-
-    // 排除明顯非公司頁面的 URL
-    const excludePatterns = [
-      /youtube\.com|facebook\.com|twitter\.com|x\.com|tiktok\.com/i,
-      /wikipedia\.org/i,
-      /\.pdf$|\.jpg$|\.png$/i,
-      /google\.com\/search/i,
-      /news\./i,
-      // 排除 LinkedIn 職缺頁（不是公司頁）
-      /linkedin\.com\/jobs\//i,
-      // 排除 LinkedIn 個人 profile
-      /linkedin\.com\/in\//i,
-      // 排除博客文章路徑
-      /\/blog\//i,
-      /\/learn\//i,
-      /\/articles?\//i,
-      /\/news\//i,
-      // 排除求職網
-      /indeed\.com|glassdoor\.com|monster\.com|ziprecruiter\.com/i,
-      // 排除文章網站
-      /medium\.com|substack\.com|wordpress\.com|dev\.to/i,
-      /techcrunch\.com|venturebeat\.com|thenextweb\.com|theverge\.com/i,
-      /bloomberg\.com|reuters\.com|forbes\.com|businessinsider\.com/i,
-      /github\.com|gitlab\.com|bitbucket\.org/i,
-      /g2\.com|capterra\.com|trustpilot\.com/i,  // 評論網站
-    ]
     if (excludePatterns.some((p) => p.test(url))) continue
 
     try {
       const host = new URL(url).hostname.replace(/^www\./, '')
+      const name = r.name ?? host
 
       // LinkedIn 公司頁
       if (/linkedin\.com\/company\//.test(url)) {
-        const name = r.name ?? url.split('/').pop() ?? host
-        const key = `li:${url}`
-        if (!seen.has(key)) {
-          seen.add(key)
-          companies.push({ url, name })
-        }
+        socials.push({ url, name, host, platform: 'linkedin' })
         continue
       }
 
       // Crunchbase 公司頁
       if (/crunchbase\.com\/organization\//.test(url)) {
-        const name = r.name ?? url.split('/').pop() ?? host
-        const key = `cb:${url}`
-        if (!seen.has(key)) {
-          seen.add(key)
-          companies.push({ url, name })
-        }
+        socials.push({ url, name, host, platform: 'crunchbase' })
         continue
       }
 
       // Y Combinator 公司頁
       if (/ycombinator\.com\/companies\//.test(url)) {
-        const name = r.name ?? url.split('/').pop() ?? host
-        const key = `yc:${url}`
-        if (!seen.has(key)) {
-          seen.add(key)
-          companies.push({ url, name })
-        }
+        socials.push({ url, name, host, platform: 'yc' })
         continue
       }
 
       // 一般公司官網首頁（不是子頁面）
-      // 只接受根目錄或主頁
       const path = new URL(url).pathname
       const isRootOrMain = path === '/' || path === '' || /^\/[a-z]{2}(-[a-z]{2})?\/?$/i.test(path)
-
-      // 排除常見非公司網域
-      const nonCompanyDomains = [
-        'store.sony.com.tw', 'scale.com',
-      ]
-      if (nonCompanyDomains.includes(host)) continue
-
-      // 看起來像公司官網首頁
       if (isRootOrMain && !/\.gov|\.edu|\.mil/i.test(host)) {
-        const key = `web:${host}`
-        if (!seen.has(key)) {
-          seen.add(key)
-          companies.push({ url, name: r.name ?? host })
-        }
+        websites.push({ url, name, host })
       }
     } catch {
       continue
     }
+  }
+
+  // 第二階段：組合結果。官網優先，LinkedIn/Crunchbase/YC 只在沒有對應官網時才加入。
+  const companies: Array<{ url: string; name: string }> = []
+  const seenHosts = new Set<string>()
+  const seenNames = new Set<string>()
+
+  // 2a. 先加所有官網（去重 by host 和 name）
+  for (const w of websites) {
+    const nameKey = w.name.toLowerCase().trim()
+    if (seenHosts.has(w.host) || seenNames.has(nameKey)) continue
+    seenHosts.add(w.host)
+    seenNames.add(nameKey)
+    companies.push({ url: w.url, name: w.name })
+  }
+
+  // 2b. 再加社交平台結果（用 name 去重，如果 name 已經有官網就跳過）
+  for (const s of socials) {
+    const nameKey = s.name.toLowerCase().trim()
+    if (seenNames.has(nameKey)) continue
+    seenNames.add(nameKey)
+    companies.push({ url: s.url, name: s.name })
   }
 
   return companies

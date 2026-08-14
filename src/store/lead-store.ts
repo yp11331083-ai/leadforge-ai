@@ -509,60 +509,139 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
     set({
       prospectLoading: true,
       prospectResult: null,
-      prospectStage: '執行中',
-      prospectDetail: 'AI 正在生成搜尋策略、抓取網站、評估契合度...（同步執行中，請勿關閉頁面）',
-      prospectStep: 1,
+      prospectStage: '啟動中',
+      prospectDetail: 'AI 正在啟動自動開發引擎...',
+      prospectStep: 0,
       prospectElapsedSeconds: 0,
       prospectJobId: null,
       prospectError: null,
     })
 
-    // Fake ticking clock while the synchronous request is in flight so the
-    // user sees the timer progress. The step bar stays at 1/6 (executing).
+    // Live ticking clock — shown while SSE events stream in
     const ticker = setInterval(() => {
       set((s) => ({
         prospectElapsedSeconds: Math.floor((Date.now() - startTime) / 1000),
-        // gently nudge the visible step between 1 and 5 to give a sense of progress
-        prospectStep: s.prospectStep < 5 ? s.prospectStep : s.prospectStep,
       }))
     }, 1000)
 
     try {
       const res = await fetch('/api/auto-prospect', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream',
+        },
         body: JSON.stringify(params),
       })
-      const data = await res.json().catch(() => ({} as any))
 
-      if (!res.ok || data?.status === 'failed' || !data?.success) {
-        const errorMsg = data?.error ?? '自動開發失敗'
-        const isRateLimited = errorMsg.includes('429') || errorMsg.includes('Too many requests')
+      // 402 = insufficient credits, 400 = validation error — return as JSON
+      if (!res.ok && res.status !== 200) {
+        const errData = await res.json().catch(() => ({}) as any)
+        const errorMsg = errData?.error ?? `HTTP ${res.status}`
+        const isInsufficientCredits = res.status === 402
         set({
           prospectLoading: false,
-          prospectStage: isRateLimited ? 'AI 配額用完' : '失敗',
-          prospectDetail: isRateLimited
-            ? 'AI 服務配額已用完（429）。這通常是每日配額限制，請過 1-2 小時再試。已儲存的名單與設定不受影響。'
+          prospectStage: isInsufficientCredits ? 'AI 點數不足' : '失敗',
+          prospectDetail: isInsufficientCredits
+            ? errorMsg
             : errorMsg,
           prospectError: errorMsg,
           prospectStep: 6,
-          rateLimitedAt: isRateLimited ? Date.now() : null,
         })
         return { success: false, error: errorMsg }
       }
 
-      // success — the response contains the final result
-      set({
-        prospectResult: data.result ?? null,
-        prospectLoading: false,
-        prospectStage: '完成',
-        prospectDetail: data.detail ?? `找到 ${data.result?.candidates?.length ?? 0} 家潛在客戶`,
-        prospectStep: 6,
-      })
-      if (data.result && params.saveToDb) {
+      // The response is a Server-Sent Events stream
+      // Parse it line by line, updating progress as events arrive
+      const contentType = res.headers.get('content-type') || ''
+      if (!contentType.includes('text/event-stream')) {
+        // Fallback: treat as JSON (shouldn't happen with new code)
+        const data = await res.json().catch(() => ({}) as any)
+        const errorMsg = data?.error ?? '回應格式錯誤'
+        set({
+          prospectLoading: false,
+          prospectStage: '失敗',
+          prospectDetail: errorMsg,
+          prospectError: errorMsg,
+          prospectStep: 6,
+        })
+        return { success: false, error: errorMsg }
+      }
+
+      // Read the SSE stream
+      const reader = res.body?.getReader()
+      if (!reader) {
+        throw new Error('No response body')
+      }
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let finalResult: any = null
+      let addedToLeads = 0
+      let hadError = false
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+
+        // SSE events are separated by double newlines
+        const events = buffer.split('\n\n')
+        buffer = events.pop() || ''  // keep the last incomplete chunk
+
+        for (const evt of events) {
+          // Each event looks like: "data: {...json...}"
+          const line = evt.trim()
+          if (!line.startsWith('data:')) continue
+          const jsonStr = line.slice(5).trim()
+          let data: any
+          try {
+            data = JSON.parse(jsonStr)
+          } catch {
+            continue
+          }
+
+          if (data.type === 'progress') {
+            set({
+              prospectStage: data.stage ?? '執行中',
+              prospectDetail: data.detail ?? '',
+              prospectStep: data.step ?? 1,
+            })
+          } else if (data.type === 'complete') {
+            finalResult = data.result
+            addedToLeads = data.addedToLeads ?? 0
+            set({
+              prospectResult: data.result ?? null,
+              prospectLoading: false,
+              prospectStage: '完成',
+              prospectDetail: data.detail ?? `找到 ${data.result?.candidates?.length ?? 0} 家潛在客戶`,
+              prospectStep: 6,
+            })
+          } else if (data.type === 'error') {
+            hadError = true
+            const errorMsg = data.error ?? '自動開發失敗'
+            const isRateLimited = errorMsg.includes('429') || errorMsg.includes('Too many requests')
+            set({
+              prospectLoading: false,
+              prospectStage: isRateLimited ? 'AI 配額用完' : '失敗',
+              prospectDetail: isRateLimited
+                ? 'AI 服務配額已用完（429）。這通常是每日配額限制，請過 1-2 小時再試。已儲存的名單與設定不受影響。'
+                : errorMsg + (data.creditsRefunded ? `（已退還 ${data.creditsRefunded} 點數）` : ''),
+              prospectError: errorMsg,
+              prospectStep: 6,
+              rateLimitedAt: isRateLimited ? Date.now() : null,
+            })
+          }
+        }
+      }
+
+      if (hadError) {
+        return { success: false, error: 'auto-prospect failed' }
+      }
+
+      if (finalResult && params.saveToDb) {
         await get().fetchLeads()
       }
-      return { success: true, addedToLeads: data.addedToLeads ?? 0 }
+      return { success: true, addedToLeads }
     } catch (e: any) {
       console.error('runAutoProspect error:', e)
       const msg = e?.message ?? '網路錯誤'
