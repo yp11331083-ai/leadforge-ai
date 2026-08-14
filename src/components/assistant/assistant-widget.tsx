@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
-import { Bot, X, Send, Loader2, Sparkles, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Bot, X, Send, Loader2, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react'
 import { useLeadStore } from '@/store/lead-store'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -34,7 +34,6 @@ export function AssistantWidget() {
   const currentUser = useLeadStore((s) => s.currentUser)
   const leads = useLeadStore((s) => s.leads)
   const runAutoProspect = useLeadStore((s) => s.runAutoProspect)
-  const researchLead = useLeadStore((s) => s.researchLead)
   const generateEmail = useLeadStore((s) => s.generateEmail)
   const enrichEmail = useLeadStore((s) => s.enrichEmail)
   const setViewMode = useLeadStore((s) => s.setViewMode)
@@ -50,6 +49,35 @@ export function AssistantWidget() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages])
+
+  // Save service offering fields — MERGES with existing values, doesn't overwrite
+  const saveServiceOffering = async (fields: Record<string, string | undefined>) => {
+    // Merge: existing values + new fields (only update what's provided)
+    const merged = {
+      serviceName: fields.serviceName ?? serviceOffering?.serviceName ?? undefined,
+      description: fields.description ?? serviceOffering?.description ?? undefined,
+      targetIndustries: fields.targetIndustries ?? serviceOffering?.targetIndustries ?? undefined,
+      targetCompanySize: fields.targetCompanySize ?? serviceOffering?.targetCompanySize ?? undefined,
+      targetLocation: fields.targetLocation ?? serviceOffering?.targetLocation ?? undefined,
+      keyBenefits: fields.keyBenefits ?? serviceOffering?.keyBenefits ?? undefined,
+      idealCustomerSignals: fields.idealCustomerSignals ?? serviceOffering?.idealCustomerSignals ?? undefined,
+    }
+
+    try {
+      const res = await fetch('/api/service-offering', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(merged),
+      })
+      if (res.ok) {
+        await fetchServiceOffering()
+        return true
+      }
+      return false
+    } catch {
+      return false
+    }
+  }
 
   const executeAction = async (action: any): Promise<{ success: boolean; label: string }> => {
     if (!action?.type) return { success: false, label: 'Unknown action' }
@@ -67,7 +95,6 @@ export function AssistantWidget() {
 
         case 'go_to_billing':
         case 'update_plan': {
-          // Navigate to billing tab so user can see plans and upgrade
           setViewMode('billing' as any)
           return {
             success: true,
@@ -75,66 +102,56 @@ export function AssistantWidget() {
           }
         }
 
+        // Update individual fields — MERGES with existing, doesn't overwrite
+        case 'update_service_field':
         case 'fill_service_description': {
-          // Navigate to admin tab (where Auto-Prospect is)
+          const params = action.params || {}
           setViewMode('admin' as any)
 
-          // Save the service description to DB
-          const { serviceName, description, targetIndustries, targetLocation } = action.params || {}
+          // Build only the fields that are provided
+          const fields: Record<string, string | undefined> = {}
+          if (params.serviceName) fields.serviceName = params.serviceName
+          if (params.description) fields.description = params.description
+          if (params.targetIndustries) fields.targetIndustries = params.targetIndustries
+          if (params.targetCompanySize) fields.targetCompanySize = params.targetCompanySize
+          if (params.targetLocation) fields.targetLocation = params.targetLocation
+          if (params.keyBenefits) fields.keyBenefits = params.keyBenefits
+          if (params.idealCustomerSignals) fields.idealCustomerSignals = params.idealCustomerSignals
 
-          if (!serviceName || !description) {
-            return { success: false, label: 'Missing service name or description' }
+          const saved = await saveServiceOffering(fields)
+          if (saved) {
+            return { success: true, label: 'Updated — check the Auto-Prospect tab' }
           }
-
-          try {
-            const res = await fetch('/api/service-offering', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                serviceName,
-                description,
-                targetIndustries: targetIndustries || undefined,
-                targetLocation: targetLocation || undefined,
-              }),
-            })
-
-            if (res.ok) {
-              // Refresh the store so the form picks up the new values
-              await fetchServiceOffering()
-              return { success: true, label: 'Service description filled in — check the Auto-Prospect tab' }
-            }
-            return { success: false, label: 'Failed to save service description' }
-          } catch {
-            return { success: false, label: 'Network error saving description' }
-          }
+          return { success: false, label: 'Failed to save' }
         }
 
         case 'find_leads': {
           const targetCount = Math.min(action.params?.targetCount ?? 5, 10)
-          const desc = action.params?.description
           const serviceName = serviceOffering?.serviceName || ''
-          const description = desc || serviceOffering?.description || ''
+          const description = serviceOffering?.description || ''
 
           if (!serviceName || !description) {
             return {
               success: false,
-              label: 'Please set your service description in the Auto-Prospect tab first',
+              label: 'Please set your service description first — tell me what you sell',
             }
           }
 
-          toast.info('Starting auto-prospect from assistant...')
+          toast.info('Starting auto-prospect...')
           const result = await runAutoProspect({
             serviceName,
             description,
+            targetIndustries: serviceOffering?.targetIndustries || undefined,
+            targetCompanySize: serviceOffering?.targetCompanySize || undefined,
+            targetLocation: serviceOffering?.targetLocation || undefined,
+            keyBenefits: serviceOffering?.keyBenefits || undefined,
+            idealCustomerSignals: serviceOffering?.idealCustomerSignals || undefined,
             targetCount,
             saveToDb: true,
           })
 
           if (result.success) {
-            return {
-              success: true,
-              label: `Found and added leads to your list`,
-            }
+            return { success: true, label: 'Found and added leads to your list' }
           }
           return { success: false, label: result.error ?? 'Auto-prospect failed' }
         }
@@ -145,7 +162,6 @@ export function AssistantWidget() {
             return { success: false, label: 'No website specified' }
           }
 
-          // Create a temporary lead or research directly
           try {
             const res = await fetch('/api/research', {
               method: 'POST',
@@ -157,7 +173,7 @@ export function AssistantWidget() {
               return { success: true, label: `Research complete for ${company || website}` }
             }
             return { success: false, label: data.error ?? 'Research failed' }
-          } catch (e) {
+          } catch {
             return { success: false, label: 'Research request failed' }
           }
         }
@@ -182,14 +198,13 @@ export function AssistantWidget() {
           const result = await enrichEmail(leadId)
           return {
             success: result.success,
-            label: result.success
-              ? 'Email found — check the lead'
-              : result.error ?? 'Enrichment failed',
+            label: result.success ? 'Email found — check the lead' : result.error ?? 'Enrichment failed',
           }
         }
 
         default:
-          return { success: false, label: `Unknown action: ${action.type}` }
+          // Don't show "Unknown action" error — just say nothing happened
+          return { success: true, label: '' }
       }
     } catch (e: any) {
       return { success: false, label: e?.message ?? 'Action failed' }
@@ -211,6 +226,17 @@ export function AssistantWidget() {
         website: l.website,
       }))
 
+      // Include current service offering so AI knows what's already set
+      const serviceContext = serviceOffering ? {
+        serviceName: serviceOffering.serviceName ?? '',
+        description: serviceOffering.description ?? '',
+        targetIndustries: serviceOffering.targetIndustries ?? '',
+        targetCompanySize: serviceOffering.targetCompanySize ?? '',
+        targetLocation: serviceOffering.targetLocation ?? '',
+        keyBenefits: serviceOffering.keyBenefits ?? '',
+        idealCustomerSignals: serviceOffering.idealCustomerSignals ?? '',
+      } : null
+
       const res = await fetch('/api/assistant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -221,6 +247,7 @@ export function AssistantWidget() {
             credits: creditBalance ?? 'unknown',
             leadsCount: leads.length,
             recentLeads,
+            serviceOffering: serviceContext,
           },
           history: messages.slice(-6).map((m) => ({
             role: m.role,
@@ -239,11 +266,8 @@ export function AssistantWidget() {
         }
         setMessages((m) => [...m, assistantMsg])
 
-        // If there's an action, execute it
         if (data.action) {
           const result = await executeAction(data.action)
-
-          // Update the assistant message with the result
           setMessages((m) =>
             m.map((msg, i) =>
               i === m.length - 1
@@ -256,33 +280,23 @@ export function AssistantWidget() {
             )
           )
 
-          // If action failed, add a follow-up message
-          if (!result.success) {
+          if (!result.success && result.label) {
             setMessages((m) => [
               ...m,
-              {
-                role: 'assistant',
-                content: `⚠️ ${result.label}. Want me to try something else?`,
-              },
+              { role: 'assistant', content: `⚠️ ${result.label}. Want me to try something else?` },
             ])
           }
         }
       } else {
         setMessages((m) => [
           ...m,
-          {
-            role: 'assistant',
-            content: data.error ?? 'Sorry, I could not process that. Please try again.',
-          },
+          { role: 'assistant', content: data.error ?? 'Sorry, I could not process that.' },
         ])
       }
     } catch (e: any) {
       setMessages((m) => [
         ...m,
-        {
-          role: 'assistant',
-          content: 'Network error — please check your connection and try again.',
-        },
+        { role: 'assistant', content: 'Network error — please try again.' },
       ])
     } finally {
       setLoading(false)
@@ -291,7 +305,7 @@ export function AssistantWidget() {
 
   return (
     <>
-      {/* Floating button — always visible, toggles chat open/close */}
+      {/* Floating button — toggles chat */}
       <button
         onClick={() => setOpen(!open)}
         className="fixed bottom-6 right-6 z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg hover:scale-105 transition-transform"
@@ -300,7 +314,7 @@ export function AssistantWidget() {
         {open ? <X className="h-6 w-6" /> : <Bot className="h-6 w-6" />}
       </button>
 
-      {/* Chat panel — spring bounce animation */}
+      {/* Chat panel — spring bounce */}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -311,137 +325,134 @@ export function AssistantWidget() {
             transition={{ type: 'spring', stiffness: 400, damping: 25, mass: 0.8 }}
             className="fixed bottom-24 right-6 z-50 w-[calc(100vw-3rem)] max-w-md"
           >
-          <Card className="flex flex-col h-[32rem] max-h-[80vh] shadow-2xl border-violet-200 dark:border-violet-800">
-            {/* Header */}
-            <div className="flex items-center justify-between p-3 border-b border-violet-100 dark:border-violet-900 bg-gradient-to-r from-violet-50 to-fuchsia-50 dark:from-violet-950/30 dark:to-fuchsia-950/30 rounded-t-lg">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white">
-                  <Bot className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold">Outrovo Assistant</p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {loading ? 'Working...' : 'Ask me to do anything'}
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setOpen(false)}
-                className="h-7 w-7 p-0"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Messages */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3">
-              {messages.length === 0 && (
-                <div className="text-center py-6 space-y-3">
-                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-950/50">
-                    <Bot className="h-6 w-6 text-violet-600 dark:text-violet-400" />
+            <Card className="flex flex-col h-[32rem] max-h-[80vh] shadow-2xl border-violet-200 dark:border-violet-800">
+              {/* Header */}
+              <div className="flex items-center justify-between p-3 border-b border-violet-100 dark:border-violet-900 bg-gradient-to-r from-violet-50 to-fuchsia-50 dark:from-violet-950/30 dark:to-fuchsia-950/30 rounded-t-lg">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white">
+                    <Bot className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium">Hi! I'm your assistant</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      I can find leads, research companies, generate emails, and more. Just tell me what you need.
+                    <p className="text-sm font-semibold">Outrovo Assistant</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {loading ? 'Working...' : 'Ask me to do anything'}
                     </p>
                   </div>
-                  <div className="space-y-1.5">
-                    {SUGGESTED_QUESTIONS.map((q, i) => (
-                      <button
-                        key={i}
-                        onClick={() => sendMessage(q)}
-                        className="block w-full text-left text-xs px-3 py-2 rounded-md bg-muted/50 hover:bg-violet-100 dark:hover:bg-violet-950/40 transition-colors flex items-center justify-between group"
-                      >
-                        <span>{q}</span>
-                        <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </button>
-                    ))}
-                  </div>
                 </div>
-              )}
-
-              {messages.map((msg, i) => (
-                <div key={i}>
-                  <div
-                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap ${
-                        msg.role === 'user'
-                          ? 'bg-violet-600 text-white rounded-br-sm'
-                          : 'bg-muted text-foreground rounded-bl-sm'
-                      }`}
-                    >
-                      {msg.content}
-                    </div>
-                  </div>
-
-                  {/* Action result indicator */}
-                  {msg.actionResult && (
-                    <div
-                      className={`flex items-center gap-1.5 mt-1 ml-1 text-[11px] ${
-                        msg.actionResult === 'success'
-                          ? 'text-emerald-600 dark:text-emerald-400'
-                          : msg.actionResult === 'failed'
-                          ? 'text-rose-600 dark:text-rose-400'
-                          : 'text-muted-foreground'
-                      }`}
-                    >
-                      {msg.actionResult === 'pending' ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : msg.actionResult === 'success' ? (
-                        <CheckCircle2 className="h-3 w-3" />
-                      ) : (
-                        <AlertCircle className="h-3 w-3" />
-                      )}
-                      <span>{msg.actionLabel}</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-
-              {loading && (
-                <div className="flex justify-start">
-                  <div className="bg-muted rounded-2xl rounded-bl-sm px-3.5 py-2 flex items-center gap-1.5">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    <span className="text-xs text-muted-foreground">Working...</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Input */}
-            <div className="p-3 border-t border-violet-100 dark:border-violet-900">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  sendMessage(input)
-                }}
-                className="flex gap-2"
-              >
-                <Input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask me to do anything..."
-                  disabled={loading}
-                  className="flex-1"
-                />
                 <Button
-                  type="submit"
+                  variant="ghost"
                   size="sm"
-                  disabled={loading || !input.trim()}
-                  className="bg-violet-600 hover:bg-violet-700"
+                  onClick={() => setOpen(false)}
+                  className="h-7 w-7 p-0"
                 >
-                  <Send className="h-4 w-4" />
+                  <X className="h-4 w-4" />
                 </Button>
-              </form>
-            </div>
-          </Card>
-        </div>
-      )}
+              </div>
+
+              {/* Messages */}
+              <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3">
+                {messages.length === 0 && (
+                  <div className="text-center py-6 space-y-3">
+                    <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-950/50">
+                      <Bot className="h-6 w-6 text-violet-600 dark:text-violet-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Hi! I'm your assistant</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        I can find leads, research companies, generate emails, and more.
+                      </p>
+                    </div>
+                    <div className="space-y-1.5">
+                      {SUGGESTED_QUESTIONS.map((q, i) => (
+                        <button
+                          key={i}
+                          onClick={() => sendMessage(q)}
+                          className="block w-full text-left text-xs px-3 py-2 rounded-md bg-muted/50 hover:bg-violet-100 dark:hover:bg-violet-950/40 transition-colors flex items-center justify-between group"
+                        >
+                          <span>{q}</span>
+                          <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {messages.map((msg, i) => (
+                  <div key={i}>
+                    <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div
+                        className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap ${
+                          msg.role === 'user'
+                            ? 'bg-violet-600 text-white rounded-br-sm'
+                            : 'bg-muted text-foreground rounded-bl-sm'
+                        }`}
+                      >
+                        {msg.content}
+                      </div>
+                    </div>
+                    {msg.actionResult && (
+                      <div
+                        className={`flex items-center gap-1.5 mt-1 ml-1 text-[11px] ${
+                          msg.actionResult === 'success'
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : msg.actionResult === 'failed'
+                            ? 'text-rose-600 dark:text-rose-400'
+                            : 'text-muted-foreground'
+                        }`}
+                      >
+                        {msg.actionResult === 'pending' ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : msg.actionResult === 'success' ? (
+                          <CheckCircle2 className="h-3 w-3" />
+                        ) : (
+                          <AlertCircle className="h-3 w-3" />
+                        )}
+                        <span>{msg.actionLabel}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {loading && (
+                  <div className="flex justify-start">
+                    <div className="bg-muted rounded-2xl rounded-bl-sm px-3.5 py-2 flex items-center gap-1.5">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <span className="text-xs text-muted-foreground">Working...</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Input */}
+              <div className="p-3 border-t border-violet-100 dark:border-violet-900">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    sendMessage(input)
+                  }}
+                  className="flex gap-2"
+                >
+                  <Input
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Ask me to do anything..."
+                    disabled={loading}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={loading || !input.trim()}
+                    className="bg-violet-600 hover:bg-violet-700"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </form>
+              </div>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   )
 }
