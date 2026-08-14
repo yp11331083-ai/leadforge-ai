@@ -97,7 +97,11 @@ export async function POST(req: NextRequest) {
 
     if (!research.success) {
       if (leadId) await db.lead.update({ where: { id: leadId }, data: { status: 'new' } })
-      return NextResponse.json({ error: 'AI research parsing failed' }, { status: 500 })
+      // Include the raw AI response in the error so we can debug parsing failures
+      return NextResponse.json({
+        error: 'AI research parsing failed',
+        raw: research.raw?.slice(0, 1500),
+      }, { status: 500 })
     }
 
     const data = research.data

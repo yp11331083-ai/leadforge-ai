@@ -882,7 +882,7 @@ export async function autoProspect(params: {
   })
 
   if (!queryResult.success || queryResult.queries.length === 0) {
-    return { success: false, result: null, error: 'AI 無法生成搜尋策略' }
+    return { success: false, result: null, error: `AI 無法生成搜尋策略（raw: ${queryResult.raw?.slice(0, 800) ?? 'no response'})` }
   }
 
   onProgress?.('搜尋候選公司', `使用 ${queryResult.queries.length} 組查詢詞搜尋...`)
