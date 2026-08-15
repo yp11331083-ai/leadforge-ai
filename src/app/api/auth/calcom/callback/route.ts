@@ -3,12 +3,14 @@ import { db } from '@/lib/db'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/auth-options'
 
+const BASE_URL = 'https://leadforge-ai-5t3a.vercel.app'
+
 /**
  * GET /api/auth/calcom/callback?code=AUTH_CODE
- * 
+ *
  * Cal.com OAuth flow:
  * 1. Receives authorization code from Cal.com
- * 2. Exchanges code for access token
+ * 2. Exchanges code for access token (with PKCE)
  * 3. Auto-registers webhook (booking.created, booking.cancelled)
  * 4. Saves Cal.com connection to tenant's EmailConfig
  */
@@ -18,44 +20,54 @@ export async function GET(req: NextRequest) {
     const code = searchParams.get('code')
     const error = searchParams.get('error')
 
+    // Get the code_verifier from cookie (set by /connect route for PKCE)
+    const codeVerifier = req.cookies.get('calcom_code_verifier')?.value
+
     if (error) {
-      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/?view=admin&calcom_error=${error}`)
+      return NextResponse.redirect(`${BASE_URL}/?view=admin&calcom_error=${error}`)
     }
 
     if (!code) {
-      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/?view=admin&calcom_error=no_code`)
+      return NextResponse.redirect(`${BASE_URL}/?view=admin&calcom_error=no_code`)
     }
 
     const session = await getServerSession(authOptions)
     if (!session?.user) {
-      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/login`)
+      return NextResponse.redirect(`${BASE_URL}/login`)
     }
 
     const user = session.user as any
     const tenantId = user.tenantId
 
-    // Exchange code for access token via Cal.com v2 API
+    // Cal.com OAuth credentials
     const clientId = process.env.CALCOM_CLIENT_ID || '6020c29591603206027afe1afe0fdc7a06cbaf0ad10b402cf286883b2764021d'
     const clientSecret = process.env.CALCOM_CLIENT_SECRET || '9e2cbc504707171937b27eca48700e1a55d8a66c09f6cc8e09e6b647a6274848'
     const redirectUri = 'https://leadforge-ai-5t3a.vercel.app/api/auth/calcom/callback'
 
-    // Cal.com v2 OAuth token endpoint
+    // Exchange code for access token via Cal.com v2 API (with PKCE)
+    const tokenBody: any = {
+      grant_type: 'authorization_code',
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+      code,
+    }
+
+    // If we have a code_verifier (PKCE), include it
+    if (codeVerifier) {
+      tokenBody.code_verifier = codeVerifier
+    }
+
     const tokenRes = await fetch('https://app.cal.com/api/v2/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        grant_type: 'authorization_code',
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: redirectUri,
-        code,
-      }),
+      body: JSON.stringify(tokenBody),
     })
 
     if (!tokenRes.ok) {
       const errText = await tokenRes.text()
       console.error('Cal.com token exchange failed:', tokenRes.status, errText)
-      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/?view=admin&calcom_error=token_failed`)
+      return NextResponse.redirect(`${BASE_URL}/?view=admin&calcom_error=token_failed`)
     }
 
     const tokenData = await tokenRes.json() as {
@@ -66,11 +78,11 @@ export async function GET(req: NextRequest) {
 
     const accessToken = tokenData.access_token
     if (!accessToken) {
-      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/?view=admin&calcom_error=no_token`)
+      return NextResponse.redirect(`${BASE_URL}/?view=admin&calcom_error=no_token`)
     }
 
     // Auto-register webhook for this user
-    const webhookUrl = `${process.env.NEXTAUTH_URL}/api/webhooks/calcom`
+    const webhookUrl = `${BASE_URL}/api/webhooks/calcom`
     
     const webhookRes = await fetch('https://app.cal.com/api/v2/webhooks', {
       method: 'POST',
@@ -105,10 +117,10 @@ export async function GET(req: NextRequest) {
 
     // Redirect back to admin with success indicator
     return NextResponse.redirect(
-      `${process.env.NEXTAUTH_URL}/?view=admin&calcom_connected=true${webhookCreated ? '&webhook=auto' : '&webhook=manual'}`
+      `${BASE_URL}/?view=admin&calcom_connected=true${webhookCreated ? '&webhook=auto' : '&webhook=manual'}`
     )
   } catch (error) {
     console.error('Cal.com OAuth callback error:', error)
-    return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/?view=admin&calcom_error=exception`)
+    return NextResponse.redirect(`${BASE_URL}/?view=admin&calcom_error=exception`)
   }
 }
