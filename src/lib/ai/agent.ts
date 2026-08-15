@@ -1170,13 +1170,13 @@ export async function autoProspect(params: {
 
     await new Promise((r) => setTimeout(r, 200))
 
-    const highConfCount = evaluated.filter((e) => e.fit_score >= 60).length
-    if (highConfCount >= targetCount && i >= targetCount * 2) break
+    const highConfCount = evaluated.filter((e) => e.fit_score >= 40).length
+    if (highConfCount >= targetCount && i >= targetCount * 3) break
   }
 
   // 步驟 7：排序 + 過濾 + 取 top N
   evaluated.sort((a, b) => b.fit_score - a.fit_score)
-  const qualified = evaluated.filter((e) => e.fit_score > 15)
+  const qualified = evaluated.filter((e) => e.fit_score > 10)
   const top = qualified.slice(0, targetCount)
 
   const droppedCount = evaluated.length - qualified.length
