@@ -98,11 +98,12 @@ export async function POST(req: NextRequest) {
             targetCount,
             onProgress: (stage, detail) => {
               let step = 1
-              if (stage.includes('搜尋候選') || stage.includes('搜尋公司')) step = 2
-              else if (stage.includes('篩選') || stage.includes('萃取')) step = 3
-              else if (stage.includes('抓取') || stage.includes('抓網站')) step = 4
-              else if (stage.includes('分析契合') || stage.includes('評估') || stage.includes('AI 分析')) step = 5
-              else if (stage.includes('完成') || stage.includes('Sort') || stage.includes('加入名單')) step = 6
+              const s = stage.toLowerCase()
+              if (s.includes('search cand') || s.includes('searching')) step = 2
+              else if (s.includes('filter') || s.includes('extract')) step = 3
+              else if (s.includes('fetch') || s.includes('website')) step = 4
+              else if (s.includes('fit') || s.includes('evaluat') || s.includes('analyz')) step = 5
+              else if (s.includes('complete') || s.includes('sort') || s.includes('found')) step = 6
               send({ type: 'progress', step, stage, detail: detail ?? '' })
             },
           })

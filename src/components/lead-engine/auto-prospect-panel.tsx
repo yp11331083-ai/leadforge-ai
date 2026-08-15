@@ -61,8 +61,12 @@ export function AutoProspectPanel() {
   const [hasLoadedFromDB, setHasLoadedFromDB] = useState(false)
 
   useEffect(() => {
-    fetchServiceOffering()
-  }, [fetchServiceOffering])
+    // Only fetch if we don't have serviceOffering yet — don't re-fetch
+    // on every mount (which overwrites user's unsaved form changes)
+    if (!serviceOffering) {
+      fetchServiceOffering()
+    }
+  }, [fetchServiceOffering, serviceOffering])
 
   // Sync DB settings to form — ONLY on initial load, not after save.
   // After save, the form already has the correct values; we don't want

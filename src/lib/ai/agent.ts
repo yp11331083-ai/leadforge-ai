@@ -820,6 +820,12 @@ export async function evaluateProspectFit(params: {
 
   const prompt = `You are a top-tier B2B business analyst skilled at evaluating whether a company needs a given service.
 
+## CRITICAL: Vendor vs Client Detection
+Before evaluating fit, determine if this company is a VENDOR (sells similar services) or a CLIENT (would buy this service).
+- If the company IS a marketing/design/dev agency, consultancy, or SaaS platform that offers similar services → they are a COMPETITOR, not a customer. fit_score MUST be ≤ 15.
+- If the company is a non-marketing business (e.g. manufacturer, retailer, hospital, real estate, logistics) that would BUY marketing/sales/tech services → they are a potential CLIENT.
+- Marketing agencies do NOT need another marketing agency's services.
+
 ## My Service
 
 **Service Name**: ${serviceName}
@@ -839,47 +845,36 @@ ${websiteContent.slice(0, 5000)}
 
 ## Task
 
-Evaluate whether this company needs my service. Judge from these dimensions:
+1. FIRST: Is this company a VENDOR (competitor) or a potential CLIENT?
+   - Look for: "our services include", "we offer", "marketing agency", "design studio", "we help clients"
+   - If they sell the same type of service as my product → they are a competitor → fit_score ≤ 15
+2. THEN: If they are a potential client, evaluate fit from these dimensions:
+   - Business Fit: Does what they do suggest they'd use my service?
+   - Size Fit: Does their size match my target?
+   - Signal Strength: Do website/hiring/product signals suggest pain points?
+   - Purchasing Power: Do they have budget?
+3. Write a SPECIFIC email hook — reference something ACTUALLY on their website (a real product, a real case study, a real hiring post). NOT generic template phrases.
 
-1. **Business Fit**: Does what they do suggest they'd use my service?
-2. **Size Fit**: Does their size match my target customer?
-3. **Signal Strength**: Do website/hiring/product signals suggest they have pain points my service solves?
-4. **Purchasing Power**: Do they appear to have budget to buy?
-5. **Reachability**: Is there public contact info?
-
-## ⚠️ Important: First check if this is a "real company"
-
-If this website is any of the following, give fit_score 0-10 and explain in why_they_need_it "This is not a company website — it's a directory/aggregator/listing page":
-- Directory site (lists many companies, e.g. topstartups.io, growjo.com)
-- Accelerator listing page (e.g. ycombinator.com/companies/location/india)
-- News/media website
-- Government agency
-- Personal portfolio/blog
-- Job board (not the company itself)
-
-## Output Format
-
-Output pure JSON (no markdown):
+## Output Format (pure JSON, no markdown):
 
 {
   "company": "${companyName}",
   "website": "${companyUrl}",
-  "industry": "inferred industry (in English, e.g. SaaS, E-commerce, Manufacturing)",
+  "industry": "inferred industry (English)",
   "fit_score": 75,
-  "why_they_need_it": "2-3 sentences explaining specifically why they need my service. Point out their concrete pain points and how my service addresses them. Write in English.",
-  "suggested_angle": "Suggested outreach angle (1 sentence, in English)",
-  "key_signals": ["signal 1", "signal 2", "signal 3"],
+  "why_they_need_it": "2-3 sentences. Reference something SPECIFIC from their website. NOT generic 'they might need automation'.",
+  "suggested_angle": "1 sentence. Reference a SPECIFIC thing about this company (a product, a case study, a recent hire, a news item). NOT a template.",
+  "key_signals": ["specific signal 1", "specific signal 2", "specific signal 3"],
   "confidence": "high"
 }
 
-Notes:
-- fit_score must be objective. Don't give everything 80+. If it's a bad fit, give a low score.
-- If this is not a company website (directory/listing/aggregator), fit_score MUST be ≤ 10.
-- If targetLocation is set and the company is clearly in a different region, fit_score MUST be ≤ 10.
-- why_they_need_it must be specific — no vague "they might need automation" nonsense.
-- If you can't find enough info to judge, give confidence "low" and fit_score ≤ 30.
-- ALL text fields must be in English.
-- Industry should be in English (e.g. "SaaS", "E-commerce", "Manufacturing", "B2B Services").`
+Rules:
+- If this is a competitor/vendor (same industry as my service), fit_score MUST be ≤ 15.
+- If this is not a real company website (directory/listing), fit_score MUST be ≤ 10.
+- If targetLocation is set and company is elsewhere, fit_score MUST be ≤ 10.
+- The email hook and suggested_angle MUST reference something specific from the website content above. Generic phrases like "I noticed your company is growing" are FORBIDDEN.
+- ALL text must be in English.
+- Industry in English (e.g. "Manufacturing", "Real Estate", "Healthcare").`
 
   const chatResult = await chatWithFallback({
     messages: [
@@ -985,14 +980,15 @@ export async function autoProspect(params: {
   }
 
   // 取前 N*2 家做評估（確保最終能篩出 N 家）
-  const toEvaluate = candidates.slice(0, Math.max(targetCount * 3, 20))
-  onProgress?.('AI fit analysis', `Evaluating ${toEvaluate.length} candidates...`)
+  // Evaluate ALL candidates (not just a subset) to maximize results
+  const toEvaluate = candidates
+  onProgress?.('Fit analysis', `Evaluating ${toEvaluate.length} candidates...`)
 
   // 步驟 4 + 5：循序抓網站 + AI 評估
   const evaluated: ProspectCandidate[] = []
   for (let i = 0; i < toEvaluate.length; i++) {
     const c = toEvaluate[i]
-    onProgress?.('AI fit analysis', `(${i + 1}/${toEvaluate.length}) ${c.name}`)
+    onProgress?.('Fit analysis', `(${i + 1}/${toEvaluate.length}) ${c.name}`)
 
     try {
       // 抓網站內容
@@ -1027,7 +1023,7 @@ export async function autoProspect(params: {
 
     // 已經收集到足夠的高分候選就停止
     const highConfCount = evaluated.filter((e) => e.fit_score >= 60).length
-    if (highConfCount >= targetCount && i >= targetCount) break
+    if (highConfCount >= targetCount && i >= targetCount * 2) break
   }
 
   // 步驟 6：依 fit_score 排序，過濾掉非公司官網（fit_score ≤ 15 通常是目錄/列表頁），取 top N
