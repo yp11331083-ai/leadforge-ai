@@ -95,6 +95,13 @@ export async function POST(req: NextRequest) {
           }
         }
 
+        // Heartbeat: quota-capped runs pace one LLM eval every ~10s, and a
+        // single slow eval (page fetch + model) can be silent for 30s+.
+        // Without traffic, idle proxies can drop the SSE connection and the
+        // client sees a frozen progress bar. The client ignores heartbeat
+        // events for UI purposes.
+        const heartbeat = setInterval(() => send({ type: 'heartbeat', t: Date.now() }), 12_000)
+
         try {
           const result = await autoProspect({
             serviceName,
@@ -197,6 +204,8 @@ export async function POST(req: NextRequest) {
             creditsRemaining: creditsBefore,
           })
           controller.close()
+        } finally {
+          clearInterval(heartbeat)
         }
       },
     })

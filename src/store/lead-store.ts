@@ -222,6 +222,77 @@ const DEFAULT_SENDER: SenderConfig = {
   language: 'en',
 }
 
+// ---- Prospect run snapshot (sessionStorage) ----
+// The prospect run state lives in memory only — a reload used to wipe a
+// finished run's results ("record gone"). Persist the terminal state and
+// rehydrate on store creation so switching tabs or reloading keeps the
+// last outcome visible.
+const PROSPECT_SNAPSHOT_KEY = 'lf_prospect_snapshot'
+
+interface ProspectSnapshot {
+  prospectResult: any
+  prospectStage: string
+  prospectDetail: string
+  prospectStep: number
+  prospectElapsedSeconds: number
+  at: number
+}
+
+function persistProspectSnapshot(getState: () => any): void {
+  try {
+    const s = getState()
+    const snapshot: ProspectSnapshot = {
+      prospectResult: s.prospectResult,
+      prospectStage: s.prospectStage,
+      prospectDetail: s.prospectDetail,
+      prospectStep: s.prospectStep,
+      prospectElapsedSeconds: s.prospectElapsedSeconds,
+      at: Date.now(),
+    }
+    sessionStorage.setItem(PROSPECT_SNAPSHOT_KEY, JSON.stringify(snapshot))
+  } catch {
+    // storage full / unavailable — snapshot is best-effort
+  }
+}
+
+function loadProspectSnapshot(): Partial<ProspectSnapshot> | null {
+  try {
+    const raw = sessionStorage.getItem(PROSPECT_SNAPSHOT_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as ProspectSnapshot
+    // ignore stale snapshots (previous sessions)
+    if (!parsed.at || Date.now() - parsed.at > 12 * 60 * 60 * 1000) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function initialProspectState() {
+  const snap = typeof window === 'undefined' ? null : loadProspectSnapshot()
+  if (!snap) {
+    return {
+      prospectResult: null as any,
+      prospectStage: '',
+      prospectDetail: '',
+      prospectStep: 0,
+      prospectElapsedSeconds: 0,
+      prospectError: null as string | null,
+    }
+  }
+  // A restored run cannot resume streaming — if it was mid-run when the
+  // page died, present it as interrupted rather than stuck-loading.
+  const wasLoading = !['Complete', 'Failed', 'Error', 'Timeout', 'Interrupted', 'Quota Exhausted'].includes(snap.prospectStage ?? '')
+  return {
+    prospectResult: (snap.prospectResult ?? null) as any,
+    prospectStage: wasLoading ? 'Interrupted' : (snap.prospectStage ?? ''),
+    prospectDetail: wasLoading ? 'The previous run was cut off by a page reload. Its results were not saved — please run again.' : (snap.prospectDetail ?? ''),
+    prospectStep: snap.prospectStep ?? 0,
+    prospectElapsedSeconds: snap.prospectElapsedSeconds ?? 0,
+    prospectError: (wasLoading ? 'interrupted by reload' : null) as string | null,
+  }
+}
+
 export const useLeadStore = create<LeadStore>((set, get) => ({
   leads: [],
   stats: { total: 0, new: 0, researched: 0, ready: 0, sent: 0, replied: 0 },
@@ -233,15 +304,10 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
   emailConfig: null,
   smartleadCampaigns: [],
   serviceOffering: null,
-  prospectResult: null,
   prospectLoading: false,
-  prospectStage: '',
-  prospectDetail: '',
-  prospectStep: 0,
   prospectTotalSteps: 6,
-  prospectElapsedSeconds: 0,
   prospectJobId: null,
-  prospectError: null,
+  ...initialProspectState(),
   rateLimitedAt: null,
   creditBalance: null,
   creditAllowance: null,
@@ -672,12 +738,30 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
       }
 
       if (hadError) {
+        persistProspectSnapshot(get)
         return { success: false, error: 'auto-prospect failed' }
+      }
+
+      // Stream ended WITHOUT a terminal event — the serverless function was
+      // killed (maxDuration / network drop) mid-run. This path used to leave
+      // prospectLoading=true forever: frozen progress bar, frozen elapsed
+      // clock, and the results section stayed hidden behind the spinner.
+      if (!finalResult) {
+        set({
+          prospectLoading: false,
+          prospectStage: 'Interrupted',
+          prospectDetail: 'The run lost connection before finishing (server time limit or network drop). Nothing was saved — please retry, ideally with a smaller target count.',
+          prospectError: 'Stream ended without completion',
+          prospectStep: 6,
+        })
+        persistProspectSnapshot(get)
+        return { success: false, error: 'interrupted' }
       }
 
       if (finalResult && params.saveToDb) {
         await get().fetchLeads()
       }
+      persistProspectSnapshot(get)
       return { success: true, addedToLeads }
     } catch (e: any) {
       console.error('runAutoProspect error:', e)

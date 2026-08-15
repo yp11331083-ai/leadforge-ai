@@ -1216,6 +1216,8 @@ export async function autoProspect(params: {
   const serializedEval = (args: Parameters<typeof evaluateProspectFitWithModel>[0]) => {
     const run = async () => {
       if (isGroqDailyCapped()) {
+        // 讓使用者在間隔中看到動靜，而不是以為卡住了
+        onProgress?.('Fit analysis', 'Pacing for shared AI quota — one company every ~10s...')
         await new Promise((r) => setTimeout(r, LLM_CAPPED_SPACING_MS))
       }
       return evaluateProspectFitWithModel(args, evalConfig)
