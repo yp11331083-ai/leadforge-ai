@@ -121,7 +121,13 @@ export function LandingPage() {
             <h1 className="text-5xl sm:text-7xl font-bold tracking-tight leading-[1.05] text-stone-900">
               Outrovo finds customers.
               <br />
-              <span className="bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent">
+              <span 
+                className="bg-gradient-to-r from-violet-600 via-fuchsia-500 to-violet-600 bg-clip-text text-transparent"
+                style={{
+                  backgroundSize: '200% auto',
+                  animation: 'textGradientCycle 4s ease-in-out infinite',
+                }}
+              >
                 You close deals.
               </span>
             </h1>

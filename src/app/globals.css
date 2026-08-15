@@ -141,3 +141,9 @@
   75% { background: linear-gradient(135deg, rgb(255 241 252 / 0.4), rgb(243 244 255 / 0.3)); }
   100% { background: linear-gradient(135deg, rgb(245 243 255 / 0.5), rgb(253 244 255 / 0.3)); }
 }
+
+@keyframes textGradientCycle {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
