@@ -1,4 +1,5 @@
 import ZAI from 'z-ai-web-dev-sdk'
+import { db } from '@/lib/db'
 import {
   chatWithFallback,
   searchWithFallback,
@@ -12,6 +13,18 @@ import {
 
 // Re-export so callers can import ProviderConfig from a single module path.
 export type { ProviderConfig, ChatMessage, SearchResultItem, PageContent } from './providers'
+
+/**
+ * Cheap stable hash (djb2) for cache-keying a service definition.
+ */
+export function serviceFingerprint(serviceName: string, description: string): string {
+  const s = `${serviceName.trim().toLowerCase()}|${description.trim().toLowerCase()}`
+  let h = 5381
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) + h + s.charCodeAt(i)) | 0
+  }
+  return (h >>> 0).toString(16)
+}
 
 let zaiInstance: ZAI | null = null
 
@@ -587,6 +600,8 @@ export interface ProspectCandidate {
   key_signals: string[]
   confidence: 'high' | 'medium' | 'low'
   website_title?: string
+  /** exact sentence(s) quoted from the candidate site that evidence the need */
+  evidence?: string
 }
 
 export interface AutoProspectResult {
@@ -1143,6 +1158,10 @@ export async function autoProspect(params: {
   idealCustomerSignals?: string
   targetCount?: number
   selfWebsite?: string // 用戶自己的公司網站，用於排除
+  /** stable fingerprint of the service definition — enables the eval cache */
+  serviceHash?: string
+  /** companies the user already picked as leads — feedback signal for eval */
+  positiveExamples?: string[]
   onProgress?: (stage: string, detail?: string) => void
 }): Promise<{
   success: boolean
@@ -1159,6 +1178,8 @@ export async function autoProspect(params: {
     idealCustomerSignals,
     targetCount = 10,
     selfWebsite,
+    serviceHash,
+    positiveExamples,
     onProgress,
   } = params
 
@@ -1248,22 +1269,23 @@ export async function autoProspect(params: {
   // 使用者看到穩定進度而非間隔性錯誤
   const LLM_CAPPED_SPACING_MS = 9_500
   let llmChain: Promise<void> = Promise.resolve()
-  const serializedEval = (args: Parameters<typeof evaluateProspectFitWithModel>[0]) => {
-    const run = async () => {
+  const serializedLLM = <T>(run: () => Promise<T>): Promise<T> => {
+    const wrapped = async () => {
       if (isGroqDailyCapped()) {
         // 讓使用者在間隔中看到動靜，而不是以為卡住了
         onProgress?.('Fit analysis', 'Pacing for shared AI quota — one company every ~10s...')
         await new Promise((r) => setTimeout(r, LLM_CAPPED_SPACING_MS))
       }
-      return evaluateProspectFitWithModel(args, evalConfig)
+      return run()
     }
-    const result = llmChain.then(run)
+    const result = llmChain.then(wrapped)
     llmChain = result.then(() => undefined, () => undefined)
     return result
   }
   const evaluated: ProspectCandidate[] = []
   let skippedCompetitors = 0
   let skippedVendors = 0
+  let cacheHits = 0
   let nextIndex = 0
   let completed = 0
   let shouldStop = false
@@ -1279,7 +1301,7 @@ export async function autoProspect(params: {
         const websiteData = await fetchWebsiteContent(c.url)
         const websiteText = websiteData ? htmlToText(websiteData.html).slice(0, 6000) : ''
 
-        // Pre-AI 篩選：檢查是否是競爭對手/平台
+        // Pre-AI 篩選：檢查是否是競爭對手/平台（免費，關鍵字）
         if (websiteText && isLikelyCompetitor(websiteText, serviceName, description)) {
           skippedCompetitors++
           completed++
@@ -1287,8 +1309,50 @@ export async function autoProspect(params: {
           continue
         }
 
-        // AI 評估契合度 — 用 70B 模型（額度受限時走序列佇列自動降級 8B）
-        const fitResult = await serializedEval({
+        // 完整 host 當快取 key（不用 extractDomain 的 last-2-parts —
+        // 那會把所有 co.uk 網站撞成同一個 key）
+        let domain = c.url
+        try {
+          domain = new URL(c.url).hostname.replace(/^www\./, '').toLowerCase()
+        } catch { /* keep raw url */ }
+
+        // ===== 快取命中：0 token 直接用上次的判決 =====
+        if (serviceHash) {
+          const cached = await readEvalCache(domain, serviceHash)
+          if (cached) {
+            completed++
+            cacheHits++
+            if (cached.type !== 'buyer' || !cached.candidate) {
+              skippedVendors++
+              onProgress?.('Fit analysis', `(${completed}/${toEvaluate.length}) ${c.name} — dropped (${cached.type}, cached)`)
+            } else {
+              evaluated.push({ ...cached.candidate, website_title: websiteData?.title })
+              onProgress?.('Fit analysis', `(${completed}/${toEvaluate.length}) ${c.name} — fit ${cached.candidate.fit_score} (cached)`)
+            }
+            continue
+          }
+        }
+
+        // ===== Stage 1：便宜分類（~300 tokens）— 非 buyer 在此止步 =====
+        const cls = await serializedLLM(() => classifyProspect({
+          serviceName,
+          description,
+          companyName: c.name,
+          companyUrl: c.url,
+          websiteContent: websiteText,
+        }, evalConfig))
+
+        if (cls && cls !== 'buyer') {
+          completed++
+          skippedVendors++
+          if (serviceHash) await writeEvalCache(domain, serviceHash, { type: cls })
+          onProgress?.('Fit analysis', `(${completed}/${toEvaluate.length}) ${c.name} — dropped (${cls})`)
+          continue
+        }
+        // 分類失敗（null）→ 保守起見繼續深度評估
+
+        // ===== Stage 2：深度評估（僅存活者，需引用證據）=====
+        const fitResult = await serializedLLM(() => evaluateProspectFitWithModel({
           serviceName,
           description,
           keyBenefits,
@@ -1299,7 +1363,8 @@ export async function autoProspect(params: {
           targetLocation,
           targetCompanySize,
           selfWebsite,
-        })
+          positiveExamples,
+        }, evalConfig))
 
         completed++
         if (fitResult.success && fitResult.data) {
@@ -1307,13 +1372,23 @@ export async function autoProspect(params: {
           // 平台商/供應商 40-85 分 — company_type 非 client 一律丟棄
           if (fitResult.data.company_type && fitResult.data.company_type !== 'client') {
             skippedVendors++
+            if (serviceHash) await writeEvalCache(domain, serviceHash, { type: fitResult.data.company_type })
             onProgress?.('Fit analysis', `(${completed}/${toEvaluate.length}) ${c.name} — dropped (${fitResult.data.company_type})`)
           } else {
-            evaluated.push({
-              ...fitResult.data,
-              website_title: websiteData?.title,
-            })
-            onProgress?.('Fit analysis', `(${completed}/${toEvaluate.length}) ${c.name} — fit ${fitResult.data.fit_score}`)
+            // 證據規則程式側強制：沒有引用證據 → 分數封頂 + 低信心
+            const hasEvidence = !!(fitResult.data.evidence && fitResult.data.evidence.length >= 20)
+            if (!hasEvidence) {
+              fitResult.data.fit_score = Math.min(fitResult.data.fit_score, 20)
+              fitResult.data.confidence = 'low'
+            }
+            // 備援模型（8B）的結果一律標低信心 — 不再出現假 high confidence
+            if (isGroqDailyCapped()) {
+              fitResult.data.confidence = 'low'
+            }
+            const candidate = { ...fitResult.data, website_title: websiteData?.title }
+            evaluated.push(candidate)
+            if (serviceHash) await writeEvalCache(domain, serviceHash, { type: 'buyer', candidate })
+            onProgress?.('Fit analysis', `(${completed}/${toEvaluate.length}) ${c.name} — fit ${candidate.fit_score}${candidate.confidence === 'low' ? ' (low conf)' : ''}`)
           }
         } else {
           onProgress?.('Fit analysis', `(${completed}/${toEvaluate.length}) ${c.name} — no valid evaluation`)
@@ -1355,7 +1430,7 @@ export async function autoProspect(params: {
   const backfilledCount = Math.max(0, top.length - strongLeads.slice(0, targetCount).length)
   onProgress?.(
     'Complete',
-    `Found ${top.length} best-matching leads${droppedCount > 0 ? ` (filtered out ${droppedCount} non-company websites)` : ''}${skippedCompetitors > 0 ? `, skipped ${skippedCompetitors} competitors` : ''}${skippedVendors > 0 ? `, dropped ${skippedVendors} vendors/platforms` : ''}${backfilledCount > 0 ? `, ${backfilledCount} low-confidence (marked)` : ''}`
+    `Found ${top.length} best-matching leads${droppedCount > 0 ? ` (filtered out ${droppedCount} non-company websites)` : ''}${skippedCompetitors > 0 ? `, skipped ${skippedCompetitors} competitors` : ''}${skippedVendors > 0 ? `, dropped ${skippedVendors} vendors/platforms` : ''}${cacheHits > 0 ? `, ${cacheHits} from cache (0 AI credits)` : ''}${backfilledCount > 0 ? `, ${backfilledCount} low-confidence (marked)` : ''}`
   )
 
   return {
@@ -1366,6 +1441,109 @@ export async function autoProspect(params: {
       total_discovered: candidates.length,
       evaluated: evaluated.length,
     },
+  }
+}
+
+/**
+ * ===== Stage 1: cheap classification (~300 tokens per candidate) =====
+ *
+ * The redesigned funnel spends a SMALL model call to decide whether a
+ * candidate deserves the expensive deep evaluation. Classification is a
+ * task small models handle far more reliably than scoring — and killing
+ * non-buyers here cuts total token spend by more than half.
+ */
+export type ProspectClass =
+  | 'buyer'      // a business that could plausibly BUY my service
+  | 'vendor'     // sells the same service category as me (competitor)
+  | 'platform'   // marketplace / store-builder / SaaS infrastructure
+  | 'media'      // blog, news, directory, course site
+  | 'jobboard'   // recruiting / job listings
+  | 'irrelevant' // anything else
+
+async function classifyProspect(params: {
+  serviceName: string
+  description: string
+  companyName: string
+  companyUrl: string
+  websiteContent: string
+}, config: any): Promise<ProspectClass | null> {
+  const { serviceName, description, companyName, companyUrl, websiteContent } = params
+
+  const prompt = `Classify one company for a B2B outreach tool.
+
+My service: ${serviceName} — ${description.slice(0, 300)}
+
+Candidate company: ${companyName} (${companyUrl})
+Page excerpt:
+"""
+${websiteContent.slice(0, 1200) || '(no content fetched)'}
+"""
+
+Also check the DOMAIN itself: known store-building/SaaS platforms (shopify, shopline, 91app, cyberbiz, wix, squarespace, woocommerce...) are "platform" even if the page looks like a blog.
+
+Classify into exactly one:
+- buyer: a business that could plausibly PAY for my service
+- vendor: sells the same service category as mine
+- platform: marketplace / store-builder / SaaS tooling / infrastructure
+- media: blog, news site, magazine, directory, course content
+- jobboard: job listings / recruiting platform
+- irrelevant: anything else
+
+IMPORTANT:
+- The page may be in ANY language (Traditional Chinese, Japanese...). Translate mentally before classifying — a Taiwanese D2C brand selling products online IS a "buyer" for an e-commerce marketing service.
+- RECALL BIAS: when torn between "buyer" and anything else, choose "buyer" — a second, stricter stage re-checks survivors with required evidence. Only drop a candidate when you are CONFIDENT it is not a buyer.
+
+Output pure JSON: {"type":"buyer","evidence":"short quote or domain reason"}`
+
+  try {
+    const chatResult = await chatWithFallback({
+      messages: [
+        { role: 'system', content: 'You are a strict B2B lead classifier. Respond with pure JSON only.' },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.1,
+      maxTokens: 120,
+    }, config)
+    const parsed = extractJsonLoose(chatResult.content)
+    const t = String(parsed?.type ?? '').toLowerCase()
+    if (['buyer', 'vendor', 'platform', 'media', 'jobboard', 'irrelevant'].includes(t)) {
+      return t as ProspectClass
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * ===== Evaluation cache (ProspectEvalCache) =====
+ * Verdict JSON: { type: ProspectClass, candidate?: ProspectCandidate }
+ */
+const EVAL_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+async function readEvalCache(domain: string, serviceHash: string): Promise<{ type: string; candidate?: ProspectCandidate } | null> {
+  try {
+    const row = await db.prospectEvalCache.findUnique({
+      where: { domain_serviceHash: { domain, serviceHash } },
+    })
+    if (!row) return null
+    if (Date.now() - row.createdAt.getTime() > EVAL_CACHE_TTL_MS) return null
+    return JSON.parse(row.verdict)
+  } catch (e) {
+    console.warn('readEvalCache failed:', e)
+    return null
+  }
+}
+
+async function writeEvalCache(domain: string, serviceHash: string, verdict: { type: string; candidate?: ProspectCandidate }): Promise<void> {
+  try {
+    await db.prospectEvalCache.upsert({
+      where: { domain_serviceHash: { domain, serviceHash } },
+      create: { domain, serviceHash, verdict: JSON.stringify(verdict) },
+      update: { verdict: JSON.stringify(verdict), createdAt: new Date() },
+    })
+  } catch (e) {
+    console.warn('writeEvalCache failed:', e)
   }
 }
 
@@ -1383,6 +1561,7 @@ async function evaluateProspectFitWithModel(params: {
   targetLocation?: string
   targetCompanySize?: string
   selfWebsite?: string
+  positiveExamples?: string[]
 }, config: any): Promise<{
   success: boolean
   data: ProspectCandidate | null
@@ -1427,6 +1606,7 @@ ${keyBenefits ? `**Key Value**: ${keyBenefits}` : ''}
 ${idealCustomerSignals ? `**Ideal Customer Signals**: ${idealCustomerSignals}` : ''}
 ${targetLocation ? `**Target Location**: ${targetLocation} — if company is NOT here, fit_score ≤ 10` : ''}
 ${targetCompanySize ? `**Target Size**: ${targetCompanySize} — small companies (10-100) are BEST, large enterprises (5000+) get fit_score ≤ 30` : ''}
+${params.positiveExamples && params.positiveExamples.length > 0 ? `**Leads the user already picked** (they liked companies like these — favor SIMILAR business types): ${params.positiveExamples.join(', ')}` : ''}
 
 ## Candidate Company
 **Company Name**: ${companyName}
@@ -1451,12 +1631,18 @@ ${websiteContent.slice(0, 3000)}
   "why_they_need_it": "2-3 sentences referencing SPECIFIC website content. If the business linkage is weak, say so plainly instead of inventing one.",
   "suggested_angle": "1 sentence with a SPECIFIC reference to this company.",
   "key_signals": ["specific signal 1", "signal 2", "signal 3"],
+  "evidence": "the exact sentence(s) copied verbatim from the website content above that prove the need",
   "confidence": "high"
 }
 
 "company_type" MUST be exactly one of: "marketplace", "vendor", "client".
 Classify FIRST (Steps 0-3), then score. Non-client types are dropped by
 the caller regardless of fit_score — do not give a vendor a high score.
+
+EVIDENCE RULE (hard): "evidence" must be a VERBATIM quote from the
+website content above. If you cannot find a sentence that genuinely
+supports the need, set fit_score ≤ 20 and confidence "low" — an
+invented need is worse than no lead.
 
 Rules:
 - Irrelevant business model (fails the relevance gate) → fit_score ≤ 10

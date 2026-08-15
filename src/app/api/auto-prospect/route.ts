@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { requireUser } from '@/lib/auth/session'
 import { loadProviderConfig } from '@/lib/ai/load-config'
-import { autoProspect } from '@/lib/ai/agent'
+import { autoProspect, serviceFingerprint } from '@/lib/ai/agent'
 import { deductCredits, hasCredits } from '@/lib/credits'
 import { autoProspectCost } from '@/lib/credit-pricing'
 
@@ -103,6 +103,19 @@ export async function POST(req: NextRequest) {
         const heartbeat = setInterval(() => send({ type: 'heartbeat', t: Date.now() }), 12_000)
 
         try {
+          // Feedback loop: companies the user already kept as leads tell the
+          // evaluator what "good" looks like for THIS tenant.
+          let positiveExamples: string[] = []
+          try {
+            const keptLeads = await db.lead.findMany({
+              where: { tenantId: user.tenantId },
+              select: { company: true },
+              orderBy: { createdAt: 'desc' },
+              take: 10,
+            })
+            positiveExamples = keptLeads.map((l) => l.company).filter(Boolean)
+          } catch { /* non-fatal */ }
+
           const result = await autoProspect({
             serviceName,
             description,
@@ -113,6 +126,8 @@ export async function POST(req: NextRequest) {
             idealCustomerSignals: body.idealCustomerSignals || serviceOffering?.idealCustomerSignals || undefined,
             targetCount,
             selfWebsite: body.selfWebsite || undefined, // Pass user's own website for exclusion
+            serviceHash: serviceFingerprint(serviceName, description),
+            positiveExamples,
             onProgress: (stage, detail) => {
               let step = 1
               const s = stage.toLowerCase()

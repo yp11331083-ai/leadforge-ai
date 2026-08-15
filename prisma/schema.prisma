@@ -330,3 +330,18 @@ model Mailbox {
 
   @@index([tenantId, status])
 }
+
+// ===== Prospect evaluation cache =====
+// Redesigned engine stage-1/stage-2 results per (domain, service) pair —
+// re-runs and cross-tenant repeat candidates skip the LLM entirely.
+model ProspectEvalCache {
+  id          String   @id @default(cuid())
+  domain      String
+  serviceHash String
+  // JSON: { type, candidate } — classification verdict + full evaluation
+  verdict     String
+  createdAt   DateTime @default(now())
+
+  @@unique([domain, serviceHash])
+  @@index([serviceHash, createdAt])
+}
