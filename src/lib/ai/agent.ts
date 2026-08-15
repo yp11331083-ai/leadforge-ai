@@ -583,7 +583,7 @@ export async function generateSearchQueries(params: {
   const zai = await getAI().catch(() => null as any)
   const { serviceName, description, targetIndustries, targetCompanySize, targetLocation, idealCustomerSignals } = params
 
-  const prompt = `You are a B2B lead generation expert.
+  const prompt = `You are a B2B lead generation expert specializing in finding SMALL to MID-SIZE companies that need a specific service.
 
 My service/product is:
 
@@ -591,23 +591,46 @@ My service/product is:
 **Detailed Description**: ${description}
 ${targetIndustries ? `**Target Industries**: ${targetIndustries}` : ''}
 ${targetCompanySize ? `**Target Company Size**: ${targetCompanySize}` : ''}
-${targetLocation ? `**Target Location**: ${targetLocation} — include this location in MOST queries` : ''}
+${targetLocation ? `**Target Location**: ${targetLocation}` : ''}
 ${idealCustomerSignals ? `**Ideal Customer Signals**: ${idealCustomerSignals}` : ''}
 
-Design 12 Google search queries to find companies that are most likely to need my service.
+Design 12 Google search queries to find SMALL companies that would BUY my service.
 
-CRITICAL RULES:
-1. We want company OFFICIAL WEBSITES (e.g. stripe.com), NOT LinkedIn/crunchbase pages.
-2. Add -site:linkedin.com to EVERY query.
-3. Do NOT use site:linkedin.com or site:crunchbase.com.
-4. If targetLocation is set, include the location in at LEAST 6 of the 12 queries.
-5. Focus on finding CLIENTS (companies that would BUY this service), not VENDORS (companies that sell similar services).
-6. If my service is a marketing/sales tool, search for non-marketing companies (manufacturers, retailers, hospitals, etc.) that would need it — NOT other marketing agencies.
-7. Make queries SPECIFIC and DIVERSE — cover different angles: hiring signals, industry + pain point, tech stack, funding, location + industry, etc.
-8. Do NOT be too broad (avoid "best companies" or "top companies").
+## CRITICAL SEARCH STRATEGIES:
 
-Output pure JSON array (no markdown code block):
-["query 1 -site:linkedin.com", "query 2 -site:linkedin.com", ..., "query 12 -site:linkedin.com"]`
+### Strategy 1: Boolean Exclusion (use in EVERY query)
+Add exclusions for big platforms and marketplaces that don't need my service:
+-site:linkedin.com -shopee -pchome -momo -rakuten -amazon -ebay -aliexpress -shopify
+
+### Strategy 2: Find D2C brands, NOT platforms
+If looking for e-commerce companies, search for BRANDS not marketplaces:
+- "Powered by Shopline" ${targetLocation ?? ''}
+- "Powered by Cyberbiz" ${targetLocation ?? ''}
+- "built with WooCommerce" ${targetLocation ?? ''}
+- Independent brand websites, NOT marketplace sellers
+
+### Strategy 3: Size-specific queries
+${targetCompanySize ? `Search for companies matching "${targetCompanySize}" — small/mid companies have fast decision-making and need external tools.` : 'Search for small to mid-size companies (10-100 employees).'}
+
+### Strategy 4: Pain-point specific
+Search for companies showing signals of the pain point my service solves.
+
+### Strategy 5: Location-specific (at least 4 queries)
+${targetLocation ? `Include "${targetLocation}" in at least 4 queries.` : 'No location restriction.'}
+
+### Strategy 6: Industry + niche
+${targetIndustries ? `Focus on "${targetIndustries}" companies.` : ''}
+
+## RULES:
+1. Every query MUST have: -site:linkedin.com
+2. Every query should exclude big platforms: -shopee -pchome -momo -amazon
+3. Search for BUYERS (small companies), not SELLERS (agencies/platforms)
+4. If my service is marketing/sales → search for non-marketing companies
+5. Queries must be SPECIFIC, not broad ("best companies" is forbidden)
+6. Prefer queries that find independent brand websites, not marketplace listings
+
+Output pure JSON array (no markdown):
+["query 1 -site:linkedin.com -shopee -amazon", "query 2 -site:linkedin.com -pchome", ...]`
 
   const chatResult = await chatWithFallback({
     messages: [
@@ -683,6 +706,21 @@ export function extractCompanyUrls(
     /producthunt\.com|betalist\.com|saa.sh|getlatka\.com/i,
     /apollo\.io|zoominfo\.com|lusha\.com|clearbit\.com/i,
     /clutch\.co|GoodFirms\.org/i,
+    // Exclude big e-commerce platforms/marketplaces (NOT our target customers)
+    /shopee\./i,
+    /pchome\./i,
+    /momo\./i,
+    /rakuten\./i,
+    /amazon\./i,
+    /ebay\./i,
+    /aliexpress\./i,
+    /shopify\./i,
+    /etsy\./i,
+    /carousell\./i,
+    /walmart\./i,
+    /costco\./i,
+    /u-buy\./i,
+    /ubuy\./i,
   ]
 
   // 通用目錄路徑模式（這些 path 通常出現在聚合網站，不是公司首頁）
@@ -808,11 +846,22 @@ export async function evaluateProspectFit(params: {
 
   const prompt = `You are a top-tier B2B business analyst skilled at evaluating whether a company needs a given service.
 
-## CRITICAL: Vendor vs Client Detection
-Before evaluating fit, determine if this company is a VENDOR (sells similar services) or a CLIENT (would buy this service).
-- If the company IS a marketing/design/dev agency, consultancy, or SaaS platform that offers similar services → they are a COMPETITOR, not a customer. fit_score MUST be ≤ 15.
-- If the company is a non-marketing business (e.g. manufacturer, retailer, hospital, real estate, logistics) that would BUY marketing/sales/tech services → they are a potential CLIENT.
-- Marketing agencies do NOT need another marketing agency's services.
+## CRITICAL: Three-Step Company Type Detection
+Before evaluating fit, determine what TYPE of company this is:
+
+### Step 1: Is this a MARKETPLACE/PLATFORM (not a potential client)?
+Marketplaces and platforms (Shopee, Amazon, PChome, Shopify) are infrastructure — they do NOT need B2B services.
+Signals: "marketplace", "seller center", "thousands of sellers", "platform for", "e-commerce platform"
+→ If YES: fit_score MUST be ≤ 10
+
+### Step 2: Is this a VENDOR/COMPETITOR (sells similar services)?
+If the company IS a marketing/design/dev agency, consultancy, or SaaS platform that offers similar services → they are a COMPETITOR.
+Signals: "our services include", "we offer", "marketing agency", "design studio", "we help clients"
+→ If YES: fit_score MUST be ≤ 15
+
+### Step 3: Is this a real CLIENT (would buy this service)?
+If the company is a non-marketing business (manufacturer, retailer, hospital, real estate, logistics, D2C brand) → they are a potential CLIENT.
+Only then evaluate fit normally.
 
 ## My Service
 
@@ -821,7 +870,7 @@ Before evaluating fit, determine if this company is a VENDOR (sells similar serv
 ${keyBenefits ? `**Key Value**: ${keyBenefits}` : ''}
 ${idealCustomerSignals ? `**Ideal Customer Signals**: ${idealCustomerSignals}` : ''}
 ${targetLocation ? `**Target Location**: ${targetLocation} — If the candidate company is NOT in this region, fit_score MUST be ≤ 10` : ''}
-${targetCompanySize ? `**Target Size**: ${targetCompanySize} — If the candidate company's size is far off, fit_score MUST be ≤ 20` : ''}
+${targetCompanySize ? `**Target Size**: ${targetCompanySize} — Small companies (10-100 employees) are BEST. Enterprise companies (5000+) get fit_score ≤ 30` : ''}
 
 ## Candidate Company
 
@@ -833,15 +882,12 @@ ${websiteContent.slice(0, 5000)}
 
 ## Task
 
-1. FIRST: Is this company a VENDOR (competitor) or a potential CLIENT?
-   - Look for: "our services include", "we offer", "marketing agency", "design studio", "we help clients"
-   - If they sell the same type of service as my product → they are a competitor → fit_score ≤ 15
-2. THEN: If they are a potential client, evaluate fit from these dimensions:
+1. FIRST: What TYPE of company is this? (Marketplace / Vendor / Client)
+2. If Client: Evaluate fit from these dimensions:
    - Business Fit: Does what they do suggest they'd use my service?
-   - Size Fit: Does their size match my target?
-   - Signal Strength: Do website/hiring/product signals suggest pain points?
-   - Purchasing Power: Do they have budget?
-3. Write a SPECIFIC email hook — reference something ACTUALLY on their website (a real product, a real case study, a real hiring post). NOT generic template phrases.
+   - Size Fit: Are they small enough to need external help? (Small companies = better fit)
+   - Signal Strength: Do website signals suggest they have pain points?
+3. Write a SPECIFIC email hook — reference something ACTUALLY on their website.
 
 ## Output Format (pure JSON, no markdown):
 
@@ -850,19 +896,19 @@ ${websiteContent.slice(0, 5000)}
   "website": "${companyUrl}",
   "industry": "inferred industry (English)",
   "fit_score": 75,
-  "why_they_need_it": "2-3 sentences. Reference something SPECIFIC from their website. NOT generic 'they might need automation'.",
-  "suggested_angle": "1 sentence. Reference a SPECIFIC thing about this company (a product, a case study, a recent hire, a news item). NOT a template.",
+  "why_they_need_it": "2-3 sentences. Reference something SPECIFIC from their website.",
+  "suggested_angle": "1 sentence. Reference a SPECIFIC thing about this company.",
   "key_signals": ["specific signal 1", "specific signal 2", "specific signal 3"],
   "confidence": "high"
 }
 
 Rules:
-- If this is a competitor/vendor (same industry as my service), fit_score MUST be ≤ 15.
-- If this is not a real company website (directory/listing), fit_score MUST be ≤ 10.
-- If targetLocation is set and company is elsewhere, fit_score MUST be ≤ 10.
-- The email hook and suggested_angle MUST reference something specific from the website content above. Generic phrases like "I noticed your company is growing" are FORBIDDEN.
-- ALL text must be in English.
-- Industry in English (e.g. "Manufacturing", "Real Estate", "Healthcare").`
+- Marketplaces/platforms (Shopee, Amazon, etc.) → fit_score ≤ 10
+- Competitors/vendors (same industry as my service) → fit_score ≤ 15
+- Non-company websites (directories) → fit_score ≤ 10
+- Wrong location → fit_score ≤ 10
+- Email hook MUST reference something specific from the website. Generic phrases FORBIDDEN.
+- ALL text in English.`
 
   const chatResult = await chatWithFallback({
     messages: [
