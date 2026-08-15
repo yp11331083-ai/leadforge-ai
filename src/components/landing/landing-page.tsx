@@ -154,12 +154,7 @@ export function LandingPage() {
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
           >
-            <div 
-              className="rounded-2xl border bg-white/70 overflow-hidden"
-              style={{
-                animation: 'colorCycle 8s ease-in-out infinite, bgCycle 8s ease-in-out infinite',
-              }}
-            >
+            <div className="rounded-2xl border border-stone-200 bg-white/70 shadow-xl shadow-stone-300/30 overflow-hidden">
               {/* Window chrome */}
               <div className="flex items-center gap-2 px-4 py-2.5 border-b border-stone-200/60 bg-stone-100/50">
                 <div className="flex gap-2">
