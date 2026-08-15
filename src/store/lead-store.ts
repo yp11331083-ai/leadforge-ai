@@ -542,7 +542,7 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
       prospectLoading: true,
       prospectResult: null,
       prospectStage: 'Starting',
-      prospectDetail: 'Starting AI Auto-Prospect engine...',
+      prospectDetail: 'Starting Auto-Prospect engine...',
       prospectStep: 0,
       prospectElapsedSeconds: 0,
       prospectJobId: null,
@@ -656,9 +656,9 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
             const isRateLimited = errorMsg.includes('429') || errorMsg.includes('Too many requests')
             set({
               prospectLoading: false,
-              prospectStage: isRateLimited ? 'AI Quota Exhausted' : 'Failed',
+              prospectStage: isRateLimited ? 'Quota Exhausted' : 'Failed',
               prospectDetail: isRateLimited
-                ? 'AI service quota exhausted (429). This is usually a daily limit — please try again in 1-2 hours. Saved leads and settings are not affected.'
+                ? 'Service quota exhausted (429). This is usually a daily limit — please try again in 1-2 hours. Saved leads and settings are not affected.'
                 : errorMsg + (data.creditsRefunded ? ` (${data.creditsRefunded} credits refunded)` : ''),
               prospectError: errorMsg,
               prospectStep: 6,
@@ -687,7 +687,7 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
         prospectLoading: false,
         prospectStage: isTimeout ? 'Timeout' : 'Error',
         prospectDetail: isTimeout
-          ? 'AI task exceeded the server time limit (Vercel Hobby: 60s / Pro: 300s). Try reducing the target count or simplifying your service description.'
+          ? 'Task exceeded the server time limit (Vercel Hobby: 60s / Pro: 300s). Try reducing the target count or simplifying your service description.'
           : 'Network error — please check your connection',
         prospectError: isTimeout ? 'Timeout' : msg,
         prospectStep: 6,

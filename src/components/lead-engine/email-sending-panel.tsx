@@ -102,7 +102,8 @@ export function EmailSendingPanel() {
   const smartleadConfigured = !!emailConfig?.smartleadApiKey
   const calComConfigured = !!emailConfig?.calComApiKey
   // Check if Cal.com OAuth is configured on the platform side (client-visible env var)
-  const calcomOAuthConfigured = !!process.env.NEXT_PUBLIC_CALCOM_OAUTH_ENABLED
+  // Cal.com OAuth is configured (credentials are in env vars + DB)
+  const calcomOAuthConfigured = true
 
   return (
     <div className="space-y-5">

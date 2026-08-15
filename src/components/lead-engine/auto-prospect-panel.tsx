@@ -102,7 +102,7 @@ export function AutoProspectPanel() {
     // Save first, then run
     await saveServiceOffering(form)
     setAddedIds(new Set())
-    toast.info('Starting AI Auto-Prospect — estimated 2-4 minutes...')
+    toast.info('Starting Auto-Prospect — estimated 2-4 minutes...')
     const result = await runAutoProspect({
       serviceName: form.serviceName,
       description: form.description,
@@ -168,9 +168,9 @@ export function AutoProspectPanel() {
             <Wand2 className="h-4 w-4 text-white" />
           </div>
           <div>
-            <h2 className="text-base font-semibold">AI Auto-Prospect Engine</h2>
+            <h2 className="text-base font-semibold">Auto-Prospect Engine</h2>
             <p className="text-xs text-muted-foreground">
-              Enter your service — AI will automatically find 10 companies that need it most
+              Enter your service — Outrovo will automatically find 10 companies that need it most
             </p>
           </div>
         </div>
@@ -182,7 +182,7 @@ export function AutoProspectPanel() {
               id="service-name"
               value={form.serviceName}
               onChange={(e) => setForm((f) => ({ ...f, serviceName: e.target.value }))}
-              placeholder="e.g. AI Sales Development Platform"
+              placeholder="e.g. Sales Development Platform"
             />
           </div>
 
@@ -192,12 +192,12 @@ export function AutoProspectPanel() {
               id="service-desc"
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              placeholder="Describe what your service does, what problem it solves, and who your target customer is. AI uses this to design the search strategy."
+              placeholder="Describe what your service does, what problem it solves, and who your target customer is."
               rows={4}
               className="text-sm"
             />
             <p className="text-[11px] text-muted-foreground">
-              The more specific your description, the more accurate the leads AI finds. Include: core features, pain points solved, what makes you different.
+              The more specific your description, the more accurate the leads Outrovo finds. Include: core features, pain points solved, what makes you different.
             </p>
           </div>
 
@@ -279,12 +279,12 @@ export function AutoProspectPanel() {
               {prospectLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  AI working...
+                  Outrovo working...
                 </>
               ) : (
                 <>
                   <Rocket className="mr-2 h-4 w-4" />
-                  Start AI Auto-Prospect
+                  Start Auto-Prospect
                 </>
               )}
             </Button>
@@ -337,11 +337,11 @@ export function AutoProspectPanel() {
             {/* 6-step list */}
             <div className="space-y-1.5">
               {[
-                { n: 1, label: 'Generate Search Strategy', desc: 'AI designs 8 precise queries', icon: Wand2 },
+                { n: 1, label: 'Generate Search Strategy', desc: 'Outrovo designs 8 precise queries', icon: Wand2 },
                 { n: 2, label: 'Search Candidates', desc: 'Google Search ~40 results', icon: Search },
                 { n: 3, label: 'Filter Company URLs', desc: 'Extract company websites from results', icon: ListChecks },
                 { n: 4, label: 'Fetch Website Content', desc: 'Page reader fetches each company site', icon: Zap },
-                { n: 5, label: 'AI Fit Evaluation', desc: '5-dimension scoring, output fit_score', icon: Target },
+                { n: 5, label: 'Fit Evaluation', desc: '5-dimension scoring, output fit_score', icon: Target },
                 { n: 6, label: 'Sort & Return', desc: 'Sort by score, return top N', icon: Sparkles },
               ].map(({ n, label, desc, icon: Icon }) => {
                 const done = prospectStep > n
@@ -501,16 +501,16 @@ export function AutoProspectPanel() {
               <Search className="h-6 w-6 text-violet-600 dark:text-violet-400" />
             </div>
             <div>
-              <p className="text-sm font-medium">Enter your service — let AI find your customers</p>
+              <p className="text-sm font-medium">Enter your service — let Outrovo find your customers</p>
               <p className="text-xs text-muted-foreground mt-1">
-                AI will automatically search, browse, and evaluate dozens of companies — returning the top 10 most relevant matches
+                Outrovo will automatically search, browse, and evaluate dozens of companies — returning the top 10 most relevant matches
               </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 max-w-2xl mx-auto text-xs">
               <div className="rounded-md bg-muted/40 p-3">
                 <Target className="h-4 w-4 mx-auto mb-1 text-violet-500" />
                 <p className="font-medium">Precise Match</p>
-                <p className="text-muted-foreground mt-0.5">AI scores 0–100, returns only high-fit results</p>
+                <p className="text-muted-foreground mt-0.5">Outrovo scores 0–100, returns only high-fit results</p>
               </div>
               <div className="rounded-md bg-muted/40 p-3">
                 <Sparkles className="h-4 w-4 mx-auto mb-1 text-amber-500" />
