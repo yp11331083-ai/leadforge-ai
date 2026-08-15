@@ -73,6 +73,9 @@ export interface ProviderConfig {
   // DeepSeek (OpenAI-compatible, very cheap, much stronger than small Groq models)
   deepseekApiKey?: string
   deepseekModel?: string
+  // OpenCode Zen gateway (OpenAI-compatible, frontier models: Claude/GPT/Gemini)
+  opencodeApiKey?: string
+  opencodeModel?: string
   // Tavily (search)
   tavilyApiKey?: string
   // Jina (page reader)
@@ -173,6 +176,9 @@ async function callChatProvider(
     case 'deepseek':
       if (!config.deepseekApiKey) return null
       return await chatWithOpenAICompatible(options, 'https://api.deepseek.com/chat/completions', 'DeepSeek', config.deepseekApiKey, config.deepseekModel ?? 'deepseek-chat')
+    case 'opencode':
+      if (!config.opencodeApiKey) return null
+      return await chatWithOpenAICompatible(options, 'https://opencode.ai/zen/v1/chat/completions', 'OpenCode', config.opencodeApiKey, config.opencodeModel ?? 'claude-haiku-4-5')
     default:
       return null
   }

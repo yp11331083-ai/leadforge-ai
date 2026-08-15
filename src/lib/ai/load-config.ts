@@ -23,9 +23,11 @@ export async function loadProviderConfig(): Promise<void> {
     const platformJinaKey = process.env.JINA_API_KEY || undefined
     const platformGroqKey = process.env.GROQ_API_KEY || undefined
     const platformDeepseekKey = process.env.DEEPSEEK_API_KEY || undefined
+    const platformOpencodeKey = process.env.OPENCODE_API_KEY || undefined
 
     // Priority: Groq first (fast + free), then DeepSeek (very cheap, much
-    // stronger than small Groq models), then Gemini, then user BYOK.
+    // stronger than small Groq models), then OpenCode Zen (frontier models
+    // via gateway), then Gemini, then user BYOK.
     // zai dropped from the default chain: the bundled z-ai-web-dev-sdk has no
     // credentials outside the original sandbox and always fails first, wasting
     // a round-trip before the fallback kicks in.
@@ -34,13 +36,15 @@ export async function loadProviderConfig(): Promise<void> {
     const groqKey = config?.groqApiKey ?? platformGroqKey
     // DeepSeek is platform-managed (env var only — no EmailConfig column yet)
     const deepseekKey = platformDeepseekKey
+    const opencodeKey = platformOpencodeKey
     const savedChatOrder = config?.chatProviderOrder?.trim()
     let chatOrder = savedChatOrder && savedChatOrder.length > 0
       ? savedChatOrder
-      : 'groq,deepseek,gemini,openai,anthropic'
+      : 'groq,deepseek,opencode,gemini,openai,anthropic'
     const orderList = () => chatOrder.split(',').map((s) => s.trim())
     if (groqKey && !orderList().includes('groq')) chatOrder = `groq,${chatOrder}`
     if (deepseekKey && !orderList().includes('deepseek')) chatOrder = chatOrder.replace('groq,', 'groq,deepseek,')
+    if (opencodeKey && !orderList().includes('opencode')) chatOrder = chatOrder.replace('deepseek,', 'deepseek,opencode,')
     const chatProviderOrder = chatOrder
 
     const providerConfig: ProviderConfig = {
@@ -57,6 +61,9 @@ export async function loadProviderConfig(): Promise<void> {
       // Platform-managed DeepSeek (user never sees this key)
       deepseekApiKey: deepseekKey,
       deepseekModel: 'deepseek-chat',
+      // Platform-managed OpenCode Zen gateway (frontier models)
+      opencodeApiKey: opencodeKey,
+      opencodeModel: process.env.OPENCODE_MODEL || 'claude-haiku-4-5',
       // Platform-managed search + page reader (users never see these)
       tavilyApiKey: config?.tavilyApiKey ?? platformTavilyKey,
       jinaApiKey: config?.jinaApiKey ?? platformJinaKey,
