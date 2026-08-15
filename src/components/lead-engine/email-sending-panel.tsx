@@ -305,7 +305,7 @@ export function EmailSendingPanel() {
         </div>
       </Card>
 
-      {/* ===== 4. Cal.com Meeting Tracking (API Key) ===== */}
+      {/* ===== 4. Cal.com Meeting Tracking (OAuth) ===== */}
       <Card className="p-5 space-y-4">
         <div className="flex items-center gap-2">
           <div className="rounded-lg bg-rose-100 dark:bg-rose-950/50 p-2">
@@ -324,7 +324,7 @@ export function EmailSendingPanel() {
                 </Badge>
               )}
             </h2>
-            <p className="text-xs text-muted-foreground">Connect your Cal.com account to automatically track meetings booked by prospects</p>
+            <p className="text-xs text-muted-foreground">One-click connect — automatically tracks meetings booked by prospects</p>
           </div>
         </div>
 
@@ -345,44 +345,19 @@ export function EmailSendingPanel() {
               <CheckCircle2 className="h-6 w-6 text-emerald-500" />
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Calendar className="h-8 w-8 text-rose-500 shrink-0" />
                 <div>
                   <p className="text-sm font-medium">Connect your Cal.com account</p>
-                  <p className="text-xs text-muted-foreground">Enter your Cal.com API key to enable meeting tracking.</p>
+                  <p className="text-xs text-muted-foreground">Click connect → log in to Cal.com → authorize. That's it.</p>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <Input
-                  type="password"
-                  placeholder="cal_live_... (get it from Cal.com → Settings → Developer)"
-                  value={form.calComApiKey || ''}
-                  onChange={(e) => setForm((f) => ({ ...f, calComApiKey: e.target.value }))}
-                  className="flex-1"
-                />
-                <Button
-                  size="sm"
-                  onClick={async () => {
-                    if (!form.calComApiKey?.trim()) return
-                    setSaving(true)
-                    await saveEmailConfig({ calComApiKey: form.calComApiKey })
-                    setSaving(false)
-                    toast.success('Cal.com connected!')
-                  }}
-                  disabled={saving || !form.calComApiKey?.trim()}
-                  className="bg-rose-600 hover:bg-rose-700"
-                >
-                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plug className="h-3.5 w-3.5" />}
-                  Connect
+              <a href="/api/auth/calcom/connect">
+                <Button size="sm" className="bg-rose-600 hover:bg-rose-700">
+                  <Plug className="mr-1.5 h-3.5 w-3.5" /> Connect
                 </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Get your API key from{' '}
-                <a href="https://app.cal.com/settings/developer" target="_blank" rel="noopener noreferrer" className="text-rose-600 hover:underline">
-                  Cal.com → Settings → Developer → API Keys
-                </a>
-              </p>
+              </a>
             </div>
           )}
         </div>
