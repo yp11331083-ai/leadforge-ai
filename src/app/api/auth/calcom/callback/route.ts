@@ -34,13 +34,13 @@ export async function GET(req: NextRequest) {
     const user = session.user as any
     const tenantId = user.tenantId
 
-    // Exchange code for access token
-    // Cal.com OAuth credentials — hardcoded to match registered redirect URI
+    // Exchange code for access token via Cal.com v2 API
     const clientId = process.env.CALCOM_CLIENT_ID || '6020c29591603206027afe1afe0fdc7a06cbaf0ad10b402cf286883b2764021d'
     const clientSecret = process.env.CALCOM_CLIENT_SECRET || '9e2cbc504707171937b27eca48700e1a55d8a66c09f6cc8e09e6b647a6274848'
     const redirectUri = 'https://leadforge-ai-5t3a.vercel.app/api/auth/calcom/callback'
 
-    const tokenRes = await fetch('https://api.cal.com/v1/oauth/token', {
+    // Cal.com v2 OAuth token endpoint
+    const tokenRes = await fetch('https://app.cal.com/api/v2/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
     // Auto-register webhook for this user
     const webhookUrl = `${process.env.NEXTAUTH_URL}/api/webhooks/calcom`
     
-    const webhookRes = await fetch('https://api.cal.com/v1/webhooks', {
+    const webhookRes = await fetch('https://app.cal.com/api/v2/webhooks', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

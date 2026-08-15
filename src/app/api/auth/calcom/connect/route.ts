@@ -10,9 +10,10 @@ export async function GET() {
     await requireUser()
 
     const clientId = process.env.CALCOM_CLIENT_ID || CALCOM_CLIENT_ID
-    const redirectUri = CALCOM_REDIRECT_URI
 
-    const authUrl = `https://app.cal.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=bookings:read`
+    // Cal.com v2 OAuth uses /auth (not /oauth/authorize)
+    // It redirects to login page, then back to authorization
+    const authUrl = `https://app.cal.com/auth?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(CALCOM_REDIRECT_URI)}&scope=bookings:read`
 
     return NextResponse.redirect(authUrl)
   } catch {
