@@ -209,6 +209,7 @@ interface LeadStore {
     idealCustomerSignals?: string
     targetCount?: number
     saveToDb?: boolean
+    selfWebsite?: string
   }) => Promise<{ success: boolean; error?: string; addedToLeads?: number }>
 }
 

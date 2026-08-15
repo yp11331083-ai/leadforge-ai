@@ -96,6 +96,7 @@ export async function POST(req: NextRequest) {
             keyBenefits: body.keyBenefits || serviceOffering?.keyBenefits || undefined,
             idealCustomerSignals: body.idealCustomerSignals || serviceOffering?.idealCustomerSignals || undefined,
             targetCount,
+            selfWebsite: body.selfWebsite || undefined, // Pass user's own website for exclusion
             onProgress: (stage, detail) => {
               let step = 1
               const s = stage.toLowerCase()

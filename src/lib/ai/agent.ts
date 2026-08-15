@@ -936,13 +936,104 @@ Rules:
 }
 
 /**
+ * Pre-AI heuristic filter — reject obvious competitors/platforms BEFORE
+ * spending AI tokens on evaluation. This saves credits and improves quality.
+ */
+function isLikelyCompetitor(websiteText: string, serviceName: string, description: string): boolean {
+  const text = websiteText.toLowerCase()
+  const serviceLower = (serviceName + ' ' + description).toLowerCase()
+  
+  // Detect if the user's service is marketing/sales/tech related
+  const isMarketingService = /marketing|advertis|seo|social media|content|brand|campaign|lead gen|outbound|sales|crm/.test(serviceLower)
+  const isDevService = /software|develop|engineer|code|app|web|tech|saas|platform|system/.test(serviceLower)
+  
+  if (isMarketingService) {
+    // Check if the candidate is also a marketing agency
+    const agencySignals = [
+      'marketing agency',
+      'we offer marketing',
+      'our marketing services',
+      'digital marketing agency',
+      'we provide marketing',
+      'advertising agency',
+      'we help brands',
+      'we help clients with marketing',
+      'content marketing services',
+      'social media management',
+      'seo services',
+      'ppc management',
+      'we are a marketing',
+      'marketing consultancy',
+      'growth agency',
+      'performance marketing',
+    ]
+    for (const signal of agencySignals) {
+      if (text.includes(signal)) return true
+    }
+  }
+  
+  if (isDevService) {
+    // Check if the candidate is also a dev/software agency
+    const devSignals = [
+      'software development agency',
+      'we build software',
+      'web development agency',
+      'we develop apps',
+      'software house',
+      'tech consultancy',
+      'we build platforms',
+      'we are a software company',
+      'it services company',
+      'system integration',
+    ]
+    for (const signal of devSignals) {
+      if (text.includes(signal)) return true
+    }
+  }
+  
+  // Check for marketplace/platform signals (always reject)
+  const marketplaceSignals = [
+    'marketplace',
+    'seller center',
+    'thousands of sellers',
+    'join as a seller',
+    'sell on our platform',
+    'e-commerce platform for sellers',
+  ]
+  for (const signal of marketplaceSignals) {
+    if (text.includes(signal)) return true
+  }
+  
+  return false
+}
+
+/**
+ * Check if a URL belongs to the user's own company (self-exclusion)
+ */
+function isSelfDomain(url: string, selfWebsite?: string): boolean {
+  if (!selfWebsite) return false
+  try {
+    const selfHost = new URL(selfWebsite).hostname.replace(/^www\./, '')
+    const candidateHost = new URL(url).hostname.replace(/^www\./, '')
+    // Check if domains match or one is a subdomain of the other
+    if (selfHost === candidateHost) return true
+    if (candidateHost.endsWith('.' + selfHost)) return true
+    if (selfHost.endsWith('.' + candidateHost)) return true
+    return false
+  } catch {
+    return false
+  }
+}
+
+/**
  * 主函式：自動開發潛在客戶
  * 1. AI 生成搜尋查詢詞
  * 2. web_search 找候選公司
- * 3. 萃取公司 URL
+ * 3. 萃取公司 URL + 排除自己
  * 4. page_reader 抓每家公司網站
- * 5. AI 評估契合度
- * 6. 依分數排序回傳 top N
+ * 5. Pre-AI 篩選（排除明顯的競爭對手）
+ * 6. AI 評估契合度（用 70B 模型）
+ * 7. 依分數排序回傳 top N
  */
 export async function autoProspect(params: {
   serviceName: string
@@ -952,7 +1043,8 @@ export async function autoProspect(params: {
   targetLocation?: string
   keyBenefits?: string
   idealCustomerSignals?: string
-  targetCount?: number // 預設 10
+  targetCount?: number
+  selfWebsite?: string // 用戶自己的公司網站，用於排除
   onProgress?: (stage: string, detail?: string) => void
 }): Promise<{
   success: boolean
@@ -968,11 +1060,12 @@ export async function autoProspect(params: {
     keyBenefits,
     idealCustomerSignals,
     targetCount = 10,
+    selfWebsite,
     onProgress,
   } = params
 
   // 步驟 1：AI 生成搜尋查詢詞
-  onProgress?.('Generate search strategy', 'AI is designing precise search queries...')
+  onProgress?.('Generate search strategy', 'Designing targeted search queries...')
   const queryResult = await generateSearchQueries({
     serviceName,
     description,
@@ -983,12 +1076,12 @@ export async function autoProspect(params: {
   })
 
   if (!queryResult.success || queryResult.queries.length === 0) {
-    return { success: false, result: null, error: `AI failed to generate search strategy (raw: ${queryResult.raw?.slice(0, 800) ?? 'no response'})` }
+    return { success: false, result: null, error: `Failed to generate search strategy (raw: ${queryResult.raw?.slice(0, 800) ?? 'no response'})` }
   }
 
   onProgress?.('Search candidates', `Searching with ${queryResult.queries.length} queries...`)
 
-  // 步驟 2：循序執行 web_search（避免 429）
+  // 步驟 2：循序執行 web_search
   const allSearchResults: Array<{ url?: string; name?: string; host_name?: string }> = []
   for (const q of queryResult.queries) {
     try {
@@ -1001,25 +1094,41 @@ export async function autoProspect(params: {
     await new Promise((r) => setTimeout(r, 400))
   }
 
-  // 步驟 3：萃取公司 URL
-  const candidates = extractCompanyUrls(allSearchResults)
+  // 步驟 3：萃取公司 URL + 排除自己
+  let candidates = extractCompanyUrls(allSearchResults)
+  
+  // Self-exclusion: remove the user's own company
+  if (selfWebsite) {
+    const before = candidates.length
+    candidates = candidates.filter((c) => !isSelfDomain(c.url, selfWebsite))
+    if (candidates.length < before) {
+      onProgress?.('Filter companies', `Excluded ${before - candidates.length} self-company results`)
+    }
+  }
+
   onProgress?.('Filter companies', `Extracted ${candidates.length} companies from ${allSearchResults.length} results`)
 
   if (candidates.length === 0) {
     return {
       success: false,
       result: null,
-      error: '搜尋結果中找不到符合的公司網址，請調整服務描述再試一次',
+      error: 'No matching company websites found. Try adjusting your service description.',
     }
   }
 
-  // 取前 N*2 家做評估（確保最終能篩出 N 家）
-  // Evaluate ALL candidates (not just a subset) to maximize results
+  // Use 70B model for evaluation (better quality than 8B)
+  const evalConfig = {
+    ...globalProviderConfig,
+    groqModel: 'llama-3.3-70b-versatile',
+  }
+
   const toEvaluate = candidates
   onProgress?.('Fit analysis', `Evaluating ${toEvaluate.length} candidates...`)
 
-  // 步驟 4 + 5：循序抓網站 + AI 評估
+  // 步驟 4 + 5 + 6：抓網站 → Pre-AI 篩選 → AI 評估
   const evaluated: ProspectCandidate[] = []
+  let skippedCompetitors = 0
+
   for (let i = 0; i < toEvaluate.length; i++) {
     const c = toEvaluate[i]
     onProgress?.('Fit analysis', `(${i + 1}/${toEvaluate.length}) ${c.name}`)
@@ -1029,18 +1138,25 @@ export async function autoProspect(params: {
       const websiteData = await fetchWebsiteContent(c.url)
       const websiteText = websiteData ? htmlToText(websiteData.html).slice(0, 6000) : ''
 
-      // AI 評估契合度
-      const fitResult = await evaluateProspectFit({
+      // Pre-AI 篩選：檢查是否是競爭對手/平台
+      if (websiteText && isLikelyCompetitor(websiteText, serviceName, description)) {
+        skippedCompetitors++
+        onProgress?.('Fit analysis', `(${i + 1}/${toEvaluate.length}) ${c.name} — skipped (competitor)`)
+        continue
+      }
+
+      // AI 評估契合度 — 用 70B 模型
+      const fitResult = await evaluateProspectFitWithModel({
         serviceName,
         description,
         keyBenefits,
         idealCustomerSignals,
         companyUrl: c.url,
         companyName: c.name,
-        websiteContent: websiteText || `(無法抓取網站內容，僅依 URL 判斷：${c.url})`,
+        websiteContent: websiteText || `(Could not fetch website content, judging by URL only: ${c.url})`,
         targetLocation,
         targetCompanySize,
-      })
+      }, evalConfig)
 
       if (fitResult.success && fitResult.data) {
         evaluated.push({
@@ -1052,24 +1168,21 @@ export async function autoProspect(params: {
       console.error(`evaluate ${c.name} failed:`, e)
     }
 
-    // 小延遲
     await new Promise((r) => setTimeout(r, 200))
 
-    // 已經收集到足夠的高分候選就停止
     const highConfCount = evaluated.filter((e) => e.fit_score >= 60).length
     if (highConfCount >= targetCount && i >= targetCount * 2) break
   }
 
-  // 步驟 6：依 fit_score 排序，過濾掉非公司官網（fit_score ≤ 15 通常是目錄/列表頁），取 top N
+  // 步驟 7：排序 + 過濾 + 取 top N
   evaluated.sort((a, b) => b.fit_score - a.fit_score)
-  // Drop candidates that the AI flagged as non-company websites (fit_score ≤ 15)
   const qualified = evaluated.filter((e) => e.fit_score > 15)
   const top = qualified.slice(0, targetCount)
 
   const droppedCount = evaluated.length - qualified.length
   onProgress?.(
     'Complete',
-    `Found ${top.length} best-matching leads${droppedCount > 0 ? ` (filtered out ${droppedCount} non-company websites)` : ''}`
+    `Found ${top.length} best-matching leads${droppedCount > 0 ? ` (filtered out ${droppedCount} non-company websites)` : ''}${skippedCompetitors > 0 ? `, skipped ${skippedCompetitors} competitors` : ''}`
   )
 
   return {
@@ -1080,6 +1193,108 @@ export async function autoProspect(params: {
       total_discovered: candidates.length,
       evaluated: evaluated.length,
     },
+  }
+}
+
+/**
+ * evaluateProspectFit with custom model config (for 70B)
+ */
+async function evaluateProspectFitWithModel(params: {
+  serviceName: string
+  description: string
+  keyBenefits?: string
+  idealCustomerSignals?: string
+  companyUrl: string
+  companyName: string
+  websiteContent: string
+  targetLocation?: string
+  targetCompanySize?: string
+}, config: any): Promise<{
+  success: boolean
+  data: ProspectCandidate | null
+  raw: string
+}> {
+  const { serviceName, description, keyBenefits, idealCustomerSignals, companyUrl, companyName, websiteContent, targetLocation, targetCompanySize } = params
+
+  const prompt = `You are a top-tier B2B business analyst. You evaluate whether a company would BUY a specific service.
+
+## CRITICAL: Three-Step Company Type Detection
+
+### Step 1: Is this a MARKETPLACE/PLATFORM?
+Marketplaces (Shopee, Amazon, PChome, Shopify) are infrastructure — they do NOT buy B2B services.
+Signals: "marketplace", "seller center", "thousands of sellers", "platform for sellers"
+If YES → fit_score MUST be ≤ 10
+
+### Step 2: Is this a VENDOR/COMPETITOR?
+If the company sells similar services to what I offer → they are a COMPETITOR, not a customer.
+Signals: "marketing agency", "we offer marketing services", "design studio", "our services include", "we help clients"
+If YES → fit_score MUST be ≤ 15
+
+### Step 3: Is this a real CLIENT?
+If the company is a non-marketing business (manufacturer, retailer, hospital, D2C brand, etc.) → potential CLIENT.
+Only then evaluate fit normally.
+
+## My Service
+**Service Name**: ${serviceName}
+**Service Description**: ${description}
+${keyBenefits ? `**Key Value**: ${keyBenefits}` : ''}
+${idealCustomerSignals ? `**Ideal Customer Signals**: ${idealCustomerSignals}` : ''}
+${targetLocation ? `**Target Location**: ${targetLocation} — if company is NOT here, fit_score ≤ 10` : ''}
+${targetCompanySize ? `**Target Size**: ${targetCompanySize} — small companies (10-100) are BEST, large enterprises (5000+) get fit_score ≤ 30` : ''}
+
+## Candidate Company
+**Company Name**: ${companyName}
+**Company Website**: ${companyUrl}
+
+**Website Content**:
+${websiteContent.slice(0, 5000)}
+
+## Task
+1. FIRST: What TYPE is this company? (Marketplace / Vendor / Client)
+2. If Client: Evaluate fit — would they BUY my service?
+3. Write a SPECIFIC email hook referencing something ACTUALLY on their website.
+
+## Output (pure JSON):
+{
+  "company": "${companyName}",
+  "website": "${companyUrl}",
+  "industry": "industry in English",
+  "fit_score": 75,
+  "why_they_need_it": "2-3 sentences referencing SPECIFIC website content.",
+  "suggested_angle": "1 sentence with a SPECIFIC reference to this company.",
+  "key_signals": ["specific signal 1", "signal 2", "signal 3"],
+  "confidence": "high"
+}
+
+Rules:
+- Marketplaces → fit_score ≤ 10
+- Competitors/agencies → fit_score ≤ 15
+- Wrong location → fit_score ≤ 10
+- Email hook MUST be specific (no generic templates)
+- ALL text in English`
+
+  const chatResult = await chatWithFallback({
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a B2B business analyst. You objectively evaluate fit. Respond in English. Pure JSON only.',
+      },
+      { role: 'user', content: prompt },
+    ],
+    temperature: 0.3,
+  }, config)
+
+  const raw = chatResult.content
+  let cleaned = raw.trim()
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+  }
+
+  try {
+    const data = JSON.parse(cleaned) as ProspectCandidate
+    return { success: true, data, raw }
+  } catch {
+    return { success: false, data: null, raw }
   }
 }
 

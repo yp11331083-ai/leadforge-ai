@@ -130,6 +130,7 @@ export function AutoProspectPanel() {
       idealCustomerSignals: form.idealCustomerSignals || undefined,
       targetCount: Number(form.targetCount) || 10,
       saveToDb: false,
+      selfWebsite: websiteUrl || undefined, // Exclude user's own company
     })
     if (result.success) {
       toast.success(`Found ${prospectResult?.candidates.length ?? 0} potential leads!`)
