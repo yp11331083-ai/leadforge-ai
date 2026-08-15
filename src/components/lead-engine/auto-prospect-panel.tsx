@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -59,18 +59,15 @@ export function AutoProspectPanel() {
   const [saving, setSaving] = useState(false)
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
   const [hasLoadedFromDB, setHasLoadedFromDB] = useState(false)
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    // Only fetch if we don't have serviceOffering yet — don't re-fetch
-    // on every mount (which overwrites user's unsaved form changes)
     if (!serviceOffering) {
       fetchServiceOffering()
     }
   }, [fetchServiceOffering, serviceOffering])
 
-  // Sync DB settings to form — ONLY on initial load, not after save.
-  // After save, the form already has the correct values; we don't want
-  // to overwrite them with a potentially stale DB response.
+  // Sync DB settings to form — ONLY on initial load
   useEffect(() => {
     if (serviceOffering && !hasLoadedFromDB) {
       setHasLoadedFromDB(true)
@@ -86,6 +83,21 @@ export function AutoProspectPanel() {
       })
     }
   }, [serviceOffering, hasLoadedFromDB])
+
+  // Auto-save: debounced — saves 1.5s after user stops typing
+  useEffect(() => {
+    if (!hasLoadedFromDB) return // don't auto-save before initial load
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    autoSaveTimer.current = setTimeout(async () => {
+      if (!form.serviceName.trim() && !form.description.trim()) return
+      setSaving(true)
+      await saveServiceOffering(form)
+      setSaving(false)
+    }, 1500)
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    }
+  }, [form, hasLoadedFromDB, saveServiceOffering])
 
   const handleSave = async () => {
     if (!form.serviceName.trim() || !form.description.trim()) {
@@ -270,11 +282,13 @@ export function AutoProspectPanel() {
             />
           </div>
 
-          <div className="flex gap-2 pt-2">
-            <Button onClick={handleSave} disabled={saving} variant="outline" size="sm">
-              {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-              Save Settings
-            </Button>
+          <div className="flex items-center gap-3 pt-2">
+            {saving && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" /> Saving...
+              </span>
+            )}
+            <div className="flex-1" />
             <Button
               onClick={handleRun}
               disabled={prospectLoading || !form.serviceName.trim() || !form.description.trim()}

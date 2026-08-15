@@ -583,7 +583,7 @@ export async function generateSearchQueries(params: {
   const zai = await getAI().catch(() => null as any)
   const { serviceName, description, targetIndustries, targetCompanySize, targetLocation, idealCustomerSignals } = params
 
-  const prompt = `You are a top-tier B2B lead generation expert.
+  const prompt = `You are a B2B lead generation expert.
 
 My service/product is:
 
@@ -591,35 +591,23 @@ My service/product is:
 **Detailed Description**: ${description}
 ${targetIndustries ? `**Target Industries**: ${targetIndustries}` : ''}
 ${targetCompanySize ? `**Target Company Size**: ${targetCompanySize}` : ''}
-${targetLocation ? `**Target Location**: ${targetLocation}` : ''}
+${targetLocation ? `**Target Location**: ${targetLocation} — include this location in MOST queries` : ''}
 ${idealCustomerSignals ? `**Ideal Customer Signals**: ${idealCustomerSignals}` : ''}
 
-Design 10 Google search queries to find companies that are most likely to need my service.
+Design 12 Google search queries to find companies that are most likely to need my service.
 
-⚠️ IMPORTANT: We want company OFFICIAL WEBSITES (e.g. stripe.com, notion.so), NOT LinkedIn pages.
-
-Query strategies — make them diverse:
-1. **Hiring signals**: Search for companies hiring roles related to my service (e.g. "hiring sales operations manager" -site:linkedin.com)
-2. **Funding/growth signals**: Recently funded or expanding companies (e.g. "Series A SaaS 2025" -site:linkedin.com)
-3. **Industry + pain point**: Specific industry + the pain point my service solves
-4. **Tech stack**: Companies using specific tech stacks (e.g. "companies using Salesforce" -site:linkedin.com)
-5. **Location + industry**: Target industry in the target location
-6. **Size + industry**: Target company size in target industry
-7. **Competitor customers**: Companies using competitor products
-8. **Behavioral signals**: Companies recently publishing specific content or attending events
-9. **Niche + region**: Very specific niche queries with location
-10. **Broad discovery**: Broader queries that cast a wide net
-
-Each query must:
-- Be in English (works best for Google)
-- Be specific and actionable
-- **Exclude LinkedIn**: Add \`-site:linkedin.com\` to EVERY query
-- **NOT use** site:linkedin.com, site:crunchbase.com (no social platform restrictions)
-- Not be too broad (avoid "best SaaS companies")
-- If targetLocation is set, include the location in at least 4 queries
+CRITICAL RULES:
+1. We want company OFFICIAL WEBSITES (e.g. stripe.com), NOT LinkedIn/crunchbase pages.
+2. Add -site:linkedin.com to EVERY query.
+3. Do NOT use site:linkedin.com or site:crunchbase.com.
+4. If targetLocation is set, include the location in at LEAST 6 of the 12 queries.
+5. Focus on finding CLIENTS (companies that would BUY this service), not VENDORS (companies that sell similar services).
+6. If my service is a marketing/sales tool, search for non-marketing companies (manufacturers, retailers, hospitals, etc.) that would need it — NOT other marketing agencies.
+7. Make queries SPECIFIC and DIVERSE — cover different angles: hiring signals, industry + pain point, tech stack, funding, location + industry, etc.
+8. Do NOT be too broad (avoid "best companies" or "top companies").
 
 Output pure JSON array (no markdown code block):
-["query 1 -site:linkedin.com", "query 2 -site:linkedin.com", ..., "query 10 -site:linkedin.com"]`
+["query 1 -site:linkedin.com", "query 2 -site:linkedin.com", ..., "query 12 -site:linkedin.com"]`
 
   const chatResult = await chatWithFallback({
     messages: [
@@ -958,7 +946,7 @@ export async function autoProspect(params: {
   const allSearchResults: Array<{ url?: string; name?: string; host_name?: string }> = []
   for (const q of queryResult.queries) {
     try {
-      const results = await searchCompanies(q, 8)
+      const results = await searchCompanies(q, 10)
       allSearchResults.push(...results)
       onProgress?.('Search candidates', `Found ${allSearchResults.length} results so far...`)
     } catch (e) {
