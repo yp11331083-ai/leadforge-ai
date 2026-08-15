@@ -76,6 +76,9 @@ export interface ProviderConfig {
   // OpenCode Zen gateway (OpenAI-compatible, frontier models: Claude/GPT/Gemini)
   opencodeApiKey?: string
   opencodeModel?: string
+  // OpenRouter (OpenAI-compatible aggregator — :free models cost nothing)
+  openrouterApiKey?: string
+  openrouterModel?: string
   // Tavily (search)
   tavilyApiKey?: string
   // Jina (page reader)
@@ -179,6 +182,9 @@ async function callChatProvider(
     case 'opencode':
       if (!config.opencodeApiKey) return null
       return await chatWithOpenAICompatible(options, 'https://opencode.ai/zen/v1/chat/completions', 'OpenCode', config.opencodeApiKey, config.opencodeModel ?? 'claude-haiku-4-5')
+    case 'openrouter':
+      if (!config.openrouterApiKey) return null
+      return await chatWithOpenAICompatible(options, 'https://openrouter.ai/api/v1/chat/completions', 'OpenRouter', config.openrouterApiKey, config.openrouterModel ?? 'meta-llama/llama-3.3-70b-instruct:free')
     default:
       return null
   }

@@ -24,10 +24,11 @@ export async function loadProviderConfig(): Promise<void> {
     const platformGroqKey = process.env.GROQ_API_KEY || undefined
     const platformDeepseekKey = process.env.DEEPSEEK_API_KEY || undefined
     const platformOpencodeKey = process.env.OPENCODE_API_KEY || undefined
+    const platformOpenrouterKey = process.env.OPENROUTER_API_KEY || undefined
 
     // Priority: Groq first (fast + free), then DeepSeek (very cheap, much
     // stronger than small Groq models), then OpenCode Zen (frontier models
-    // via gateway), then Gemini, then user BYOK.
+    // via gateway), then OpenRouter free models, then Gemini, then BYOK.
     // zai dropped from the default chain: the bundled z-ai-web-dev-sdk has no
     // credentials outside the original sandbox and always fails first, wasting
     // a round-trip before the fallback kicks in.
@@ -37,14 +38,16 @@ export async function loadProviderConfig(): Promise<void> {
     // DeepSeek is platform-managed (env var only — no EmailConfig column yet)
     const deepseekKey = platformDeepseekKey
     const opencodeKey = platformOpencodeKey
+    const openrouterKey = platformOpenrouterKey
     const savedChatOrder = config?.chatProviderOrder?.trim()
     let chatOrder = savedChatOrder && savedChatOrder.length > 0
       ? savedChatOrder
-      : 'groq,deepseek,opencode,gemini,openai,anthropic'
+      : 'groq,deepseek,opencode,openrouter,gemini,openai,anthropic'
     const orderList = () => chatOrder.split(',').map((s) => s.trim())
     if (groqKey && !orderList().includes('groq')) chatOrder = `groq,${chatOrder}`
     if (deepseekKey && !orderList().includes('deepseek')) chatOrder = chatOrder.replace('groq,', 'groq,deepseek,')
     if (opencodeKey && !orderList().includes('opencode')) chatOrder = chatOrder.replace('deepseek,', 'deepseek,opencode,')
+    if (openrouterKey && !orderList().includes('openrouter')) chatOrder = chatOrder.replace('opencode,', 'opencode,openrouter,')
     const chatProviderOrder = chatOrder
 
     const providerConfig: ProviderConfig = {
@@ -64,6 +67,9 @@ export async function loadProviderConfig(): Promise<void> {
       // Platform-managed OpenCode Zen gateway (frontier models)
       opencodeApiKey: opencodeKey,
       opencodeModel: process.env.OPENCODE_MODEL || 'claude-haiku-4-5',
+      // OpenRouter free-tier models (":free" suffix models cost $0)
+      openrouterApiKey: openrouterKey,
+      openrouterModel: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
       // Platform-managed search + page reader (users never see these)
       tavilyApiKey: config?.tavilyApiKey ?? platformTavilyKey,
       jinaApiKey: config?.jinaApiKey ?? platformJinaKey,
