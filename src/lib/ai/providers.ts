@@ -70,6 +70,9 @@ export interface ProviderConfig {
   // Groq (OpenAI-compatible, free + very fast)
   groqApiKey?: string
   groqModel?: string
+  // DeepSeek (OpenAI-compatible, very cheap, much stronger than small Groq models)
+  deepseekApiKey?: string
+  deepseekModel?: string
   // Tavily (search)
   tavilyApiKey?: string
   // Jina (page reader)
@@ -167,6 +170,9 @@ async function callChatProvider(
     case 'groq':
       if (!config.groqApiKey) return null
       return await chatWithGroq(options, config.groqApiKey, config.groqModel ?? 'llama-3.1-8b-instant')
+    case 'deepseek':
+      if (!config.deepseekApiKey) return null
+      return await chatWithOpenAICompatible(options, 'https://api.deepseek.com/chat/completions', 'DeepSeek', config.deepseekApiKey, config.deepseekModel ?? 'deepseek-chat')
     default:
       return null
   }
@@ -190,14 +196,16 @@ async function chatWithZai(options: ChatCompletionOptions): Promise<ChatCompleti
 }
 
 /**
- * OpenAI chat completions
+ * Generic OpenAI-compatible chat completions (OpenAI, DeepSeek, ...)
  */
-async function chatWithOpenAI(
+async function chatWithOpenAICompatible(
   options: ChatCompletionOptions,
+  endpoint: string,
+  providerName: string,
   apiKey: string,
   model: string
 ): Promise<ChatCompletionResult> {
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+  const res = await fetch(endpoint, {
     method: 'POST',
     signal: AbortSignal.timeout(90_000),
     headers: {
@@ -214,13 +222,24 @@ async function chatWithOpenAI(
 
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`OpenAI ${res.status}: ${text.slice(0, 200)}`)
+    throw new Error(`${providerName} ${res.status}: ${text.slice(0, 200)}`)
   }
 
   const data = await res.json() as any
   const content = data.choices?.[0]?.message?.content ?? ''
-  if (!content) throw new Error('OpenAI 回應為空')
-  return { content, provider: 'openai', model }
+  if (!content) throw new Error(`${providerName} 回應為空`)
+  return { content, provider: providerName.toLowerCase(), model }
+}
+
+/**
+ * OpenAI chat completions
+ */
+async function chatWithOpenAI(
+  options: ChatCompletionOptions,
+  apiKey: string,
+  model: string
+): Promise<ChatCompletionResult> {
+  return chatWithOpenAICompatible(options, 'https://api.openai.com/v1/chat/completions', 'OpenAI', apiKey, model)
 }
 
 /**

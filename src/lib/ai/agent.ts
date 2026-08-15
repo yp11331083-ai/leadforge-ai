@@ -798,6 +798,8 @@ export function extractCompanyUrls(
     /weworkremotely\./i,
     /jobgether\./i,
     /fintechfans\./i,
+    /nodesk\./i,
+    /builtin\./i,
     /angel\.co/i,
     /roberthalf\./i,
     /manpower\./i,
@@ -1419,6 +1421,12 @@ export async function autoProspect(params: {
   // 補位並標記低信心（UI 可顯示「低信心」徽章）。之前 >10 的平面門檻讓
   // 完全無關產業的公司（如獵頭公司之於電商行銷服務）直接混進名單。
   evaluated.sort((a, b) => b.fit_score - a.fit_score || String(a.company).localeCompare(String(b.company)))
+
+  // 範本偵測：弱模型會對每家候選複製貼上同一套「why they need you」
+  // （實例：三家公司共用 "gain a competitive edge in the market"）。
+  // 理由與先前的候選高度重複 → 不是針對這家公司寫的 → 降分 + 低信心。
+  penalizeTemplateReasons(evaluated)
+
   const strongLeads = evaluated.filter((e) => e.fit_score >= 30)
   const backfillLeads = evaluated
     .filter((e) => e.fit_score > 10 && e.fit_score < 30)
@@ -1459,6 +1467,41 @@ export type ProspectClass =
   | 'media'      // blog, news, directory, course site
   | 'jobboard'   // recruiting / job listings
   | 'irrelevant' // anything else
+
+/**
+ * 範本理由偵測（跨候選）：把 why_they_need_it + suggested_angle 切成 5-gram，
+ * 與已見過的候選比較 — 重複率高於閾值代表模型在複製貼上通用理由，
+ * 而非針對該公司寫。第一個出現者保留，其後的重複者降分至 20 以下
+ * （落入低信心備補區）。
+ */
+function penalizeTemplateReasons(candidates: ProspectCandidate[]): void {
+  const seenNgrams = new Set<string>()
+  const ngramSize = 5
+  const toNgrams = (text: string): string[] => {
+    const words = String(text ?? '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean)
+    const grams: string[] = []
+    for (let i = 0; i + ngramSize <= words.length; i++) {
+      grams.push(words.slice(i, i + ngramSize).join(' '))
+    }
+    return grams
+  }
+
+  for (const c of candidates) {
+    const grams = toNgrams(`${c.why_they_need_it} ${c.suggested_angle}`)
+    if (grams.length === 0) continue
+    let repeated = 0
+    for (const g of grams) {
+      if (seenNgrams.has(g)) repeated++
+    }
+    const repeatRatio = repeated / grams.length
+    if (repeatRatio >= 0.3) {
+      // 與其他候選高度重複 — 通用範本，不是這家公司的專屬理由
+      c.fit_score = Math.min(c.fit_score, 20)
+      c.confidence = 'low'
+    }
+    for (const g of grams) seenNgrams.add(g)
+  }
+}
 
 async function classifyProspect(params: {
   serviceName: string
