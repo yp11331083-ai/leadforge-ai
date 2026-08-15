@@ -62,10 +62,6 @@ export function AnalyticsDashboard() {
   const [usage, setUsage] = useState<UsageData | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    fetchUsage()
-  }, [])
-
   const fetchUsage = async () => {
     try {
       const res = await fetch('/api/usage')
@@ -79,6 +75,11 @@ export function AnalyticsDashboard() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching on mount
+    void fetchUsage()
+  }, [])
 
   const stats = usage?.stats ?? {
     sent: 0, delivered: 0, opened: 0, replied: 0, bounced: 0, clicked: 0,

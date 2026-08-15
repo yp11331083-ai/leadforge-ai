@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -59,7 +59,7 @@ export function AutoProspectPanel() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
-  const [hasLoadedFromDB, setHasLoadedFromDB] = useState(false)
+  const hasLoadedFromDB = useRef(false)
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -70,8 +70,8 @@ export function AutoProspectPanel() {
 
   // Sync DB settings to form — ONLY on initial load
   useEffect(() => {
-    if (serviceOffering && !hasLoadedFromDB) {
-      setHasLoadedFromDB(true)
+    if (serviceOffering && !hasLoadedFromDB.current) {
+      hasLoadedFromDB.current = true
       setForm({
         serviceName: serviceOffering.serviceName ?? '',
         description: serviceOffering.description ?? '',
@@ -83,11 +83,11 @@ export function AutoProspectPanel() {
         targetCount: '10',
       })
     }
-  }, [serviceOffering, hasLoadedFromDB])
+  }, [serviceOffering])
 
   // Auto-save: debounced — saves 1.5s after user stops typing
   useEffect(() => {
-    if (!hasLoadedFromDB) return // don't auto-save before initial load
+    if (!hasLoadedFromDB.current) return // don't auto-save before initial load
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
     autoSaveTimer.current = setTimeout(async () => {
       if (!form.serviceName.trim() && !form.description.trim()) return
@@ -98,7 +98,7 @@ export function AutoProspectPanel() {
     return () => {
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
     }
-  }, [form, hasLoadedFromDB, saveServiceOffering])
+  }, [form, saveServiceOffering])
 
   const handleSave = async () => {
     if (!form.serviceName.trim() || !form.description.trim()) {

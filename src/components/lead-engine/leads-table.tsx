@@ -268,6 +268,7 @@ export function LeadsTable() {
     [setSelectedLeadId, researchLead, generateEmail, updateLead, deleteLead, actionLoading]
   )
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table returns non-memoizable fns by design
   const table = useReactTable({
     data: leads,
     columns,

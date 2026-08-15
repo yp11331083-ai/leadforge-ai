@@ -23,8 +23,22 @@ export async function loadProviderConfig(): Promise<void> {
     const platformJinaKey = process.env.JINA_API_KEY || undefined
     const platformGroqKey = process.env.GROQ_API_KEY || undefined
 
+    // Priority: Groq first (fast + free), then Gemini, then user BYOK.
+    // zai dropped from the default chain: the bundled z-ai-web-dev-sdk has no
+    // credentials outside the original sandbox and always fails first, wasting
+    // a round-trip before the fallback kicks in.
+    // A tenant order saved before Groq existed can omit it even though a
+    // platform Groq key is available — prepend groq so it's never skipped.
+    const groqKey = config?.groqApiKey ?? platformGroqKey
+    const savedChatOrder = config?.chatProviderOrder?.trim()
+    const chatOrder = savedChatOrder && savedChatOrder.length > 0
+      ? savedChatOrder
+      : 'groq,gemini,openai,anthropic'
+    const chatProviderOrder = groqKey && !chatOrder.split(',').map((s) => s.trim()).includes('groq')
+      ? `groq,${chatOrder}`
+      : chatOrder
+
     const providerConfig: ProviderConfig = {
-      // Chat: Z.ai (built-in) → Gemini (platform) → OpenAI (BYOK) → Anthropic (BYOK)
       openaiApiKey: config?.openaiApiKey ?? undefined,
       openaiModel: config?.openaiModel ?? 'gpt-4o-mini',
       anthropicApiKey: config?.anthropicApiKey ?? undefined,
@@ -33,14 +47,13 @@ export async function loadProviderConfig(): Promise<void> {
       geminiApiKey: config?.geminiApiKey ?? platformGeminiKey,
       geminiModel: config?.geminiModel ?? 'gemini-2.5-flash',
       // Platform-managed Groq (user never sees this key) — free + fast Llama 3.3 70B
-      groqApiKey: config?.groqApiKey ?? platformGroqKey,
-      groqModel: config?.groqModel ?? 'llama-3.1-8b-instant',
+      groqApiKey: groqKey,
+      groqModel: config?.groqModel ?? 'llama-3.3-70b-versatile',
       // Platform-managed search + page reader (users never see these)
       tavilyApiKey: config?.tavilyApiKey ?? platformTavilyKey,
       jinaApiKey: config?.jinaApiKey ?? platformJinaKey,
       firecrawlApiKey: config?.firecrawlApiKey ?? undefined,
-      // Priority: Groq first (fast + free), then Z.ai, then Gemini, then user BYOK
-      chatProviderOrder: config?.chatProviderOrder ?? 'groq,gemini,openai,anthropic',
+      chatProviderOrder,
       searchProviderOrder: config?.searchProviderOrder ?? 'tavily',
       pageReaderProviderOrder: config?.pageReaderProviderOrder ?? 'jina',
     }

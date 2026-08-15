@@ -138,8 +138,9 @@ export function BillingPanel() {
   // Credit balance loads first (fast — just DB), usage stats load in
   // background (slow — calls Stripe API). User sees the panel instantly.
   useEffect(() => {
-    fetchCredits()  // fast — DB only, ~100ms
-    fetchUsage()    // slow — Stripe API, ~3s, non-blocking
+    void fetchCredits()  // fast — DB only, ~100ms
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching on mount
+    void fetchUsage()    // slow — Stripe API, ~3s, non-blocking
   }, [fetchCredits])
 
   const handleUpgrade = async (planId: string) => {
@@ -152,7 +153,8 @@ export function BillingPanel() {
       })
       const data = await res.json()
       if (res.ok && data.url) {
-        // Redirect to Stripe Checkout
+        // Redirect to Stripe Checkout (external URL, not a Next.js route)
+        // eslint-disable-next-line react-hooks/immutability
         window.location.href = data.url
       } else {
         toast.error(data.error ?? 'Failed to start checkout')

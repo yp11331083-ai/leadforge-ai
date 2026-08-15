@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -37,6 +38,7 @@ import { useLeadStore } from '@/store/lead-store'
 import { toast } from 'sonner'
 
 export function EmailSendingPanel() {
+  const router = useRouter()
   const emailConfig = useLeadStore((s) => s.emailConfig)
   const fetchEmailConfig = useLeadStore((s) => s.fetchEmailConfig)
   const saveEmailConfig = useLeadStore((s) => s.saveEmailConfig)
@@ -299,7 +301,7 @@ export function EmailSendingPanel() {
             <p className="text-sm font-medium">Email enrichment is built-in</p>
             <p className="text-xs text-muted-foreground">Finding verified emails for VP Sales / CEO / Founder uses your Lead Credits balance. No API key needed — we handle it for you.</p>
           </div>
-          <Button size="sm" variant="outline" onClick={() => window.location.href = '/?view=billing'}>
+          <Button size="sm" variant="outline" onClick={() => router.push('/?view=billing')}>
             View Credits
           </Button>
         </div>
