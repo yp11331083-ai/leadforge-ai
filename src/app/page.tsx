@@ -13,18 +13,20 @@ import {
   Github,
   Database,
   Mail,
+  Zap,
+  CreditCard,
+  ShieldCheck,
+  LayoutDashboard,
+  BarChart3,
+  Send,
+  AlertCircle,
   Wand2,
   Hammer,
   AlertTriangle,
   X,
-  LayoutDashboard,
-  BarChart3,
-  Send,
   Crown,
   LogOut,
   Users,
-  ShieldCheck,
-  CreditCard,
   Cpu,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -95,6 +97,8 @@ export default function Home() {
   const rateLimitedAt = useLeadStore((s) => s.rateLimitedAt)
   const viewMode = useLeadStore((s) => s.viewMode)
   const setViewMode = useLeadStore((s) => s.setViewMode)
+  const creditBalance = useLeadStore((s) => s.creditBalance)
+  const fetchCredits = useLeadStore((s) => s.fetchCredits)
   const [rateBannerDismissed, setRateBannerDismissed] = useState(false)
 
   const [addOpen, setAddOpen] = useState(false)
@@ -127,14 +131,15 @@ export default function Home() {
     }
   }, [status])
 
-  // 初次載入
+  // 初次載入 — fetch leads + email config + credits
+  // Service offering is fetched by the Auto-Prospect panel itself
   useEffect(() => {
     if (status === 'authenticated') {
       fetchLeads()
       fetchEmailConfig()
-      fetchServiceOffering()
+      fetchCredits()
     }
-  }, [status, fetchLeads, fetchEmailConfig, fetchServiceOffering])
+  }, [status, fetchLeads, fetchEmailConfig, fetchCredits])
 
   const filterStatus = useLeadStore((s) => s.filterStatus)
   useEffect(() => {
@@ -218,6 +223,16 @@ export default function Home() {
 
           {/* User menu */}
           <div className="flex items-center gap-2">
+            {/* Credit balance badge — always visible */}
+            <button
+              onClick={() => setViewMode('billing' as any)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800 text-xs font-medium text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-950/60 transition-colors"
+              title="View billing"
+            >
+              <Zap className="h-3 w-3" />
+              {creditBalance !== null ? creditBalance : '...'} credits
+            </button>
+
             {viewMode === 'admin' && (
               <>
                 <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
