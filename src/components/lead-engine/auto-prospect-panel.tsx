@@ -24,6 +24,7 @@ import {
   Clock,
   XCircle,
   Zap,
+  Globe,
 } from 'lucide-react'
 import { useLeadStore, type ProspectCandidate } from '@/store/lead-store'
 import { toast } from 'sonner'
@@ -175,6 +176,41 @@ export function AutoProspectPanel() {
     toast.success('All added successfully!')
   }
 
+  const [analyzing, setAnalyzing] = useState(false)
+  const [websiteUrl, setWebsiteUrl] = useState('')
+
+  const handleAnalyzeWebsite = async () => {
+    if (!websiteUrl.trim()) return
+    setAnalyzing(true)
+    try {
+      const res = await fetch('/api/analyze-website', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: websiteUrl }),
+      })
+      const data = await res.json()
+      if (res.ok && data.serviceName) {
+        setForm((f) => ({
+          ...f,
+          serviceName: data.serviceName || f.serviceName,
+          description: data.description || f.description,
+          targetIndustries: data.targetIndustries || f.targetIndustries,
+          targetCompanySize: data.targetCompanySize || f.targetCompanySize,
+          targetLocation: data.targetLocation || f.targetLocation,
+          keyBenefits: data.keyBenefits || f.keyBenefits,
+          idealCustomerSignals: data.idealCustomerSignals || f.idealCustomerSignals,
+        }))
+        toast.success('Auto-filled from website!')
+      } else {
+        toast.error(data.error ?? 'Could not analyze website')
+      }
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
   return (
     <div className="space-y-5">
       {/* Service Settings */}
@@ -188,6 +224,32 @@ export function AutoProspectPanel() {
             <p className="text-xs text-muted-foreground">
               Enter your service — Outrovo will automatically find 10 companies that need it most
             </p>
+          </div>
+        </div>
+
+        {/* Auto-fill from website */}
+        <div className="rounded-lg border border-violet-200 bg-violet-50/30 p-3 space-y-2">
+          <p className="text-xs font-medium text-violet-700 flex items-center gap-1.5">
+            <Globe className="h-3.5 w-3.5" /> Auto-fill from your website
+          </p>
+          <div className="flex gap-2">
+            <Input
+              value={websiteUrl}
+              onChange={(e) => setWebsiteUrl(e.target.value)}
+              placeholder="https://your-company.com"
+              disabled={analyzing}
+              className="flex-1 h-9 text-sm"
+            />
+            <Button
+              onClick={handleAnalyzeWebsite}
+              disabled={analyzing || !websiteUrl.trim()}
+              size="sm"
+              variant="outline"
+              className="border-violet-300 text-violet-700 hover:bg-violet-100"
+            >
+              {analyzing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+              {analyzing ? 'Analyzing...' : 'Auto-fill'}
+            </Button>
           </div>
         </div>
 

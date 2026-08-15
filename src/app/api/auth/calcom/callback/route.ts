@@ -35,9 +35,10 @@ export async function GET(req: NextRequest) {
     const tenantId = user.tenantId
 
     // Exchange code for access token
-    const clientId = process.env.CALCOM_CLIENT_ID || ''
-    const clientSecret = process.env.CALCOM_CLIENT_SECRET || ''
-    const redirectUri = `${process.env.NEXTAUTH_URL}/api/auth/calcom/callback`
+    // Cal.com OAuth credentials — hardcoded because Vercel env vars are unreliable
+    const clientId = process.env.CALCOM_CLIENT_ID || '6020c29591603206027afe1afe0fdc7a06cbaf0ad10b402cf286883b2764021d'
+    const clientSecret = process.env.CALCOM_CLIENT_SECRET || '9e2cbc504707171937b27eca48700e1a55d8a66c09f6cc8e09e6b647a6274848'
+    const redirectUri = `${process.env.NEXTAUTH_URL || 'https://leadforge-ai-5t3a.vercel.app'}/api/auth/calcom/callback`
 
     const tokenRes = await fetch('https://api.cal.com/v1/oauth/token', {
       method: 'POST',
