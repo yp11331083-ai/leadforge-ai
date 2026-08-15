@@ -580,6 +580,7 @@ export interface ProspectCandidate {
   company: string
   website: string
   industry?: string
+  company_type?: 'marketplace' | 'vendor' | 'client'
   fit_score: number // 0-100
   why_they_need_it: string
   suggested_angle: string
@@ -755,6 +756,38 @@ export function extractCompanyUrls(
     /costco\./i,
     /u-buy\./i,
     /ubuy\./i,
+    // E-commerce STORE-BUILDING platforms / MarTech vendors — they COMPETE with
+    // e-commerce service providers, they never buy from them. Tech-footprint
+    // queries ("powered by Shopline") deliberately surface these domains.
+    /shopline\./i,
+    /91app\./i,
+    /cyberbiz\./i,
+    /wix\.com/i,
+    /squarespace\./i,
+    /bigcommerce\./i,
+    /woocommerce\./i,
+    /magento\./i,
+    /godaddy\./i,
+    /shopbase\./i,
+    /easystore\./i,
+    /meepshop\./i,
+    /waca\./i,
+    /1shop\.com/i,
+    // Job boards / recruiting platforms — recurring junk category: they are
+    // talent infrastructure, never buyers of B2B services, and kept showing
+    // up as false "client" matches
+    /wellfound\./i,
+    /himalayas\./i,
+    /dailyremote\./i,
+    /remoteok\./i,
+    /weworkremotely\./i,
+    /jobgether\./i,
+    /fintechfans\./i,
+    /angel\.co/i,
+    /roberthalf\./i,
+    /manpower\./i,
+    /adecco\./i,
+    /randstad\./i,
   ]
 
   // 通用目錄路徑模式（這些 path 通常出現在聚合網站，不是公司首頁）
@@ -835,8 +868,10 @@ export function extractCompanyUrls(
       if (articlePathPatterns.some((p) => p.test(path))) continue
 
       // 子網域黑名單：careers.nike.com / help.x.com 是大公司的部門頁，
-      // 不是潛在客戶的官網，評估只會浪費一次 LLM 呼叫
-      if (/^(careers?|jobs?|help|support|docs?|developer|community|status|portal|app)\./i.test(host)) continue
+      // 不是潛在客戶的官網，評估只會浪費一次 LLM 呼叫。
+      // blog.shopline.tw 這類內容行銷子網域尤其危險：它是平台商的
+      // 行銷能力展示，曾被誤判成「缺乏行銷的潛在客戶」還拿了 85 分。
+      if (/^(careers?|jobs?|help|support|docs?|developer|community|status|portal|app|blog|news|press|learn|academy|events|info)\./i.test(host)) continue
 
       if (!/\.gov|\.edu|\.mil/i.test(host)) {
         // 深層連結的 title 常是文章標題不是公司名 — 用 host_name（Tavily 提供）
@@ -1228,6 +1263,7 @@ export async function autoProspect(params: {
   }
   const evaluated: ProspectCandidate[] = []
   let skippedCompetitors = 0
+  let skippedVendors = 0
   let nextIndex = 0
   let completed = 0
   let shouldStop = false
@@ -1262,15 +1298,23 @@ export async function autoProspect(params: {
           websiteContent: websiteText || `(Could not fetch website content, judging by URL only: ${c.url})`,
           targetLocation,
           targetCompanySize,
+          selfWebsite,
         })
 
         completed++
         if (fitResult.success && fitResult.data) {
-          evaluated.push({
-            ...fitResult.data,
-            website_title: websiteData?.title,
-          })
-          onProgress?.('Fit analysis', `(${completed}/${toEvaluate.length}) ${c.name} — fit ${fitResult.data.fit_score}`)
+          // 分類由程式碼強制執行，不信任分數：模型（尤其 8B）曾給
+          // 平台商/供應商 40-85 分 — company_type 非 client 一律丟棄
+          if (fitResult.data.company_type && fitResult.data.company_type !== 'client') {
+            skippedVendors++
+            onProgress?.('Fit analysis', `(${completed}/${toEvaluate.length}) ${c.name} — dropped (${fitResult.data.company_type})`)
+          } else {
+            evaluated.push({
+              ...fitResult.data,
+              website_title: websiteData?.title,
+            })
+            onProgress?.('Fit analysis', `(${completed}/${toEvaluate.length}) ${c.name} — fit ${fitResult.data.fit_score}`)
+          }
         } else {
           onProgress?.('Fit analysis', `(${completed}/${toEvaluate.length}) ${c.name} — no valid evaluation`)
         }
@@ -1311,7 +1355,7 @@ export async function autoProspect(params: {
   const backfilledCount = Math.max(0, top.length - strongLeads.slice(0, targetCount).length)
   onProgress?.(
     'Complete',
-    `Found ${top.length} best-matching leads${droppedCount > 0 ? ` (filtered out ${droppedCount} non-company websites)` : ''}${skippedCompetitors > 0 ? `, skipped ${skippedCompetitors} competitors` : ''}${backfilledCount > 0 ? `, ${backfilledCount} low-confidence (marked)` : ''}`
+    `Found ${top.length} best-matching leads${droppedCount > 0 ? ` (filtered out ${droppedCount} non-company websites)` : ''}${skippedCompetitors > 0 ? `, skipped ${skippedCompetitors} competitors` : ''}${skippedVendors > 0 ? `, dropped ${skippedVendors} vendors/platforms` : ''}${backfilledCount > 0 ? `, ${backfilledCount} low-confidence (marked)` : ''}`
   )
 
   return {
@@ -1338,6 +1382,7 @@ async function evaluateProspectFitWithModel(params: {
   websiteContent: string
   targetLocation?: string
   targetCompanySize?: string
+  selfWebsite?: string
 }, config: any): Promise<{
   success: boolean
   data: ProspectCandidate | null
@@ -1355,19 +1400,25 @@ If the company's core business has no plausible use for my service category → 
 Examples: a headhunting firm for an e-commerce marketing service; a law firm for game-dev tooling; a restaurant chain for B2B SaaS prospecting tools.
 "Every company needs marketing" is NOT a valid reason — the service must fit HOW this company actually sells.
 
-### Step 1: Is this a MARKETPLACE/PLATFORM?
-Marketplaces (Shopee, Amazon, PChome, Shopify) are infrastructure — they do NOT buy B2B services.
-Signals: "marketplace", "seller center", "thousands of sellers", "platform for sellers"
+### Step 1: Is this a MARKETPLACE or PLATFORM VENDOR?
+Marketplaces (Shopee, Amazon, PChome) are infrastructure — they do NOT buy B2B services.
+Store-building / MarTech platforms (Shopify, SHOPLINE, 91APP, Cyberbiz, Wix, Squarespace, WooCommerce, BigCommerce, Magento) SELL e-commerce and marketing tooling — for an e-commerce/marketing service they are COMPETITORS, never customers. Their seminars, blogs, and "retail academies" are their OWN content marketing — evidence of marketing STRENGTH, not a gap you can sell into.
+Check the DOMAIN and brand name, not just the page text — blog.shopline.tw is SHOPLINE.
+Signals: "marketplace", "seller center", "thousands of sellers", "platform for sellers", "start free trial", "book a demo", "pricing plans", "our platform", "API documentation", "app store / integrations marketplace"
 If YES → fit_score MUST be ≤ 10
 
-### Step 2: Is this a VENDOR/COMPETITOR?
+### Step 2: Is this a VENDOR/COMPETITOR of my service?
 If the company sells similar services to what I offer → they are a COMPETITOR, not a customer.
 Signals: "marketing agency", "we offer marketing services", "design studio", "our services include", "we help clients"
 If YES → fit_score MUST be ≤ 15
+${params.selfWebsite ? `My own company is ${params.selfWebsite} — companies in my own category (including platforms whose customers I serve) are competitors, fit_score ≤ 10.` : ''}
 
 ### Step 3: Is this a real CLIENT?
 If the company is a non-marketing business (manufacturer, retailer, hospital, D2C brand, etc.) → potential CLIENT.
 Only then evaluate fit normally.
+
+### REVERSE-SIGNAL RULE (critical):
+Strong marketing capability on the candidate's site — active blog, seminars/webinars, case studies, big ad presence — is evidence AGAINST needing outsourced marketing services. NEVER twist it into a need ("they do content marketing, so they'd benefit from more") — that reasoning is forbidden. Only recommend companies whose site shows a real GAP my service fills.
 
 ## My Service
 **Service Name**: ${serviceName}
@@ -1395,12 +1446,17 @@ ${websiteContent.slice(0, 3000)}
   "company": "${companyName}",
   "website": "${companyUrl}",
   "industry": "industry in English",
+  "company_type": "client",
   "fit_score": 75,
   "why_they_need_it": "2-3 sentences referencing SPECIFIC website content. If the business linkage is weak, say so plainly instead of inventing one.",
   "suggested_angle": "1 sentence with a SPECIFIC reference to this company.",
   "key_signals": ["specific signal 1", "signal 2", "signal 3"],
   "confidence": "high"
 }
+
+"company_type" MUST be exactly one of: "marketplace", "vendor", "client".
+Classify FIRST (Steps 0-3), then score. Non-client types are dropped by
+the caller regardless of fit_score — do not give a vendor a high score.
 
 Rules:
 - Irrelevant business model (fails the relevance gate) → fit_score ≤ 10
