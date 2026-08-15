@@ -147,25 +147,50 @@ Output pure JSON (no markdown code block):
 }
 
 function parseResearchResult(raw: string) {
-  // 嘗試剝離 markdown code block
-  let cleaned = raw.trim()
-  if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+  const parsed = extractJsonLoose(raw)
+  if (parsed !== undefined) {
+    return { success: true, data: parsed, raw }
   }
+  // JSON 解析失敗，回傳原始內容
+  return { success: false, data: null, raw }
+}
+
+/**
+ * Lenient JSON extraction from LLM output. Models occasionally wrap JSON in
+ * markdown fences, prepend prose, or leave trailing commas — each of those
+ * used to discard an entire evaluation result. Strategy:
+ *   1. strip ``` fences
+ *   2. slice from the first '{'/'[' to the LAST matching close char
+ *   3. remove trailing commas before } or ]
+ * Returns undefined when nothing JSON-shaped is found.
+ */
+export function extractJsonLoose(raw: string): any | undefined {
+  let cleaned = raw.trim()
+  cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+
+  const firstObj = cleaned.indexOf('{')
+  const firstArr = cleaned.indexOf('[')
+  let start: number
+  let closeChar: string
+  if (firstObj === -1 && firstArr === -1) return undefined
+  if (firstArr === -1 || (firstObj !== -1 && firstObj < firstArr)) {
+    start = firstObj
+    closeChar = '}'
+  } else {
+    start = firstArr
+    closeChar = ']'
+  }
+  const end = cleaned.lastIndexOf(closeChar)
+  if (end <= start) return undefined
+  cleaned = cleaned.slice(start, end + 1)
+
+  // Trailing commas before a closer are invalid JSON but common LLM output.
+  cleaned = cleaned.replace(/,\s*([}\]])/g, '$1')
+
   try {
-    const parsed = JSON.parse(cleaned)
-    return {
-      success: true,
-      data: parsed,
-      raw,
-    }
+    return JSON.parse(cleaned)
   } catch {
-    // JSON 解析失敗，回傳原始內容
-    return {
-      success: false,
-      data: null,
-      raw,
-    }
+    return undefined
   }
 }
 
@@ -594,43 +619,35 @@ ${targetCompanySize ? `**Target Company Size**: ${targetCompanySize}` : ''}
 ${targetLocation ? `**Target Location**: ${targetLocation}` : ''}
 ${idealCustomerSignals ? `**Ideal Customer Signals**: ${idealCustomerSignals}` : ''}
 
-Design 12 Google search queries to find SMALL companies that would BUY my service.
+Design 10 Google search queries that surface websites of SMALL companies that would BUY my service.
 
-## CRITICAL SEARCH STRATEGIES:
+## SEARCH STRATEGIES (in priority order):
 
-### Strategy 1: Boolean Exclusion (use in EVERY query)
-Add exclusions for big platforms and marketplaces that don't need my service:
--site:linkedin.com -shopee -pchome -momo -rakuten -amazon -ebay -aliexpress -shopify
+### Strategy 1: BUYER-side signals (most important)
+Search for companies SHOWING the pain my service solves — never for sellers of that service.
+- GOOD: "growing D2C skincare brand" / "WooCommerce store Taiwan" / "fintech startup hiring customer support"
+- BAD: "AI chatbot agency" / "lead generation company" (those are VENDORS, they never buy)
 
-### Strategy 2: Find D2C brands, NOT platforms
-If looking for e-commerce companies, search for BRANDS not marketplaces:
-- "Powered by Shopline" ${targetLocation ?? ''}
-- "Powered by Cyberbiz" ${targetLocation ?? ''}
-- "built with WooCommerce" ${targetLocation ?? ''}
-- Independent brand websites, NOT marketplace sellers
+### Strategy 2: Tech-footprint queries
+Find sites built on platforms my typical buyers use:
+- "powered by Shopline", "built with WooCommerce", "runs on Shopify Plus" (+ location if given)
 
-### Strategy 3: Size-specific queries
-${targetCompanySize ? `Search for companies matching "${targetCompanySize}" — small/mid companies have fast decision-making and need external tools.` : 'Search for small to mid-size companies (10-100 employees).'}
+### Strategy 3: Hiring-signal queries
+Companies hiring for the function my service replaces/boosts:
+- "hiring customer support specialist" / "looking for sales rep"
 
-### Strategy 4: Pain-point specific
-Search for companies showing signals of the pain point my service solves.
+### Strategy 4: Industry + niche directories of BUYERS
+- "top D2C coffee brands", "independent fashion labels" (brand lists, not SaaS lists)
 
-### Strategy 5: Location-specific (at least 4 queries)
-${targetLocation ? `Include "${targetLocation}" in at least 4 queries.` : 'No location restriction.'}
-
-### Strategy 6: Industry + niche
-${targetIndustries ? `Focus on "${targetIndustries}" companies.` : ''}
-
-## RULES:
-1. Every query MUST have: -site:linkedin.com
-2. Every query should exclude big platforms: -shopee -pchome -momo -amazon
-3. Search for BUYERS (small companies), not SELLERS (agencies/platforms)
-4. If my service is marketing/sales → search for non-marketing companies
-5. Queries must be SPECIFIC, not broad ("best companies" is forbidden)
-6. Prefer queries that find independent brand websites, not marketplace listings
+## HARD RULES:
+1. Each query is 3-8 words. SHORT and SPECIFIC beats long and vague.
+2. Append " -site:linkedin.com" to every query — this is the ONLY exclusion allowed. Stacking "-shopee -amazon -pchome ..." is FORBIDDEN (the search API ignores most operators and recall collapses).
+3. NEVER search for agencies, vendors, consultancies, or "companies that provide ${serviceName}".
+4. ${targetLocation ? `Include "${targetLocation}" in at least 4 queries.` : 'No location restriction.'}
+5. No quoted boolean strings longer than 3 words.
 
 Output pure JSON array (no markdown):
-["query 1 -site:linkedin.com -shopee -amazon", "query 2 -site:linkedin.com -pchome", ...]`
+["query 1 -site:linkedin.com", "query 2 -site:linkedin.com", ...]`
 
   const chatResult = await chatWithFallback({
     messages: [
@@ -644,16 +661,31 @@ Output pure JSON array (no markdown):
   }, globalProviderConfig)
 
   const raw = chatResult.content
-  let cleaned = raw.trim()
-  if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
-  }
-  try {
-    const queries = JSON.parse(cleaned) as string[]
+  const parsed = extractJsonLoose(raw)
+  const queries = Array.isArray(parsed)
+    ? parsed.filter((q): q is string => typeof q === 'string' && q.trim().length > 0)
+    : []
+  if (queries.length > 0) {
     return { success: true, queries, raw }
-  } catch {
-    return { success: false, queries: [], raw }
   }
+
+  // One retry with an explicit nudge — a malformed first response used to
+  // abort the whole run before any searching happened.
+  const retryResult = await chatWithFallback({
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a top-tier B2B lead generation expert. Your response must be a pure JSON array. Respond in English.',
+      },
+      { role: 'user', content: `${prompt}\n\nIMPORTANT: Your previous answer was not valid JSON. Output ONLY the JSON array, starting with [ and ending with ]. No prose, no markdown.` },
+    ],
+    temperature: 0.3,
+  }, globalProviderConfig)
+  const retryParsed = extractJsonLoose(retryResult.content)
+  const retryQueries = Array.isArray(retryParsed)
+    ? retryParsed.filter((q): q is string => typeof q === 'string' && q.trim().length > 0)
+    : []
+  return { success: retryQueries.length > 0, queries: retryQueries, raw: retryResult.content }
 }
 
 /**
@@ -788,10 +820,30 @@ export function extractCompanyUrls(
         continue
       }
 
-      // 一般公司官網首頁（不是子頁面）
-      const isRootOrMain = path === '/' || path === '' || /^\/[a-z]{2}(-[a-z]{2})?\/?$/i.test(path)
-      if (isRootOrMain && !/\.gov|\.edu|\.mil/i.test(host)) {
-        websites.push({ url, name, host })
+      // 一般公司網站。搜尋引擎常回深層頁（產品頁/關於頁）而非首頁，
+      // 舊版只接受 path === '/' 造成 ~98% 的結果被丟掉（漏斗被餓死）。
+      // 現在：排除文章式路徑後，一律正規化到網站根網址。
+      const articlePathPatterns = [
+        /\/blog(\/|$)/i, /\/articles?(\/|$)/i, /\/news(\/|$)/i, /\/press(\/|$)/i,
+        /\/posts?(\/|$)/i, /\/stories(\/|$)/i, /\/guides?(\/|$)/i,
+        /\/insights?(\/|$)/i, /\/resources(\/|$)/i, /\/case-stud/i,
+        /\/20\d{2}(\/|$)/i,  // date-prefixed news URLs
+        /\/(p|page)\/?\d+/i, // pagination
+      ]
+      if (articlePathPatterns.some((p) => p.test(path))) continue
+
+      // 子網域黑名單：careers.nike.com / help.x.com 是大公司的部門頁，
+      // 不是潛在客戶的官網，評估只會浪費一次 LLM 呼叫
+      if (/^(careers?|jobs?|help|support|docs?|developer|community|status|portal|app)\./i.test(host)) continue
+
+      if (!/\.gov|\.edu|\.mil/i.test(host)) {
+        // 深層連結的 title 常是文章標題不是公司名 — 用 host_name（Tavily 提供）
+        // 或 host 本身當公司名，比錯誤的標題好
+        const deepLink = path !== '/' && path !== ''
+        const displayName = deepLink
+          ? prettifyHost(r.host_name || host)
+          : name
+        websites.push({ url: `https://${host}`, name: displayName, host })
       }
     } catch {
       continue
@@ -821,6 +873,15 @@ export function extractCompanyUrls(
   }
 
   return companies
+}
+
+/**
+ * Derive a display name from a hostname: "acme-corp.com.tw" → "Acme Corp"
+ */
+function prettifyHost(host: string): string {
+  const label = host.split('.')[0].replace(/[-_]+/g, ' ').trim()
+  if (!label) return host
+  return label.replace(/\b\w/g, (ch) => ch.toUpperCase())
 }
 
 /**
@@ -1081,18 +1142,28 @@ export async function autoProspect(params: {
 
   onProgress?.('Search candidates', `Searching with ${queryResult.queries.length} queries...`)
 
-  // 步驟 2：循序執行 web_search
+  // 步驟 2：並行執行 web_search（concurrency 3 — 快 4 倍，又不會打爆 Tavily）
+  const SEARCH_CONCURRENCY = 3
   const allSearchResults: Array<{ url?: string; name?: string; host_name?: string }> = []
-  for (const q of queryResult.queries) {
-    try {
-      const results = await searchCompanies(q, 10)
-      allSearchResults.push(...results)
-      onProgress?.('Search candidates', `Found ${allSearchResults.length} results so far...`)
-    } catch (e) {
-      console.error(`search failed for "${q}":`, e)
+  const searchQueue = [...queryResult.queries]
+  let searchDone = 0
+  const searchWorkers = Array.from(
+    { length: Math.min(SEARCH_CONCURRENCY, searchQueue.length) },
+    async () => {
+      while (searchQueue.length > 0) {
+        const q = searchQueue.shift()!
+        try {
+          const results = await searchCompanies(q, 10)
+          allSearchResults.push(...results)
+        } catch (e) {
+          console.error(`search failed for "${q}":`, e)
+        }
+        searchDone++
+        onProgress?.('Search candidates', `Searched ${searchDone}/${queryResult.queries.length} queries — ${allSearchResults.length} results`)
+      }
     }
-    await new Promise((r) => setTimeout(r, 400))
-  }
+  )
+  await Promise.all(searchWorkers)
 
   // 步驟 3：萃取公司 URL + 排除自己
   let candidates = extractCompanyUrls(allSearchResults)
@@ -1126,56 +1197,79 @@ export async function autoProspect(params: {
   onProgress?.('Fit analysis', `Evaluating ${toEvaluate.length} candidates...`)
 
   // 步驟 4 + 5 + 6：抓網站 → Pre-AI 篩選 → AI 評估
+  // Worker pool instead of a sequential loop: each candidate costs a page
+  // fetch (~2-5s) plus a 70B call (~3-8s), so 30 candidates took 3-5 minutes
+  // end-to-end. Four workers keep Groq/Tavily usage gentle while cutting the
+  // wall time roughly 4x. Early-exit is checked after every completion.
+  const EVAL_CONCURRENCY = 4
   const evaluated: ProspectCandidate[] = []
   let skippedCompetitors = 0
+  let nextIndex = 0
+  let completed = 0
+  let shouldStop = false
 
-  for (let i = 0; i < toEvaluate.length; i++) {
-    const c = toEvaluate[i]
-    onProgress?.('Fit analysis', `(${i + 1}/${toEvaluate.length}) ${c.name}`)
+  const evalWorker = async () => {
+    while (!shouldStop) {
+      const i = nextIndex++
+      if (i >= toEvaluate.length) break
+      const c = toEvaluate[i]
 
-    try {
-      // 抓網站內容
-      const websiteData = await fetchWebsiteContent(c.url)
-      const websiteText = websiteData ? htmlToText(websiteData.html).slice(0, 6000) : ''
+      try {
+        // 抓網站內容
+        const websiteData = await fetchWebsiteContent(c.url)
+        const websiteText = websiteData ? htmlToText(websiteData.html).slice(0, 6000) : ''
 
-      // Pre-AI 篩選：檢查是否是競爭對手/平台
-      if (websiteText && isLikelyCompetitor(websiteText, serviceName, description)) {
-        skippedCompetitors++
-        onProgress?.('Fit analysis', `(${i + 1}/${toEvaluate.length}) ${c.name} — skipped (competitor)`)
-        continue
+        // Pre-AI 篩選：檢查是否是競爭對手/平台
+        if (websiteText && isLikelyCompetitor(websiteText, serviceName, description)) {
+          skippedCompetitors++
+          completed++
+          onProgress?.('Fit analysis', `(${completed}/${toEvaluate.length}) ${c.name} — skipped (competitor)`)
+          continue
+        }
+
+        // AI 評估契合度 — 用 70B 模型
+        const fitResult = await evaluateProspectFitWithModel({
+          serviceName,
+          description,
+          keyBenefits,
+          idealCustomerSignals,
+          companyUrl: c.url,
+          companyName: c.name,
+          websiteContent: websiteText || `(Could not fetch website content, judging by URL only: ${c.url})`,
+          targetLocation,
+          targetCompanySize,
+        }, evalConfig)
+
+        completed++
+        if (fitResult.success && fitResult.data) {
+          evaluated.push({
+            ...fitResult.data,
+            website_title: websiteData?.title,
+          })
+          onProgress?.('Fit analysis', `(${completed}/${toEvaluate.length}) ${c.name} — fit ${fitResult.data.fit_score}`)
+        } else {
+          onProgress?.('Fit analysis', `(${completed}/${toEvaluate.length}) ${c.name} — no valid evaluation`)
+        }
+      } catch (e) {
+        completed++
+        console.error(`evaluate ${c.name} failed:`, e)
       }
 
-      // AI 評估契合度 — 用 70B 模型
-      const fitResult = await evaluateProspectFitWithModel({
-        serviceName,
-        description,
-        keyBenefits,
-        idealCustomerSignals,
-        companyUrl: c.url,
-        companyName: c.name,
-        websiteContent: websiteText || `(Could not fetch website content, judging by URL only: ${c.url})`,
-        targetLocation,
-        targetCompanySize,
-      }, evalConfig)
-
-      if (fitResult.success && fitResult.data) {
-        evaluated.push({
-          ...fitResult.data,
-          website_title: websiteData?.title,
-        })
+      // Early exit once we have enough high-confidence candidates
+      // (threshold 40 + ×3 window — looser than 60/×2 so users see more results)
+      const highConfCount = evaluated.filter((e) => e.fit_score >= 40).length
+      if (highConfCount >= targetCount && nextIndex >= targetCount * 3) {
+        shouldStop = true
       }
-    } catch (e) {
-      console.error(`evaluate ${c.name} failed:`, e)
     }
-
-    await new Promise((r) => setTimeout(r, 200))
-
-    const highConfCount = evaluated.filter((e) => e.fit_score >= 40).length
-    if (highConfCount >= targetCount && i >= targetCount * 3) break
   }
 
-  // 步驟 7：排序 + 過濾 + 取 top N
-  evaluated.sort((a, b) => b.fit_score - a.fit_score)
+  await Promise.all(
+    Array.from({ length: Math.min(EVAL_CONCURRENCY, toEvaluate.length) }, () => evalWorker())
+  )
+
+  // 步驟 7：排序 + 過濾 + 取 top N（同分用公司名穩定排序，並行完成順序不影響結果）
+  evaluated.sort((a, b) => b.fit_score - a.fit_score || String(a.company).localeCompare(String(b.company)))
   const qualified = evaluated.filter((e) => e.fit_score > 10)
   const top = qualified.slice(0, targetCount)
 
@@ -1273,29 +1367,51 @@ Rules:
 - Email hook MUST be specific (no generic templates)
 - ALL text in English`
 
+  const messages = [
+    {
+      role: 'system',
+      content: 'You are a B2B business analyst. You objectively evaluate fit. Respond in English. Pure JSON only.',
+    },
+    { role: 'user', content: prompt },
+  ] as ChatMessage[]
+
   const chatResult = await chatWithFallback({
-    messages: [
-      {
-        role: 'system',
-        content: 'You are a B2B business analyst. You objectively evaluate fit. Respond in English. Pure JSON only.',
-      },
-      { role: 'user', content: prompt },
-    ],
+    messages,
     temperature: 0.3,
   }, config)
 
   const raw = chatResult.content
-  let cleaned = raw.trim()
-  if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+  const parsed = extractJsonLoose(raw)
+  if (isValidProspectCandidate(parsed)) {
+    return { success: true, data: parsed, raw }
   }
 
-  try {
-    const data = JSON.parse(cleaned) as ProspectCandidate
-    return { success: true, data, raw }
-  } catch {
-    return { success: false, data: null, raw }
+  // One retry with an explicit nudge — a malformed response used to silently
+  // drop the candidate after we'd already spent a page fetch on it.
+  const retryResult = await chatWithFallback({
+    messages: [
+      ...messages,
+      { role: 'assistant', content: raw.slice(0, 2000) },
+      { role: 'user', content: 'That was not valid JSON. Output ONLY the JSON object — no prose, no markdown fences. Use exactly the schema from the previous instruction.' },
+    ],
+    temperature: 0.2,
+  }, config)
+
+  const retryParsed = extractJsonLoose(retryResult.content)
+  if (isValidProspectCandidate(retryParsed)) {
+    return { success: true, data: retryParsed, raw: retryResult.content }
   }
+  return { success: false, data: null, raw: retryResult.content }
+}
+
+function isValidProspectCandidate(data: any): data is ProspectCandidate {
+  return (
+    !!data &&
+    typeof data === 'object' &&
+    typeof data.company === 'string' &&
+    typeof data.fit_score === 'number' &&
+    Number.isFinite(data.fit_score)
+  )
 }
 
 // ===== Email Enrichment：找出決策者 email =====

@@ -53,6 +53,10 @@ export interface ChatCompletionResult {
 }
 
 export interface ProviderConfig {
+  // Hard timeouts (ms) for external calls — a single slow site must not
+  // stall the whole prospect pipeline until the serverless maxDuration kills it.
+  searchTimeoutMs?: number   // web search (Tavily etc.)
+  pageTimeoutMs?: number     // page reader (Jina etc.)
   // Z.ai (always available, built-in via z-ai-web-dev-sdk)
   // OpenAI
   openaiApiKey?: string
@@ -174,6 +178,7 @@ async function chatWithOpenAI(
 ): Promise<ChatCompletionResult> {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
+    signal: AbortSignal.timeout(90_000),
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
@@ -265,6 +270,7 @@ async function chatWithGemini(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
       method: 'POST',
+      signal: AbortSignal.timeout(90_000),
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }
@@ -293,6 +299,7 @@ async function chatWithGroq(
 ): Promise<ChatCompletionResult> {
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
+    signal: AbortSignal.timeout(90_000),
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
@@ -346,12 +353,13 @@ async function callSearchProvider(
   num: number,
   config: ProviderConfig
 ): Promise<SearchResultItem[]> {
+  const signal = AbortSignal.timeout(config.searchTimeoutMs ?? 15_000)
   switch (provider) {
     case 'zai':
       return await searchWithZai(query, num)
     case 'tavily':
       if (!config.tavilyApiKey) return []
-      return await searchWithTavily(query, num, config.tavilyApiKey)
+      return await searchWithTavily(query, num, config.tavilyApiKey, signal)
     default:
       return []
   }
@@ -370,11 +378,12 @@ async function searchWithZai(query: string, num: number): Promise<SearchResultIt
   }))
 }
 
-async function searchWithTavily(query: string, num: number, apiKey: string): Promise<SearchResultItem[]> {
+async function searchWithTavily(query: string, num: number, apiKey: string, signal?: AbortSignal): Promise<SearchResultItem[]> {
   // Try Authorization header first (more reliable from cloud environments
   // — Tavily has been known to 401 body-auth requests from cloud IPs)
   const res = await fetch('https://api.tavily.com/search', {
     method: 'POST',
+    signal,
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
@@ -390,6 +399,7 @@ async function searchWithTavily(query: string, num: number, apiKey: string): Pro
     // Fallback: try the legacy api_key body field
     const fallbackRes = await fetch('https://api.tavily.com/search', {
       method: 'POST',
+      signal,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         api_key: apiKey,
@@ -448,14 +458,15 @@ async function callPageReaderProvider(
   url: string,
   config: ProviderConfig
 ): Promise<PageContent | null> {
+  const signal = AbortSignal.timeout(config.pageTimeoutMs ?? 20_000)
   switch (provider) {
     case 'zai':
       return await fetchPageWithZai(url)
     case 'jina':
-      return await fetchPageWithJina(url, config.jinaApiKey)
+      return await fetchPageWithJina(url, config.jinaApiKey, signal)
     case 'firecrawl':
       if (!config.firecrawlApiKey) return null
-      return await fetchPageWithFirecrawl(url, config.firecrawlApiKey)
+      return await fetchPageWithFirecrawl(url, config.firecrawlApiKey, signal)
     default:
       return null
   }
@@ -475,7 +486,7 @@ async function fetchPageWithZai(url: string): Promise<PageContent | null> {
   }
 }
 
-async function fetchPageWithJina(url: string, apiKey?: string): Promise<PageContent | null> {
+async function fetchPageWithJina(url: string, apiKey?: string, signal?: AbortSignal): Promise<PageContent | null> {
   // Jina Reader: https://r.jina.ai/{url}
   // 免費 tier 不需 API key，但有 API key 限額較高
   //
@@ -492,7 +503,7 @@ async function fetchPageWithJina(url: string, apiKey?: string): Promise<PageCont
     headers['Authorization'] = `Bearer ${apiKey}`
   }
 
-  const res = await fetch(`https://r.jina.ai/${url}`, { headers })
+  const res = await fetch(`https://r.jina.ai/${url}`, { headers, signal })
 
   if (!res.ok) {
     throw new Error(`Jina ${res.status}`)
@@ -515,9 +526,10 @@ async function fetchPageWithJina(url: string, apiKey?: string): Promise<PageCont
   }
 }
 
-async function fetchPageWithFirecrawl(url: string, apiKey: string): Promise<PageContent | null> {
+async function fetchPageWithFirecrawl(url: string, apiKey: string, signal?: AbortSignal): Promise<PageContent | null> {
   const res = await fetch('https://api.firecrawl.dev/v1/scrape', {
     method: 'POST',
+    signal,
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,

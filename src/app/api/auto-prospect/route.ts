@@ -82,8 +82,17 @@ export async function POST(req: NextRequest) {
     const encoder = new TextEncoder()
     const stream = new ReadableStream({
       async start(controller) {
+        let clientGone = false
+        // enqueue throws once the client disconnects; a throwing send() used
+        // to bounce into the catch block, re-throw inside it, and leave an
+        // unhandled rejection. Mark-and-drop instead.
         const send = (obj: any) => {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`))
+          if (clientGone) return
+          try {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`))
+          } catch {
+            clientGone = true
+          }
         }
 
         try {
@@ -123,28 +132,59 @@ export async function POST(req: NextRequest) {
           }
 
           let addedToLeads = 0
+          let skippedDuplicates = 0
           if (saveToDb && result.result.candidates.length > 0) {
-            const leadsData = result.result.candidates.map((c: any) => ({
-              tenantId: user.tenantId,
-              assigneeId: user.role === 'sdr' ? user.id : null,
-              company: c.company,
-              website: c.website,
-              industry: c.industry ?? null,
-              status: 'new' as const,
-              tags: `AI自動開發,fit:${c.fit_score}`,
-              researchRaw: JSON.stringify({ ai_prospect_evaluation: c }),
-            }))
-            const created = await db.lead.createMany({ data: leadsData })
-            addedToLeads = created.count
+            // Dedup against existing leads — repeated runs used to create
+            // the same companies over and over.
+            const existingWebsites = new Set(
+              (await db.lead.findMany({
+                where: { tenantId: user.tenantId, website: { not: null } },
+                select: { website: true },
+              })).map((l) => normalizeWebsite(l.website!))
+            )
+            const existingCompanies = new Set(
+              (await db.lead.findMany({
+                where: { tenantId: user.tenantId },
+                select: { company: true },
+              })).map((l) => l.company.toLowerCase().trim())
+            )
+
+            const leadsData = result.result.candidates
+              .filter((c: any) => {
+                const siteKey = normalizeWebsite(c.website)
+                const nameKey = String(c.company).toLowerCase().trim()
+                if ((siteKey && existingWebsites.has(siteKey)) || existingCompanies.has(nameKey)) {
+                  skippedDuplicates++
+                  return false
+                }
+                if (siteKey) existingWebsites.add(siteKey)
+                existingCompanies.add(nameKey)
+                return true
+              })
+              .map((c: any) => ({
+                tenantId: user.tenantId,
+                assigneeId: user.role === 'sdr' ? user.id : null,
+                company: c.company,
+                website: c.website,
+                industry: c.industry ?? null,
+                status: 'new' as const,
+                tags: `AI自動開發,fit:${c.fit_score}`,
+                researchRaw: JSON.stringify({ ai_prospect_evaluation: c }),
+              }))
+            if (leadsData.length > 0) {
+              const created = await db.lead.createMany({ data: leadsData })
+              addedToLeads = created.count
+            }
           }
 
           send({
             type: 'complete',
             result: result.result,
             addedToLeads,
+            skippedDuplicates,
             creditsUsed: creditCost,
             creditsRemaining: creditResult.balanceAfter,
-            detail: `找到 ${result.result.candidates.length} 家潛在客戶${addedToLeads ? `，已加入 ${addedToLeads} 家` : ''}`,
+            detail: `找到 ${result.result.candidates.length} 家潛在客戶${addedToLeads ? `，已加入 ${addedToLeads} 家` : ''}${skippedDuplicates ? `，略過 ${skippedDuplicates} 家重複` : ''}`,
           })
           controller.close()
         } catch (e: any) {
@@ -189,23 +229,30 @@ export async function POST(req: NextRequest) {
  */
 async function refundCredits(tenantId: string, amount: number, description: string): Promise<void> {
   try {
-    const tenant = await db.tenant.findUnique({ where: { id: tenantId } })
-    if (!tenant) return
-    const newBalance = tenant.creditBalance + amount
-    await db.tenant.update({
+    // Atomic increment — the previous read-then-write version could lose a
+    // refund when two runs for the same tenant finished at the same time.
+    const tenant = await db.tenant.update({
       where: { id: tenantId },
-      data: { creditBalance: newBalance },
+      data: { creditBalance: { increment: amount } },
     })
     await db.creditLog.create({
       data: {
         tenantId,
         type: 'CREDIT_RESET',
         amount,
-        balanceAfter: newBalance,
+        balanceAfter: tenant.creditBalance,
         description: `[REFUND] ${description}`,
       },
     })
   } catch (e) {
     console.error('refundCredits failed:', e)
+  }
+}
+
+function normalizeWebsite(url: string): string {
+  try {
+    return new URL(url.startsWith('http') ? url : `https://${url}`).hostname.replace(/^www\./, '').toLowerCase()
+  } catch {
+    return url.toLowerCase().trim()
   }
 }
