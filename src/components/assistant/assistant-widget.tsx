@@ -335,7 +335,7 @@ export function AssistantWidget() {
                   <div>
                     <p className="text-sm font-semibold">Outrovo Assistant</p>
                     <p className="text-[10px] text-muted-foreground">
-                      {loading ? 'Working...' : 'Ask me to do anything'}
+                      {loading ? 'Working...' : 'How can I help?'}
                     </p>
                   </div>
                 </div>
