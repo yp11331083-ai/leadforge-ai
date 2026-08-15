@@ -3,6 +3,7 @@ import {
   chatWithFallback,
   searchWithFallback,
   fetchPageWithFallback,
+  isGroqDailyCapped,
   type ChatMessage,
   type ProviderConfig,
   type SearchResultItem,
@@ -645,6 +646,7 @@ Companies hiring for the function my service replaces/boosts:
 3. NEVER search for agencies, vendors, consultancies, or "companies that provide ${serviceName}".
 4. ${targetLocation ? `Include "${targetLocation}" in at least 4 queries.` : 'No location restriction.'}
 5. No quoted boolean strings longer than 3 words.
+6. LANGUAGE SPLIT (mandatory): if the target market's primary language is not English (Taiwan/HK → Traditional Chinese, Japan → Japanese, France → French, etc.), queries 1-5 MUST be in English and queries 6-10 MUST be in that local language. English-only queries surface international directories and blog spam instead of local buyers.${targetLocation ? `\nTarget market: ${targetLocation}` : ''}
 
 Output pure JSON array (no markdown):
 ["query 1 -site:linkedin.com", "query 2 -site:linkedin.com", ...]`
@@ -938,8 +940,8 @@ ${targetCompanySize ? `**Target Size**: ${targetCompanySize} — Small companies
 **Company Name**: ${companyName}
 **Company Website**: ${companyUrl}
 
-**Website Content**:
-${websiteContent.slice(0, 5000)}
+**Website Content** (trimmed — enough for type detection + a specific hook):
+${websiteContent.slice(0, 3000)}
 
 ## Task
 
@@ -1198,10 +1200,30 @@ export async function autoProspect(params: {
 
   // 步驟 4 + 5 + 6：抓網站 → Pre-AI 篩選 → AI 評估
   // Worker pool instead of a sequential loop: each candidate costs a page
-  // fetch (~2-5s) plus a 70B call (~3-8s), so 30 candidates took 3-5 minutes
-  // end-to-end. Four workers keep Groq/Tavily usage gentle while cutting the
-  // wall time roughly 4x. Early-exit is checked after every completion.
-  const EVAL_CONCURRENCY = 4
+  // fetch (~2-5s) plus an LLM call (~3-8s), so 30 candidates took 3-5 minutes
+  // end-to-end. Three workers + 400ms pacing stay under Groq's free-tier
+  // per-minute token limits (the 70B daily pool falls back to 8B at ~6k
+  // TPM — 4 unpaced workers tripped it constantly). Early-exit is checked
+  // after every completion.
+  const EVAL_CONCURRENCY = 3
+  const EVAL_PACE_MS = 400
+  // 70B 每日額度耗盡後降級 8B，其限流只有 ~6k tokens/分鐘。並行節奏
+  // （N workers 各自睡眠）合計流量仍會超標 — 改走單一序列佇列：頁面
+  // 抓取維持並行，只有 LLM 評估一次一家、間隔 9.5 秒（≈5.7k TPM），
+  // 使用者看到穩定進度而非間隔性錯誤
+  const LLM_CAPPED_SPACING_MS = 9_500
+  let llmChain: Promise<void> = Promise.resolve()
+  const serializedEval = (args: Parameters<typeof evaluateProspectFitWithModel>[0]) => {
+    const run = async () => {
+      if (isGroqDailyCapped()) {
+        await new Promise((r) => setTimeout(r, LLM_CAPPED_SPACING_MS))
+      }
+      return evaluateProspectFitWithModel(args, evalConfig)
+    }
+    const result = llmChain.then(run)
+    llmChain = result.then(() => undefined, () => undefined)
+    return result
+  }
   const evaluated: ProspectCandidate[] = []
   let skippedCompetitors = 0
   let nextIndex = 0
@@ -1227,8 +1249,8 @@ export async function autoProspect(params: {
           continue
         }
 
-        // AI 評估契合度 — 用 70B 模型
-        const fitResult = await evaluateProspectFitWithModel({
+        // AI 評估契合度 — 用 70B 模型（額度受限時走序列佇列自動降級 8B）
+        const fitResult = await serializedEval({
           serviceName,
           description,
           keyBenefits,
@@ -1238,7 +1260,7 @@ export async function autoProspect(params: {
           websiteContent: websiteText || `(Could not fetch website content, judging by URL only: ${c.url})`,
           targetLocation,
           targetCompanySize,
-        }, evalConfig)
+        })
 
         completed++
         if (fitResult.success && fitResult.data) {
@@ -1253,7 +1275,10 @@ export async function autoProspect(params: {
       } catch (e) {
         completed++
         console.error(`evaluate ${c.name} failed:`, e)
+        onProgress?.('Fit analysis', `(${completed}/${toEvaluate.length}) ${c.name} — evaluation error`)
       }
+
+      await new Promise((r) => setTimeout(r, EVAL_PACE_MS))
 
       // Early exit once we have enough high-confidence candidates
       // (threshold 40 + ×3 window — looser than 60/×2 so users see more results)
@@ -1268,15 +1293,23 @@ export async function autoProspect(params: {
     Array.from({ length: Math.min(EVAL_CONCURRENCY, toEvaluate.length) }, () => evalWorker())
   )
 
-  // 步驟 7：排序 + 過濾 + 取 top N（同分用公司名穩定排序，並行完成順序不影響結果）
+  // 步驟 7：排序 + 分層過濾 + 取 top N（同分用公司名穩定排序，並行完成順序不影響結果）
+  // 分層而非單一門檻：≥30 是有實質商業關聯的線索；10–29 只在強線索不夠時
+  // 補位並標記低信心（UI 可顯示「低信心」徽章）。之前 >10 的平面門檻讓
+  // 完全無關產業的公司（如獵頭公司之於電商行銷服務）直接混進名單。
   evaluated.sort((a, b) => b.fit_score - a.fit_score || String(a.company).localeCompare(String(b.company)))
-  const qualified = evaluated.filter((e) => e.fit_score > 10)
+  const strongLeads = evaluated.filter((e) => e.fit_score >= 30)
+  const backfillLeads = evaluated
+    .filter((e) => e.fit_score > 10 && e.fit_score < 30)
+    .map((e) => ({ ...e, confidence: 'low' as const }))
+  const qualified = [...strongLeads, ...backfillLeads]
   const top = qualified.slice(0, targetCount)
 
   const droppedCount = evaluated.length - qualified.length
+  const backfilledCount = Math.max(0, top.length - strongLeads.slice(0, targetCount).length)
   onProgress?.(
     'Complete',
-    `Found ${top.length} best-matching leads${droppedCount > 0 ? ` (filtered out ${droppedCount} non-company websites)` : ''}${skippedCompetitors > 0 ? `, skipped ${skippedCompetitors} competitors` : ''}`
+    `Found ${top.length} best-matching leads${droppedCount > 0 ? ` (filtered out ${droppedCount} non-company websites)` : ''}${skippedCompetitors > 0 ? `, skipped ${skippedCompetitors} competitors` : ''}${backfilledCount > 0 ? `, ${backfilledCount} low-confidence (marked)` : ''}`
   )
 
   return {
@@ -1312,7 +1345,13 @@ async function evaluateProspectFitWithModel(params: {
 
   const prompt = `You are a top-tier B2B business analyst. You evaluate whether a company would BUY a specific service.
 
-## CRITICAL: Three-Step Company Type Detection
+## CRITICAL: Four-Step Company Type Detection
+
+### Step 0: RELEVANCE GATE — could this company's business model plausibly USE this service category?
+Ask: does this company have the kind of operation where my service is a natural fit?
+If the company's core business has no plausible use for my service category → fit_score MUST be ≤ 10.
+Examples: a headhunting firm for an e-commerce marketing service; a law firm for game-dev tooling; a restaurant chain for B2B SaaS prospecting tools.
+"Every company needs marketing" is NOT a valid reason — the service must fit HOW this company actually sells.
 
 ### Step 1: Is this a MARKETPLACE/PLATFORM?
 Marketplaces (Shopee, Amazon, PChome, Shopify) are infrastructure — they do NOT buy B2B services.
@@ -1340,13 +1379,14 @@ ${targetCompanySize ? `**Target Size**: ${targetCompanySize} — small companies
 **Company Name**: ${companyName}
 **Company Website**: ${companyUrl}
 
-**Website Content**:
-${websiteContent.slice(0, 5000)}
+**Website Content** (trimmed — enough for type detection + a specific hook):
+${websiteContent.slice(0, 3000)}
 
 ## Task
-1. FIRST: What TYPE is this company? (Marketplace / Vendor / Client)
-2. If Client: Evaluate fit — would they BUY my service?
-3. Write a SPECIFIC email hook referencing something ACTUALLY on their website.
+1. FIRST: RELEVANCE GATE — does this company's business model plausibly use my service category? If not → fit_score ≤ 10, stop.
+2. What TYPE is this company? (Marketplace / Vendor / Client)
+3. If Client: Evaluate fit — would they BUY my service?
+4. Write a SPECIFIC email hook referencing something ACTUALLY on their website.
 
 ## Output (pure JSON):
 {
@@ -1354,16 +1394,18 @@ ${websiteContent.slice(0, 5000)}
   "website": "${companyUrl}",
   "industry": "industry in English",
   "fit_score": 75,
-  "why_they_need_it": "2-3 sentences referencing SPECIFIC website content.",
+  "why_they_need_it": "2-3 sentences referencing SPECIFIC website content. If the business linkage is weak, say so plainly instead of inventing one.",
   "suggested_angle": "1 sentence with a SPECIFIC reference to this company.",
   "key_signals": ["specific signal 1", "signal 2", "signal 3"],
   "confidence": "high"
 }
 
 Rules:
+- Irrelevant business model (fails the relevance gate) → fit_score ≤ 10
 - Marketplaces → fit_score ≤ 10
 - Competitors/agencies → fit_score ≤ 15
 - Wrong location → fit_score ≤ 10
+- Do NOT inflate scores to be nice — a wrong lead costs the user real outreach time
 - Email hook MUST be specific (no generic templates)
 - ALL text in English`
 

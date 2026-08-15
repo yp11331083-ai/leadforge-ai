@@ -117,8 +117,29 @@ export async function chatWithFallback(
       if (result) return result
     } catch (e: any) {
       const msg = e.message ?? String(e)
+      // 429 (rate limit) 是暫時性的：退避 3 秒重試一次再換 provider。
+      // 免費額度的 Groq 70B 在平行評估下很容易觸發，直接 fallback 會
+      // 把全部流量打到下一個（可能也沒設定）的 provider 上。
+      if (/\b429\b|rate.?limit/i.test(msg)) {
+        // 每日額度上限（TPD）重試也沒用 — 直接換下一個 provider。
+        // 每分鐘限流（TPM/RPM）是暫時的：退避 3 秒重試一次。
+        if (/per day|\bTPD\b|tokens per day|daily/i.test(msg)) {
+          errors.push(`${provider}: ${msg}`)
+          console.warn(`Provider ${provider} hit a DAILY limit, trying next provider...`)
+          continue
+        }
+        try {
+          await new Promise((r) => setTimeout(r, 3000))
+          const retry = await callChatProvider(provider, options, config)
+          if (retry) return retry
+        } catch (e2: any) {
+          errors.push(`${provider}: ${e2.message ?? String(e2)}`)
+          console.warn(`Provider ${provider} still rate-limited after backoff, trying next...`)
+          continue
+        }
+      }
       errors.push(`${provider}: ${msg}`)
-      // 429 或錯誤就 fallback 到下一個
+      // 其他錯誤就 fallback 到下一個
       console.warn(`Provider ${provider} failed: ${msg}, trying next...`)
     }
   }
@@ -288,39 +309,65 @@ async function chatWithGemini(
 }
 
 /**
+ * Groq's 70B daily quota state. Once the day's 70B tokens are spent every
+ * call falls back to 8B, which has a much smaller per-minute pool (~6k TPM)
+ * — callers should pace themselves accordingly instead of erroring.
+ */
+let groqDailyCapped = false
+export function markGroqDailyCapped(): void { groqDailyCapped = true }
+export function isGroqDailyCapped(): boolean { return groqDailyCapped }
+
+/**
  * Groq chat completions (OpenAI-compatible API).
  * Free + very fast inference for Llama, Mixtral, Gemma models.
  * Docs: https://console.groq.com/docs/api-reference
+ *
+ * Model ladder: Groq's free tier enforces DAILY token limits PER MODEL —
+ * when the primary (70B) quota is exhausted the whole engine used to die.
+ * On 429 we transparently retry with a lighter model (8B) which has its
+ * own quota pool, rather than returning zero results for the rest of the day.
  */
 async function chatWithGroq(
   options: ChatCompletionOptions,
   apiKey: string,
   model: string
 ): Promise<ChatCompletionResult> {
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    signal: AbortSignal.timeout(90_000),
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: options.messages,
-      temperature: options.temperature ?? 0.5,
-      max_tokens: options.maxTokens,
-    }),
-  })
+  const FALLBACK_MODEL = 'llama-3.1-8b-instant'
+  const models = model === FALLBACK_MODEL ? [model] : [model, FALLBACK_MODEL]
+  let lastError: Error | null = null
 
-  if (!res.ok) {
+  for (const m of models) {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      signal: AbortSignal.timeout(90_000),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: m,
+        messages: options.messages,
+        temperature: options.temperature ?? 0.5,
+        max_tokens: options.maxTokens,
+      }),
+    })
+
+    if (res.ok) {
+      const data = await res.json() as any
+      const content = data.choices?.[0]?.message?.content ?? ''
+      if (!content) throw new Error('Groq returned an empty response')
+      return { content, provider: 'groq', model: m }
+    }
+
     const text = await res.text()
-    throw new Error(`Groq ${res.status}: ${text.slice(0, 200)}`)
+    lastError = new Error(`Groq ${res.status} (${m}): ${text.slice(0, 200)}`)
+    // 429 = quota/rate — try the lighter model before giving up
+    if (res.status !== 429) throw lastError
+    if (/per day|\bTPD\b|tokens per day/i.test(text)) markGroqDailyCapped()
+    console.warn(`Groq model ${m} rate-limited, falling back to ${FALLBACK_MODEL}...`)
   }
 
-  const data = await res.json() as any
-  const content = data.choices?.[0]?.message?.content ?? ''
-  if (!content) throw new Error('Groq returned an empty response')
-  return { content, provider: 'groq', model }
+  throw lastError ?? new Error('Groq failed')
 }
 
 // ===== Web Search =====
