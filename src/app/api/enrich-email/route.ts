@@ -79,11 +79,13 @@ export async function POST(req: NextRequest) {
       data: { enrichedEmails: JSON.stringify(result.result) },
     })
 
-    if (result.result.decisionMakers[0]?.email && !lead.email) {
-      const dm = result.result.decisionMakers[0]
+    // 只有「官網驗證過」的 email 才自動填入 lead 欄位 — 格式猜測的
+    // 信箱寄出去只會退信，留給用戶自己決定要不要用
+    const firstVerified = result.result.decisionMakers.find((d) => d.email && d.verified)
+    if (firstVerified && !lead.email) {
       await db.lead.update({
         where: { id: leadId },
-        data: { email: dm.email, contactName: dm.name, title: dm.title },
+        data: { email: firstVerified.email, contactName: firstVerified.name, title: firstVerified.title },
       })
     }
 

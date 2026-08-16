@@ -1782,7 +1782,9 @@ export interface DecisionMaker {
   email?: string
   linkedin?: string
   confidence: 'high' | 'medium' | 'low'  // email 信心度
-  email_source: 'hunter' | 'ai_predicted' | 'web_search' | 'unknown'
+  email_source: 'hunter' | 'ai_predicted' | 'web_search' | 'website' | 'unknown'
+  /** true = email 是公司自己公布的（官網頁面上找到），不是猜測 */
+  verified?: boolean
   priority: number  // 1=最高優先
   reason?: string  // 為什麼這個人是對的聯絡人
 }
@@ -1792,6 +1794,98 @@ export interface EnrichEmailResult {
   companyEmailPattern?: string  // 例如 "first.last@company.com"
   totalFound: number
   hasEmailCount: number
+  /** 官網上直接找到的通用信箱（info@、service@ 等）— 公司自己公布的，可放心用 */
+  companyGenericEmails?: string[]
+  /** 官網找到的個人信箱數（已驗證） */
+  verifiedEmailCount?: number
+}
+
+/**
+ * ===== Stage A：官網信箱探勘（免費、已驗證）=====
+ *
+ * 台灣中小企業的 /contact、/about、/team、隱私權頁常常直接印著 email。
+ * 這是唯一「公司自己公布」的來源 — 比 Hunter 或格式猜測都可靠，
+ * 而且不用任何 API key。挖到的信箱比對決策者姓名後可直接標 verified。
+ */
+const WEBSITE_EMAIL_JUNK = /^(no.?reply|donotreply|postmaster|abuse|spam|root|mailer.?daemon|unsubscribe|privacy|gdpr)/i
+const WEBSITE_EMAIL_SAAS_DOMAINS = /\.(sentry|wixpress|shopline|cyberbiz|91app|square\.site|myshopify|cloudflare|example|test)\./i
+const GENERIC_MAILBOX_RE = /^(info|contact|hello|hi|service|support|sales|marketing|admin|office|team|inquiry|inquiries|cs|help|helpdesk|customerservice|customercare|general|mail|email|press|pr|hr|jobs|career)/i
+
+export async function mineWebsiteEmails(website: string): Promise<{
+  personal: string[]
+  generic: string[]
+}> {
+  const domain = extractDomain(website)
+  if (!domain) return { personal: [], generic: [] }
+
+  const origin = website.replace(/\/$/, '')
+  const paths = ['', '/contact', '/contact-us', '/about', '/team']
+  const emails = new Set<string>()
+
+  await Promise.all(paths.map(async (p) => {
+    try {
+      const page = await fetchPageWithFallback(`${origin}${p}`, globalProviderConfig)
+      if (!page) return
+      const haystack = `${page.html ?? ''} ${page.text ?? ''}`
+      // mailto: 連結 + 純文字 email
+      const mailtos = [...haystack.matchAll(/mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi)].map((m) => m[1])
+      const plain = [...haystack.matchAll(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g)].map((m) => m[0])
+      for (const e of [...mailtos, ...plain]) {
+        const email = e.toLowerCase().replace(/[.,;:)]+$/, '')
+        // 只要目標網域自己的信箱，且排除機器信箱與 SaaS 追蹤網域
+        if (!email.endsWith(`@${domain}`)) continue
+        if (WEBSITE_EMAIL_JUNK.test(email.split('@')[0])) continue
+        if (WEBSITE_EMAIL_SAAS_DOMAINS.test(email)) continue
+        // 排除誤抓的檔名/雜訊（過長或含奇怪連續符號）
+        if (email.split('@')[0].length > 40) continue
+        emails.add(email)
+      }
+    } catch {
+      // 單頁失敗不影響其他頁
+    }
+  }))
+
+  const personal: string[] = []
+  const generic: string[] = []
+  for (const e of emails) {
+    if (GENERIC_MAILBOX_RE.test(e.split('@')[0])) generic.push(e)
+    else personal.push(e)
+  }
+  return { personal, generic: generic.slice(0, 5) }
+}
+
+/**
+ * 用官網找到的個人信箱反推公司的 email 命名格式，把預測清單裡
+ * 符合該格式的排到最前（例：官網有 jane.wang@ → {first}.{last}@ 最可能）
+ */
+function reorderPredictionsByObservedFormat(predictions: string[], observedEmails: string[]): string[] {
+  if (observedEmails.length === 0 || predictions.length === 0) return predictions
+  const observed = observedEmails[0].split('@')[0]
+  const hasDot = observed.includes('.')
+  const localWords = observed.replace(/[^a-z]/g, '').length
+  const scored = predictions.map((p) => {
+    const local = p.split('@')[0]
+    let score = 0
+    if (hasDot === local.includes('.')) score += 2
+    if (local.replace(/[^a-z]/g, '').length > 0 && localWords > 0) score += 0
+    // 長度接近加權
+    score -= Math.abs(local.replace(/[^a-z]/g, '').length - localWords) * 0.1
+    return { p, score }
+  })
+  scored.sort((a, b) => b.score - a.score)
+  return scored.map((s) => s.p)
+}
+
+/**
+ * 判斷官網挖到的個人信箱是否屬於某位決策者（比對姓名組合）
+ */
+function emailBelongsToPerson(email: string, firstName: string, lastName: string): boolean {
+  const local = email.split('@')[0]
+  const f = firstName.toLowerCase().replace(/[^a-z]/g, '')
+  const l = (lastName || '').toLowerCase().replace(/[^a-z]/g, '')
+  if (!f) return false
+  const forms = l ? [f, l, `${f}.${l}`, `${f}${l}`, `${f[0]}${l}`, `${f}.${l[0]}`, `${f}_${l}`] : [f]
+  return forms.includes(local)
 }
 
 /**
@@ -2024,6 +2118,11 @@ async function findPeopleWithAI(params: {
           // 過濾掉公司名當人名的情況（公司名通常包含「Inc, Ltd, LLC, Co」等）
           if (/\b(Inc|Ltd|LLC|Corp|Company|Co\.?)\b/i.test(name)) continue
 
+          // 過濾「職缺標題」被當成人名的情況 — LinkedIn jobs 頁的標題
+          // 是「Vice President Sales」「Vp Sales Jobs」這種，真人名不會
+          // 包含職稱或招募字眼（實測 Qikify 案例 4/5 筆是這種垃圾）
+          if (/\b(vice president|\bvp\b|president|chief|officer|director|head|manager|executive|specialist|associate|\bceo\b|\bcto\b|\bcmo\b|\bcoo\b|\bcro\b|\bcfo\b|founder|co.?founder|owner|group|agency|studio|labs?|solutions|consulting|partners?|ventures|holdings|strategy|recruitment|jobs?|hiring|careers?|vacanc|opening|apply|remote|salary)\b/i.test(name)) continue
+
           // 只接受長度合理的人名（2-4 個字）
           const nameWords = name.split(/\s+/)
           if (nameWords.length < 2 || nameWords.length > 4) continue
@@ -2031,7 +2130,8 @@ async function findPeopleWithAI(params: {
           found.push({
             name: name.trim(),
             title: extractedTitle,
-            linkedin: r.url && /linkedin\.com/.test(r.url) ? r.url : undefined,
+            // 只要個人檔案頁（/in/、/pub/），職缺頁 /jobs/ 不是人的頁面
+            linkedin: r.url && /linkedin\.com\/(in|pub)\//.test(r.url) ? r.url : undefined,
             source: s.label,
           })
         }
@@ -2085,10 +2185,11 @@ async function findPeopleWithAI(params: {
       seniority: rank.seniority,
       email: predictedEmails[0],  // 最高機率格式
       linkedin: person.linkedin,
-      confidence: 'medium',
+      confidence: 'low',
       email_source: 'ai_predicted',
+      verified: false,
       priority: rank.priority,
-      reason: rank.reason,
+      reason: `${rank.reason}（格式預測，未驗證）`,
     })
   }
 
@@ -2115,6 +2216,10 @@ export async function enrichEmail(params: {
     return { success: false, result: null, error: 'Unable to extract domain from URL' }
   }
 
+  // ===== Stage A：官網信箱探勘（免費、公司自己公布的 = verified）=====
+  const mined = await mineWebsiteEmails(website)
+  const usedPersonal = new Set<string>()
+
   let decisionMakers: DecisionMaker[] = []
 
   // Strategy 0: Use key_people from deep research (no API cost)
@@ -2126,18 +2231,43 @@ export async function enrichEmail(params: {
       const nameParts = p.name.split(' ')
       const firstName = nameParts[0] ?? ''
       const lastName = nameParts.slice(1).join(' ') ?? ''
-      const predictedEmails = predictEmailFormats(firstName, lastName, domain)
 
+      // 官網挖到的個人信箱若比對得上這個人的姓名 → verified email
+      const matched = mined.personal.find(
+        (e) => !usedPersonal.has(e) && emailBelongsToPerson(e, firstName, lastName)
+      )
+      if (matched) {
+        usedPersonal.add(matched)
+        decisionMakers.push({
+          name: p.name,
+          title: p.title,
+          seniority: rank.seniority,
+          email: matched,
+          linkedin: p.linkedin,
+          confidence: 'high',
+          email_source: 'website',
+          verified: true,
+          priority: rank.priority,
+          reason: `${rank.reason} — email 直接取自官網（已驗證）`,
+        })
+        continue
+      }
+
+      const predictedEmails = reorderPredictionsByObservedFormat(
+        predictEmailFormats(firstName, lastName, domain),
+        mined.personal
+      )
       decisionMakers.push({
         name: p.name,
         title: p.title,
         seniority: rank.seniority,
         email: predictedEmails[0],
         linkedin: p.linkedin,
-        confidence: 'medium',
+        confidence: 'low',
         email_source: 'ai_predicted',
+        verified: false,
         priority: rank.priority,
-        reason: `${rank.reason} (from deep research)`,
+        reason: `${rank.reason}（格式預測，未驗證 — 建議先寄測試信）`,
       })
     }
   }
@@ -2162,8 +2292,28 @@ export async function enrichEmail(params: {
     decisionMakers = await findPeopleWithAI({ companyName, domain })
   }
 
-  // 排序：優先級 1 > 2 > 3，有 email > 沒 email
+  // 官網挖到、但對不上任何決策者的個人信箱 → 仍回報（verified，讓用戶自行判斷）
+  for (const e of mined.personal) {
+    if (usedPersonal.has(e)) continue
+    if (decisionMakers.some((d) => d.email === e)) continue
+    decisionMakers.push({
+      name: e.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+      title: '（官網找到的聯絡信箱 — 人名待確認）',
+      seniority: 'other',
+      email: e,
+      confidence: 'high',
+      email_source: 'website',
+      verified: true,
+      priority: 4,
+      reason: '信箱直接取自官網頁面（已驗證），但對應的決策者身份未知',
+    })
+  }
+
+  // 排序：已驗證信箱最優先，再按優先級 1 > 2 > 3，有 email > 沒 email
   decisionMakers.sort((a, b) => {
+    const aVerified = a.verified ? 0 : 1
+    const bVerified = b.verified ? 0 : 1
+    if (aVerified !== bVerified) return aVerified - bVerified
     if (a.priority !== b.priority) return a.priority - b.priority
     const aHasEmail = a.email ? 0 : 1
     const bHasEmail = b.email ? 0 : 1
@@ -2173,13 +2323,22 @@ export async function enrichEmail(params: {
   // 取前 5 個
   const top = decisionMakers.slice(0, 5)
 
+  // 格式推斷報告：官網信箱能看出公司命名慣例時回報
+  const inferredPattern = mined.personal[0]?.includes('.')
+    ? 'first.last@'
+    : mined.personal.length > 0
+      ? 'firstname@'
+      : undefined
+
   return {
     success: true,
     result: {
       decisionMakers: top,
-      companyEmailPattern: `*@${domain}`,
+      companyEmailPattern: inferredPattern ? `${inferredPattern}${domain}` : `*@${domain}`,
       totalFound: decisionMakers.length,
       hasEmailCount: top.filter((d) => d.email).length,
+      companyGenericEmails: mined.generic,
+      verifiedEmailCount: top.filter((d) => d.verified).length,
     },
   }
 }
