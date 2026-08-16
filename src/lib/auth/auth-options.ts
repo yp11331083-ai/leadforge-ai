@@ -1,8 +1,16 @@
 import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
+import AzureADProvider from 'next-auth/providers/azure-ad'
 import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
+
+// OAuth providers are only registered when their credentials exist —
+// otherwise NextAuth's signIn() throws "unsupported provider" and the
+// buttons would break for deployments without keys.
+const googleEnabled = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET)
+const microsoftEnabled = !!(process.env.AZURE_AD_CLIENT_ID && process.env.AZURE_AD_CLIENT_SECRET)
+const OAUTH_PROVIDERS = ['google', 'azure-ad']
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -40,17 +48,75 @@ export const authOptions: NextAuthOptions = {
       },
     }),
 
-    // Google OAuth
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || '',
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-    }),
+    ...(googleEnabled
+      ? [GoogleProvider({
+          clientId: process.env.GOOGLE_CLIENT_ID!,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        })]
+      : []),
+
+    ...(microsoftEnabled
+      ? [AzureADProvider({
+          clientId: process.env.AZURE_AD_CLIENT_ID!,
+          clientSecret: process.env.AZURE_AD_CLIENT_SECRET!,
+          tenantId: process.env.AZURE_AD_TENANT_ID || 'common', // 'common' = 工作帳 + 個人帳都接受
+        })]
+      : []),
   ],
   session: {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 天
   },
   callbacks: {
+    /**
+     * OAuth 快速註冊/登入：Google/Microsoft 帳號第一次登入時自動建立
+     * User + Tenant（對齊 /api/auth/signup 的流程），既有用戶直接登入。
+     * 回填完整 tenant 資訊後，既有的 jwt/session callbacks 與下游 API
+     * 完全不用改。
+     */
+    async signIn({ user, account }) {
+      if (!account || !OAUTH_PROVIDERS.includes(account.provider)) return true
+
+      const email = user.email?.toLowerCase().trim()
+      if (!email) return false
+
+      let dbUser = await db.user.findUnique({
+        where: { email },
+        include: { tenant: true },
+      })
+
+      if (!dbUser) {
+        // 第一次 OAuth 登入 = 自動註冊。工作信箱由帳號來源保證：
+        // Google Workspace / M365 帳號本身就是公司信箱
+        const emailDomain = email.split('@')[1] ?? 'workspace'
+        const slug = `${emailDomain.replace(/\./g, '-')}-${Math.random().toString(36).slice(2, 6)}`
+        const tenant = await db.tenant.create({
+          data: { name: `${user.name ?? email.split('@')[0]}'s Workspace`, slug, plan: 'freemium', status: 'active' },
+        })
+        dbUser = await db.user.create({
+          data: {
+            email,
+            name: user.name ?? email.split('@')[0],
+            // OAuth 用戶沒有密碼 — 存一個隨機不可登入的雜湊
+            passwordHash: await bcrypt.hash(Math.random().toString(36) + Date.now(), 10),
+            role: 'admin',
+            tenantId: tenant.id,
+          },
+          include: { tenant: true },
+        })
+        await db.emailConfig.create({ data: { tenantId: tenant.id } })
+        await db.serviceOffering.create({ data: { tenantId: tenant.id } })
+      }
+
+      // 把 DB 的完整資訊回填到 user 物件 — jwt callback 會複製這些欄位
+      ;(user as any).id = dbUser.id
+      ;(user as any).role = dbUser.role
+      ;(user as any).tenantId = dbUser.tenantId
+      ;(user as any).tenantName = dbUser.tenant.name
+      ;(user as any).tenantSlug = dbUser.tenant.slug
+      ;(user as any).tenantPlan = dbUser.tenant.plan
+      return true
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = (user as any).id
