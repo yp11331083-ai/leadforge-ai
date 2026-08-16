@@ -1247,10 +1247,12 @@ export async function autoProspect(params: {
     }
   }
 
-  // Use 70B model for evaluation (better quality than 8B)
+  // 深度評估：70B 起跳，禁用 8B 階梯 — 8B 的平原分數比落到
+  // Gemini/DeepSeek 更糟。分類層（便宜）保留階梯。
   const evalConfig = {
     ...globalProviderConfig,
     groqModel: 'llama-3.3-70b-versatile',
+    noGroqModelLadder: true,
   }
 
   const toEvaluate = candidates
@@ -1383,8 +1385,9 @@ export async function autoProspect(params: {
               fitResult.data.fit_score = Math.min(fitResult.data.fit_score, 20)
               fitResult.data.confidence = 'low'
             }
-            // 備援模型（8B）的結果一律標低信心 — 不再出現假 high confidence
-            if (isGroqDailyCapped()) {
+            // 低信心只標記真正由弱模型（8B）服務的結果，而不是全域旗標 —
+            // Gemini/70B 的結果不該被誤標
+            if (fitResult.servedBy?.includes('8b')) {
               fitResult.data.confidence = 'low'
             }
             const candidate = { ...fitResult.data, website_title: websiteData?.title }
@@ -1560,9 +1563,11 @@ Output pure JSON: {"type":"buyer","evidence":"short quote or domain reason"}`
 
 /**
  * ===== Evaluation cache (ProspectEvalCache) =====
- * Verdict JSON: { type: ProspectClass, candidate?: ProspectCandidate }
+ * Verdict JSON: { v: 2, type: ProspectClass, candidate?: ProspectCandidate }
+ * v:2 之後的判決才可信 — v1（8B 平原分數時期）的快取一律忽略。
  */
 const EVAL_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
+const EVAL_CACHE_VERSION = 2
 
 async function readEvalCache(domain: string, serviceHash: string): Promise<{ type: string; candidate?: ProspectCandidate } | null> {
   try {
@@ -1571,7 +1576,9 @@ async function readEvalCache(domain: string, serviceHash: string): Promise<{ typ
     })
     if (!row) return null
     if (Date.now() - row.createdAt.getTime() > EVAL_CACHE_TTL_MS) return null
-    return JSON.parse(row.verdict)
+    const parsed = JSON.parse(row.verdict)
+    if (parsed?.v !== EVAL_CACHE_VERSION) return null
+    return parsed
   } catch (e) {
     console.warn('readEvalCache failed:', e)
     return null
@@ -1582,8 +1589,8 @@ async function writeEvalCache(domain: string, serviceHash: string, verdict: { ty
   try {
     await db.prospectEvalCache.upsert({
       where: { domain_serviceHash: { domain, serviceHash } },
-      create: { domain, serviceHash, verdict: JSON.stringify(verdict) },
-      update: { verdict: JSON.stringify(verdict), createdAt: new Date() },
+      create: { domain, serviceHash, verdict: JSON.stringify({ v: EVAL_CACHE_VERSION, ...verdict }) },
+      update: { verdict: JSON.stringify({ v: EVAL_CACHE_VERSION, ...verdict }), createdAt: new Date() },
     })
   } catch (e) {
     console.warn('writeEvalCache failed:', e)
@@ -1609,6 +1616,7 @@ async function evaluateProspectFitWithModel(params: {
   success: boolean
   data: ProspectCandidate | null
   raw: string
+  servedBy?: string
 }> {
   const { serviceName, description, keyBenefits, idealCustomerSignals, companyUrl, companyName, websiteContent, targetLocation, targetCompanySize } = params
 
@@ -1712,7 +1720,7 @@ Rules:
   const raw = chatResult.content
   const parsed = extractJsonLoose(raw)
   if (isValidProspectCandidate(parsed)) {
-    return { success: true, data: parsed, raw }
+    return { success: true, data: parsed, raw, servedBy: `${chatResult.provider}/${chatResult.model ?? ''}` }
   }
 
   // One retry with an explicit nudge — a malformed response used to silently
@@ -1728,7 +1736,7 @@ Rules:
 
   const retryParsed = extractJsonLoose(retryResult.content)
   if (isValidProspectCandidate(retryParsed)) {
-    return { success: true, data: retryParsed, raw: retryResult.content }
+    return { success: true, data: retryParsed, raw: retryResult.content, servedBy: `${retryResult.provider}/${retryResult.model ?? ''}` }
   }
   return { success: false, data: null, raw: retryResult.content }
 }

@@ -79,6 +79,9 @@ export interface ProviderConfig {
   // OpenRouter (OpenAI-compatible aggregator — :free models cost nothing)
   openrouterApiKey?: string
   openrouterModel?: string
+  // 禁用 Groq 70B→8B 模型階梯（深度評估用：8B 的平原分數比落到
+  // Gemini 更糟 — 8B 只適合便宜的分類層）
+  noGroqModelLadder?: boolean
   // Tavily (search)
   tavilyApiKey?: string
   // Jina (page reader)
@@ -175,7 +178,7 @@ async function callChatProvider(
       return await chatWithGemini(options, config.geminiApiKey, config.geminiModel ?? 'gemini-2.5-flash')
     case 'groq':
       if (!config.groqApiKey) return null
-      return await chatWithGroq(options, config.groqApiKey, config.groqModel ?? 'llama-3.1-8b-instant')
+      return await chatWithGroq(options, config.groqApiKey, config.groqModel ?? 'llama-3.1-8b-instant', !config.noGroqModelLadder)
     case 'deepseek':
       if (!config.deepseekApiKey) return null
       return await chatWithOpenAICompatible(options, 'https://api.deepseek.com/chat/completions', 'DeepSeek', config.deepseekApiKey, config.deepseekModel ?? 'deepseek-chat')
@@ -361,10 +364,11 @@ export function isGroqDailyCapped(): boolean { return groqDailyCapped }
 async function chatWithGroq(
   options: ChatCompletionOptions,
   apiKey: string,
-  model: string
+  model: string,
+  allowModelLadder = true
 ): Promise<ChatCompletionResult> {
   const FALLBACK_MODEL = 'llama-3.1-8b-instant'
-  const models = model === FALLBACK_MODEL ? [model] : [model, FALLBACK_MODEL]
+  const models = model === FALLBACK_MODEL || !allowModelLadder ? [model] : [model, FALLBACK_MODEL]
   let lastError: Error | null = null
 
   for (const m of models) {
