@@ -1899,46 +1899,43 @@ function emailBelongsToPerson(email: string, firstName: string, lastName: string
 export function rankTitle(title: string): { seniority: DecisionMaker['seniority']; priority: number; reason: string } {
   const t = title.toLowerCase()
 
-  // VP Sales / VP of Sales / Sales Director → 最優先
-  if (/\b(vp|vice president)\b.*\b(sales|revenue|growth)\b/i.test(t) ||
-      /\b(sales|revenue)\b.*\b(vp|vice president)\b/i.test(t) ||
-      /\bdirector\b.*\b(sales|revenue|growth)\b/i.test(t) ||
-      /\b(sales|revenue|growth)\b.*\bdirector\b/i.test(t)) {
-    return { seniority: 'vp', priority: 1, reason: '業務最高主管 — 直接背負業績' }
+  // 1. CEO / 創辦人 / 總裁 / CRO — 最終決策者，最優先
+  //（舊版把他們排在「業務主管」之後 — Director of Growth 壓過
+  //  Co-Founder & CEO，用戶反應 Linear 案例排序錯誤）
+  if (/\bceo\b|\bchief executive\b|\bfounder\b|\bco-founder\b|\bco founder\b|\bpresident\b|\bowner\b|\bcro\b|chief revenue officer/i.test(t)) {
+    return { seniority: 'c_level', priority: 1, reason: 'CEO/創辦人 — 能做預算決定的最終決策者' }
   }
 
-  // CRO (Chief Revenue Officer)
-  if (/\bcro\b|\bchief revenue officer\b/i.test(t)) {
-    return { seniority: 'c_level', priority: 1, reason: '營收長 — 業績最高決策者' }
-  }
-
-  // CEO / Founder / Co-Founder / President
-  if (/\bceo\b|\bchief executive\b|\bfounder\b|\bco-founder\b|\bco founder\b|\bpresident\b/i.test(t)) {
-    return { seniority: 'c_level', priority: 2, reason: 'CEO/創辦人 — 能做預算決定' }
-  }
-
-  // CMO / COO / CTO
-  if (/\bcmo\b|\bchief marketing\b|\bcoo\b|\bchief operating\b|\bcto\b|\bchief technology\b|\bchief product\b|\bcpo\b/i.test(t)) {
-    return { seniority: 'c_level', priority: 3, reason: 'C-level 主管' }
-  }
-
-  // Head of Sales / Head of Growth
-  if (/\bhead\b.*\b(sales|revenue|growth|business development|bd)\b/i.test(t) ||
-      /\b(sales|revenue|growth)\b.*\bhead\b/i.test(t)) {
-    return { seniority: 'director', priority: 2, reason: '業務主管 — 高階業務決策者' }
-  }
-
-  // Director / Senior Director（其他部門）
-  if (/\bdirector\b/i.test(t)) {
-    return { seniority: 'director', priority: 3, reason: 'Director 主管' }
-  }
-
-  // SDR / AE / Account Executive → 跳過
+  // SDR / AE 先擋（避免 'sales' 字眼被下面業務主管分支吃掉）
   if (/\b(sdr|sales development|account executive|\bae\b|business development rep|bd rep)\b/i.test(t)) {
     return { seniority: 'manager', priority: 99, reason: '業務專員 — 太基層，跳過' }
   }
 
-  // 其他經理
+  // 2. 業務最高主管 — 只認 sales/revenue/commercial
+  //（growth 是行銷向職稱，不背直接業績 — 舊版把 Director of Growth
+  //  當業務最高主管是錯的）
+  if (/\b(vp|vice president|head|director)\b.*\b(sales|revenue|commercial)\b/i.test(t) ||
+      /\b(sales|revenue|commercial)\b.*\b(vp|vice president|head|director)\b/i.test(t)) {
+    return { seniority: 'vp', priority: 2, reason: '業務最高主管 — 直接背負業績' }
+  }
+
+  // 3. 其他 C-level（含 CFO — 舊版漏掉掉進「其他」）
+  if (/\bcmo\b|chief marketing|\bcoo\b|chief operating|\bcto\b|chief technology|\bcpo\b|chief product|\bcfo\b|chief financial/i.test(t)) {
+    return { seniority: 'c_level', priority: 3, reason: 'C-level 主管' }
+  }
+
+  // 3. 行銷/成長主管 — 影響成長預算，但不是業績負責人
+  if (/\b(vp|vice president|head|director)\b.*\b(marketing|growth|brand|demand)\b/i.test(t) ||
+      /\b(marketing|growth)\b.*\b(vp|vice president|head|director)\b/i.test(t)) {
+    return { seniority: 'director', priority: 3, reason: '行銷/成長主管 — 影響成長預算' }
+  }
+
+  // 4. 其他 Director
+  if (/\bdirector\b/i.test(t)) {
+    return { seniority: 'director', priority: 4, reason: 'Director 主管' }
+  }
+
+  // 5. 其他經理
   if (/\b(manager|lead|principal)\b/i.test(t)) {
     return { seniority: 'manager', priority: 5, reason: 'Manager 級 — 視情況聯繫' }
   }
