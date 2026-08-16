@@ -29,6 +29,8 @@ export interface Lead {
   deepResearch: string | null
   researchMode: string
   researchSources: string | null
+  /** JSON string of EnrichEmailResult (decision makers + verified emails) */
+  enrichedEmails: string | null
   status: LeadStatus
   score: number | null
   tags: string | null
