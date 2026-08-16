@@ -2051,110 +2051,175 @@ async function findPeopleWithHunter(params: {
 }
 
 /**
+ * LLM 結構化真人萃取：餵入原始搜尋結果，請模型判斷哪些是「任職於目標
+ * 公司的真人」。這是 ContactOut 級品質與正則垃圾的差別所在 — 模型能
+ * 看懂「Joined Vercel」是頁面標題碎片、「Sales UK」是部門、某個 founder
+ * 其實屬於別家公司，而正則只會抓大寫片語。
+ */
+async function llmExtractPeople(
+  raw: Array<{ title: string; snippet?: string; url?: string; source: string }>,
+  companyName: string,
+  domain: string
+): Promise<Array<{ name: string; title: string; linkedin?: string; source: string }>> {
+  const resultsText = raw
+    .slice(0, 25)
+    .map((r, i) => `[${i}] TITLE: ${r.title}\n    SNIPPET: ${(r.snippet ?? '').slice(0, 200)}\n    URL: ${r.url ?? ''}`)
+    .join('\n')
+
+  const prompt = `You extract REAL PEOPLE from messy web-search results.
+
+Target company: "${companyName}" (website domain: ${domain}).
+
+Search results (titles + snippets + URLs):
+${resultsText}
+
+Rules — extract only entries where you are CONFIDENT all of these hold:
+1. It is a REAL PERSON (first + last name). NOT a page fragment ("Joined Vercel", "Today I'm"), NOT a department/office ("Sales UK"), NOT a job listing, NOT a course/event.
+2. That person works (or recently worked) at the TARGET COMPANY "${companyName}" — check the snippet actually ties them to this company, not a same-named different company. If unsure, REJECT.
+3. Their title is a leadership/senior role (C-level, VP, Director, Head, Founder). Skip engineers/individual contributors.
+4. linkedin must be a PERSONAL profile URL (contains /in/ or /pub/). Job pages (/jobs/) are NOT people.
+
+Return a pure JSON array (max 5, best first). Empty array [] if none qualify.
+[{"name":"Jane Wang","title":"VP of Sales","linkedin":"https://www.linkedin.com/in/..."}]`
+
+  try {
+    const chatResult = await chatWithFallback({
+      messages: [
+        { role: 'system', content: 'You are a precise contact-data extraction engine. Respond with pure JSON only.' },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.1,
+      maxTokens: 800,
+    }, globalProviderConfig)
+    const parsed = extractJsonLoose(chatResult.content)
+    if (!Array.isArray(parsed)) return []
+    const out: Array<{ name: string; title: string; linkedin?: string; source: string }> = []
+    for (const p of parsed) {
+      const name = String(p?.name ?? '').trim()
+      const title = String(p?.title ?? '').trim()
+      if (!name || !title) continue
+      // 模型輸出仍過一道保險絲：真人名不該含職稱/招募/公司字眼
+      if (/\b(vice president|\bvp\b|president|chief|officer|director|head|manager|executive|\bceo\b|\bcto\b|\bcmo\b|\bcoo\b|\bcro\b|\bcfo\b|founder|owner|jobs?|hiring|careers?|vacanc|opening|apply|remote|salary|group|agency|solutions|consulting|partners?|holdings)\b/i.test(name)) continue
+      const words = name.split(/\s+/)
+      if (words.length < 2 || words.length > 4) continue
+      const li = String(p?.linkedin ?? '')
+      out.push({
+        name,
+        title,
+        linkedin: /linkedin\.com\/(in|pub)\//.test(li) ? li : undefined,
+        source: 'llm-extracted',
+      })
+      if (out.length >= 5) break
+    }
+    return out
+  } catch (e) {
+    console.warn('llmExtractPeople failed (providers unavailable):', e instanceof Error ? e.message : e)
+    return []
+  }
+}
+
+/**
+ * 舊正則萃取路徑（LLM 不可用時的備援 — 品質較差）
+ */
+function regexExtractPeople(
+  raw: Array<{ title: string; snippet?: string; url?: string; source: string }>
+): Array<{ name: string; title: string; linkedin?: string; source: string }> {
+  const found: Array<{ name: string; title: string; linkedin?: string; source: string }> = []
+
+  const titlePatterns = [
+    /\b((?:VP|Vice President)\s*(?:of\s+)?(?:Sales|Revenue|Growth|Marketing))\b/i,
+    /\b((?:Sales|Revenue|Marketing)\s+Director)\b/i,
+    /\b((?:Director|Head)\s+of\s+(?:Sales|Revenue|Growth|Marketing))\b/i,
+    /\b(Chief\s+(?:Executive|Revenue|Marketing|Operating|Technology)\s+Officer)\b/i,
+    /\b(CEO|CTO|CMO|COO|CRO|CFO)\b/i,
+    /\b(Founder|Co-Founder|Co\s*Founder)\b/i,
+    /\b(President)\b/i,
+  ]
+  const junkNameRe = /\b(vice president|\bvp\b|president|chief|officer|director|head|manager|executive|specialist|associate|\bceo\b|\bcto\b|\bcmo\b|\bcoo\b|\bcro\b|\bcfo\b|founder|co.?founder|owner|group|agency|studio|labs?|solutions|consulting|partners?|ventures|holdings|strategy|recruitment|jobs?|hiring|careers?|vacanc|opening|apply|remote|salary|inc|ltd|llc|corp|company)\b/i
+
+  for (const r of raw) {
+    const title = r.title
+    const nameMatch = title.match(/^([A-Z][a-zA-Z'’-]+(?:\s+[A-Z][a-zA-Z'’-]+){1,3})(?:\s*[-–|]|\s+at\s|\s+\|)/)
+    const altNameMatch = !nameMatch ? title.match(/\b([A-Z][a-zA-Z'’-]+(?:\s+[A-Z][a-zA-Z'’-]+){1,2})\b/) : null
+
+    let extractedTitle: string | null = null
+    for (const pattern of titlePatterns) {
+      const m = title.match(pattern)
+      if (m) {
+        extractedTitle = m[1] || m[0]
+        break
+      }
+    }
+
+    const name = nameMatch?.[1] ?? altNameMatch?.[1]
+    if (!name || !extractedTitle) continue
+    if (junkNameRe.test(name)) continue
+    const nameWords = name.split(/\s+/)
+    if (nameWords.length < 2 || nameWords.length > 4) continue
+
+    found.push({
+      name: name.trim(),
+      title: extractedTitle,
+      linkedin: r.url && /linkedin\.com\/(in|pub)\//.test(r.url) ? r.url : undefined,
+      source: r.source,
+    })
+  }
+  return found
+}
+
+/**
  * AI 透過 web_search 找決策者
+ *
+ * 兩階段：搜集原始搜尋結果 → 一次 LLM 呼叫做結構化真人萃取。
+ * 舊版用正則從標題抓「大寫片語」當人名，產出「Joined Vercel」「Sales UK」
+ * 「Today I'm」這種網頁標題碎片（Vercel 實測 5 筆裡 4 筆垃圾）。
+ * LLM 判斷「這是不是真人、是否任職於目標公司」比正則可靠得多；
+ * 正則路徑保留為 LLM 不可用時的備援。
  */
 async function findPeopleWithAI(params: {
   companyName: string
   domain: string
 }): Promise<DecisionMaker[]> {
   const { companyName, domain } = params
-  const zai = await getAI().catch(() => null as any)
 
   // 5 組搜尋策略（漸進放寬）
   const searches = [
-    // 1. 嚴格 LinkedIn 限定 + VP Sales
     { query: `"${companyName}" "VP of Sales" OR "VP Sales" OR "Vice President of Sales" site:linkedin.com`, label: 'VP Sales LinkedIn' },
-    // 2. LinkedIn 限定 + CEO/Founder
     { query: `"${companyName}" CEO OR founder OR "Co-Founder" site:linkedin.com`, label: 'CEO LinkedIn' },
-    // 3. Sales Director
     { query: `"${companyName}" "Sales Director" OR "Director of Sales" OR "Head of Sales" site:linkedin.com`, label: 'Sales Director LinkedIn' },
-    // 4. CRO + 其他 C-level
     { query: `"${companyName}" "Chief Revenue Officer" OR CRO OR "Chief Marketing Officer" OR CMO site:linkedin.com`, label: 'C-level LinkedIn' },
-    // 5. 不限 LinkedIn，找公司領導頁
     { query: `"${companyName}" leadership team about founders executives`, label: 'Leadership page' },
   ]
 
-  const found: Array<{ name: string; title: string; linkedin?: string; source: string }> = []
-
+  // ===== 階段 1：搜集原始結果（title + snippet + url）=====
+  const raw: Array<{ title: string; snippet?: string; url?: string; source: string }> = []
   for (const s of searches) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const results = await searchCompanies(s.query, 5)
-        for (const r of results) {
-          if (!r?.name) continue
-          const title = r.name
-
-          // 從搜尋結果標題萃取姓名
-          // 標題通常長這樣：
-          // "John Doe - VP of Sales at ACME | LinkedIn"
-          // "Jane Smith | CEO & Founder at ACME"
-          // "ACME - CEO & Founder John Smith"
-          const nameMatch = title.match(/^([A-Z][a-zA-Z'’-]+(?:\s+[A-Z][a-zA-Z'’-]+){1,3})(?:\s*[-–|]|\s+at\s|\s+\|)/)
-          const altNameMatch = !nameMatch ? title.match(/\b([A-Z][a-zA-Z'’-]+(?:\s+[A-Z][a-zA-Z'’-]+){1,2})\b/) : null
-
-          // 從標題萃取職稱
-          const titlePatterns = [
-            /\b((?:VP|Vice President)\s*(?:of\s+)?(?:Sales|Revenue|Growth|Marketing))\b/i,
-            /\b((?:Sales|Revenue|Marketing)\s+Director)\b/i,
-            /\b((?:Director|Head)\s+of\s+(?:Sales|Revenue|Growth|Marketing))\b/i,
-            /\b(Chief\s+(?:Executive|Revenue|Marketing|Operating|Technology)\s+Officer)\b/i,
-            /\b(CEO|CTO|CMO|COO|CRO|CFO)\b/i,
-            /\b(Founder|Co-Founder|Co\s*Founder)\b/i,
-            /\b(President)\b/i,
-          ]
-
-          let extractedTitle: string | null = null
-          for (const pattern of titlePatterns) {
-            const m = title.match(pattern)
-            if (m) {
-              extractedTitle = m[1] || m[0]
-              break
-            }
-          }
-
-          const name = nameMatch?.[1] ?? altNameMatch?.[1]
-          if (!name || !extractedTitle) continue
-
-          // 過濾掉公司名當人名的情況（公司名通常包含「Inc, Ltd, LLC, Co」等）
-          if (/\b(Inc|Ltd|LLC|Corp|Company|Co\.?)\b/i.test(name)) continue
-
-          // 過濾「職缺標題」被當成人名的情況 — LinkedIn jobs 頁的標題
-          // 是「Vice President Sales」「Vp Sales Jobs」這種，真人名不會
-          // 包含職稱或招募字眼（實測 Qikify 案例 4/5 筆是這種垃圾）
-          if (/\b(vice president|\bvp\b|president|chief|officer|director|head|manager|executive|specialist|associate|\bceo\b|\bcto\b|\bcmo\b|\bcoo\b|\bcro\b|\bcfo\b|founder|co.?founder|owner|group|agency|studio|labs?|solutions|consulting|partners?|ventures|holdings|strategy|recruitment|jobs?|hiring|careers?|vacanc|opening|apply|remote|salary)\b/i.test(name)) continue
-
-          // 只接受長度合理的人名（2-4 個字）
-          const nameWords = name.split(/\s+/)
-          if (nameWords.length < 2 || nameWords.length > 4) continue
-
-          found.push({
-            name: name.trim(),
-            title: extractedTitle,
-            // 只要個人檔案頁（/in/、/pub/），職缺頁 /jobs/ 不是人的頁面
-            linkedin: r.url && /linkedin\.com\/(in|pub)\//.test(r.url) ? r.url : undefined,
-            source: s.label,
-          })
-        }
-        break  // 成功，跳出 retry 迴圈
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : ''
-        if (msg.includes('429') && attempt === 0) {
-          // 429 rate limit, 等 5 秒後重試
-          console.warn(`search "${s.label}" 429, retrying in 5s...`)
-          await new Promise((r) => setTimeout(r, 5000))
-          continue
-        }
-        console.error(`search "${s.label}" failed:`, e)
-        break
+    try {
+      const results = await searchCompanies(s.query, 5)
+      for (const r of results) {
+        if (!r?.name) continue
+        raw.push({ title: r.name, snippet: r.snippet, url: r.url, source: s.label })
       }
+    } catch (e) {
+      console.error(`search "${s.label}" failed:`, e)
     }
-    // 搜尋之間的延遲（避免 429）
-    await new Promise((r) => setTimeout(r, 800))
+    await new Promise((r) => setTimeout(r, 600))
+  }
+  if (raw.length === 0) return []
+
+  // ===== 階段 2：LLM 結構化萃取（主要路徑）=====
+  let people: Array<{ name: string; title: string; linkedin?: string; source: string }> = []
+  const llmPeople = await llmExtractPeople(raw, companyName, domain)
+  if (llmPeople.length > 0) {
+    people = llmPeople
+  } else {
+    // 備援：正則萃取（品質差但不需要 LLM 額度）
+    people = regexExtractPeople(raw)
   }
 
   // 去重（同名同 title）
   const seen = new Set<string>()
-  const unique = found.filter((p) => {
+  const unique = people.filter((p) => {
     const key = `${p.name}|${p.title}`.toLowerCase()
     if (seen.has(key)) return false
     seen.add(key)
@@ -2162,12 +2227,10 @@ async function findPeopleWithAI(params: {
   })
 
   if (unique.length === 0) {
-    // 如果都搜尋不到，用 AI 從深度研究裡的 key_people 找
-    // （這裡因為沒有 lead 上下文，先回空陣列）
     return []
   }
 
-  // 用 AI 評估每個人，並嘗試找出 email
+  // 組合成 DecisionMaker
   const decisionMakers: DecisionMaker[] = []
   for (const person of unique.slice(0, 10)) {
     const rank = rankTitle(person.title)
