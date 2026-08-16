@@ -2075,11 +2075,16 @@ ${resultsText}
 
 Rules — extract only entries where you are CONFIDENT all of these hold:
 1. It is a REAL PERSON (first + last name). NOT a page fragment ("Joined Vercel", "Today I'm"), NOT a department/office ("Sales UK"), NOT a job listing, NOT a course/event.
-2. That person works (or recently worked) at the TARGET COMPANY "${companyName}" — check the snippet actually ties them to this company, not a same-named different company. If unsure, REJECT.
+2. That person works (or recently worked) at the TARGET COMPANY — the one at ${domain}. SAME-NAME GUARD: many companies share common-word names ("Scale", "Culture", "Arc", "Notion"). A snippet containing only the bare word is NOT enough — require an explicit tie: the full brand ("Scale AI" vs "Scale"), the domain, or a business description that matches ${domain}'s actual business. If unsure, REJECT.
 3. Their title is a leadership/senior role (C-level, VP, Director, Head, Founder). Skip engineers/individual contributors.
 4. linkedin must be a PERSONAL profile URL (contains /in/ or /pub/). Job pages (/jobs/) are NOT people.
 
-Return a pure JSON array (max 5, best first). Empty array [] if none qualify.
+SELECTION POLICY (critical):
+- MAX 2 founders/co-founders/CEOs total — pick the ones with the STRONGEST explicit tie to ${domain}. A company has 1-2 founders; five "Co-Founder & CEO" entries means four are from same-named other companies.
+- DIVERSIFY the rest by role: prefer one VP of Sales / CRO, one CMO / Head of Marketing, one COO / other C-level. A list of 5 founders is a failure; a list of CEO + VP Sales + CMO + 1-2 others is a success.
+- Max 5 people, best first. Empty array [] if none qualify.
+
+Return pure JSON:
 [{"name":"Jane Wang","title":"VP of Sales","linkedin":"https://www.linkedin.com/in/..."}]`
 
   try {
@@ -2182,12 +2187,13 @@ async function findPeopleWithAI(params: {
 }): Promise<DecisionMaker[]> {
   const { companyName, domain } = params
 
-  // 5 組搜尋策略（漸進放寬）
+  // 6 組搜尋策略（漸進放寬；含 CMO/行銷 — 用戶要多元角色）
   const searches = [
     { query: `"${companyName}" "VP of Sales" OR "VP Sales" OR "Vice President of Sales" site:linkedin.com`, label: 'VP Sales LinkedIn' },
     { query: `"${companyName}" CEO OR founder OR "Co-Founder" site:linkedin.com`, label: 'CEO LinkedIn' },
     { query: `"${companyName}" "Sales Director" OR "Director of Sales" OR "Head of Sales" site:linkedin.com`, label: 'Sales Director LinkedIn' },
-    { query: `"${companyName}" "Chief Revenue Officer" OR CRO OR "Chief Marketing Officer" OR CMO site:linkedin.com`, label: 'C-level LinkedIn' },
+    { query: `"${companyName}" "Chief Marketing Officer" OR CMO OR "Head of Marketing" OR "VP Marketing" site:linkedin.com`, label: 'CMO/Marketing LinkedIn' },
+    { query: `"${companyName}" "Chief Revenue Officer" OR CRO OR COO "Chief Operating Officer" site:linkedin.com`, label: 'C-level LinkedIn' },
     { query: `"${companyName}" leadership team about founders executives`, label: 'Leadership page' },
   ]
 
