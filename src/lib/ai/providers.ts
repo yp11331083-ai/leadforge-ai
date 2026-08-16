@@ -426,10 +426,12 @@ export async function searchWithFallback(
   num: number,
   config: ProviderConfig
 ): Promise<SearchResultItem[]> {
-  const order = (config.searchProviderOrder ?? 'zai,tavily')
+  const order = (config.searchProviderOrder ?? 'tavily')
     .split(',')
     .map((s) => s.trim())
-    .filter(Boolean)
+    // 'zai' can never work outside the original sandbox — every search wasted
+    // a failed round-trip (and occasionally the retry timeout) before Tavily
+    .filter((s) => s && s !== 'zai')
 
   for (const provider of order) {
     try {

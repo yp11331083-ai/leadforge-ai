@@ -1814,19 +1814,28 @@ const GENERIC_MAILBOX_RE = /^(info|contact|hello|hi|service|support|sales|market
 export async function mineWebsiteEmails(website: string): Promise<{
   personal: string[]
   generic: string[]
+  /** 首頁文字開頭 — 公司業務描述，用於同名公司消歧 */
+  homepageText: string
 }> {
   const domain = extractDomain(website)
-  if (!domain) return { personal: [], generic: [] }
+  if (!domain) return { personal: [], generic: [], homepageText: '' }
 
   const origin = website.replace(/\/$/, '')
   const paths = ['', '/contact', '/contact-us', '/about', '/team']
   const emails = new Set<string>()
+  let homepageText = ''
+  const teamTexts: string[] = []
 
   await Promise.all(paths.map(async (p) => {
     try {
       const page = await fetchPageWithFallback(`${origin}${p}`, globalProviderConfig)
       if (!page) return
       const haystack = `${page.html ?? ''} ${page.text ?? ''}`
+      if (p === '') {
+        homepageText = (page.text || htmlToText(page.html ?? '')).slice(0, 800)
+      } else if (p === '/about' || p === '/team') {
+        teamTexts.push((page.text || htmlToText(page.html ?? '')).slice(0, 900))
+      }
       // mailto: 連結 + 純文字 email
       const mailtos = [...haystack.matchAll(/mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi)].map((m) => m[1])
       const plain = [...haystack.matchAll(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g)].map((m) => m[0])
@@ -1851,7 +1860,9 @@ export async function mineWebsiteEmails(website: string): Promise<{
     if (GENERIC_MAILBOX_RE.test(e.split('@')[0])) generic.push(e)
     else personal.push(e)
   }
-  return { personal, generic: generic.slice(0, 5) }
+  // 首頁 + about/team 頁的合併文字 — 業務消歧與「誰是真的團隊成員」的錨定
+  const siteContext = [homepageText, ...teamTexts].filter(Boolean).join('\n').slice(0, 2200)
+  return { personal, generic: generic.slice(0, 5), homepageText: siteContext }
 }
 
 /**
@@ -2056,7 +2067,8 @@ async function findPeopleWithHunter(params: {
 async function llmExtractPeople(
   raw: Array<{ title: string; snippet?: string; url?: string; source: string }>,
   companyName: string,
-  domain: string
+  domain: string,
+  companyContext?: string
 ): Promise<Array<{ name: string; title: string; linkedin?: string; source: string }>> {
   const resultsText = raw
     .slice(0, 25)
@@ -2066,14 +2078,19 @@ async function llmExtractPeople(
   const prompt = `You extract REAL PEOPLE from messy web-search results.
 
 Target company: "${companyName}" (website domain: ${domain}).
+What THIS company's own website says — homepage + /about + /team pages (ground truth for disambiguation; the team page, when present, is the DEFINITIVE roster):
+"""
+${(companyContext ?? '').slice(0, 2000) || '(site unavailable — rely on the domain alone)'}
+"""
 
 Search results (titles + snippets + URLs):
 ${resultsText}
 
 Rules — extract only entries where you are CONFIDENT all of these hold:
 1. It is a REAL PERSON (first + last name). NOT a page fragment ("Joined Vercel", "Today I'm"), NOT a department/office ("Sales UK"), NOT a job listing, NOT a course/event.
-2. That person works (or recently worked) at the TARGET COMPANY — the one at ${domain}. SAME-NAME GUARD: many companies share common-word names ("Scale", "Culture", "Arc", "Notion"). A snippet containing only the bare word is NOT enough — require an explicit tie: the full brand ("Scale AI" vs "Scale"), the domain, or a business description that matches ${domain}'s actual business. If unsure, REJECT.
-3. Their title is a leadership/senior role (C-level, VP, Director, Head, Founder). Skip engineers/individual contributors.
+2. BUSINESS-MATCH (the strongest filter): the person's snippet/title must be consistent with the site text above — THIS company's actual business. REJECT anyone whose snippet describes a DIFFERENT business, even with the same/similar company name. Real example of failure to avoid: "aviato.co" (VC data platform) vs "aviator.co" (dev tools) vs "Aviato" (Singapore aviation HR) — three companies, near-identical names; only people from the one matching the site text qualify. Near-identical spellings (aviato/aviator) are DIFFERENT companies.
+   EVIDENCE HIERARCHY when names collide: (a) a result mentioning the DOMAIN "${domain}" (news/PR name the real company) beats (b) a LinkedIn title alone — "CEO at Aviato" is AMBIGUOUS with three same-named companies; only accept a LinkedIn-title-only person if their snippet's business description matches the site text. (c) The team/about page above is the definitive roster when present.
+3. Their title is a leadership/senior role (C-level, VP, Director, Head, Founder). Skip engineers/individual contributors. Title is REQUIRED — derive it from the title/snippet text; if the person's role is genuinely unknown, REJECT them (a decision maker without a role is useless).
 4. linkedin must be a PERSONAL profile URL (contains /in/ or /pub/). Job pages (/jobs/) are NOT people.
 
 SELECTION POLICY (critical):
@@ -2092,7 +2109,7 @@ Return pure JSON:
       ],
       temperature: 0.1,
       maxTokens: 800,
-    }, globalProviderConfig)
+    }, { ...globalProviderConfig, noGroqModelLadder: true })
     const parsed = extractJsonLoose(chatResult.content)
     if (!Array.isArray(parsed)) return []
     const out: Array<{ name: string; title: string; linkedin?: string; source: string }> = []
@@ -2100,6 +2117,7 @@ Return pure JSON:
       const name = String(p?.name ?? '').trim()
       const title = String(p?.title ?? '').trim()
       if (!name || !title) continue
+      if (/^n\/?a$/i.test(title)) continue
       // 模型輸出仍過一道保險絲：真人名不該含職稱/招募/公司字眼
       if (/\b(vice president|\bvp\b|president|chief|officer|director|head|manager|executive|\bceo\b|\bcto\b|\bcmo\b|\bcoo\b|\bcro\b|\bcfo\b|founder|owner|jobs?|hiring|careers?|vacanc|opening|apply|remote|salary|group|agency|solutions|consulting|partners?|holdings)\b/i.test(name)) continue
       const words = name.split(/\s+/)
@@ -2111,9 +2129,33 @@ Return pure JSON:
         linkedin: /linkedin\.com\/(in|pub)\//.test(li) ? li : undefined,
         source: 'llm-extracted',
       })
-      if (out.length >= 5) break
     }
-    return out
+    // 官網錨定：名字出現在公司自己網站（首頁/about/team）的人 = 鐵證。
+    // 排在創辦人上限之前套用 — 同名污染案例中，真創辦人在官網上、
+    // 冒牌的不在，錨定排序讓真的人先佔住創辦人名額（aviato.co 實測：
+    // LLM 把別家公司的創辦人排前面，真創辦人 Eric Zhu 被上限誤殺）
+    const siteText = (companyContext ?? '').toLowerCase()
+    if (siteText) {
+      out.sort((a, b) => {
+        const aOnSite = siteText.includes(a.name.toLowerCase()) ? 0 : 1
+        const bOnSite = siteText.includes(b.name.toLowerCase()) ? 0 : 1
+        return aOnSite - bOnSite
+      })
+    }
+    // 創辦人上限改成程式碼強制 — 弱模型曾無視 prompt 上限，一次回
+    // 5 個「創辦人」其中包含劇集虛構角色（Erlich Bachman 事件）
+    const FOUNDER_RE = /\bceo\b|\bchief executive\b|founder|\bpresident\b|\bowner\b/i
+    let founderCount = 0
+    const capped: typeof out = []
+    for (const p of out) {
+      if (FOUNDER_RE.test(p.title)) {
+        founderCount++
+        if (founderCount > 2) continue  // 保留前兩位（LLM 排 best-first）
+      }
+      capped.push(p)
+      if (capped.length >= 5) break
+    }
+    return capped
   } catch (e) {
     console.warn('llmExtractPeople failed (providers unavailable):', e instanceof Error ? e.message : e)
     return []
@@ -2181,11 +2223,17 @@ function regexExtractPeople(
 async function findPeopleWithAI(params: {
   companyName: string
   domain: string
+  /** 官網首頁文字 — 業務消歧的 ground truth（aviato.co vs aviator.co） */
+  companyContext?: string
 }): Promise<DecisionMaker[]> {
-  const { companyName, domain } = params
+  const { companyName, domain, companyContext } = params
 
-  // 6 組搜尋策略（漸進放寬；含 CMO/行銷 — 用戶要多元角色）
+  // 7 組搜尋策略（漸進放寬；含 CMO/行銷 — 用戶要多元角色）
   const searches = [
+    // 0. 網域錨定 — 新聞/PR 報導會同時出現網域與真實創辦人，
+    //    是同名公司泥沼中最不可模糊的證據（aviato.co 案例：
+    //    LinkedIn「CEO at Aviato」有三家同名公司，TechCrunch 報導只有一家）
+    { query: `"${domain}" founder OR CEO leadership`, label: 'Domain-anchored news' },
     { query: `"${companyName}" "VP of Sales" OR "VP Sales" OR "Vice President of Sales" site:linkedin.com`, label: 'VP Sales LinkedIn' },
     { query: `"${companyName}" CEO OR founder OR "Co-Founder" site:linkedin.com`, label: 'CEO LinkedIn' },
     { query: `"${companyName}" "Sales Director" OR "Director of Sales" OR "Head of Sales" site:linkedin.com`, label: 'Sales Director LinkedIn' },
@@ -2212,7 +2260,7 @@ async function findPeopleWithAI(params: {
 
   // ===== 階段 2：LLM 結構化萃取（主要路徑）=====
   let people: Array<{ name: string; title: string; linkedin?: string; source: string }> = []
-  const llmPeople = await llmExtractPeople(raw, companyName, domain)
+  const llmPeople = await llmExtractPeople(raw, companyName, domain, companyContext)
   if (llmPeople.length > 0) {
     people = llmPeople
   } else {
@@ -2355,7 +2403,7 @@ export async function enrichEmail(params: {
 
   // Strategy 2: AI web_search (if still no results)
   if (decisionMakers.length === 0) {
-    decisionMakers = await findPeopleWithAI({ companyName, domain })
+    decisionMakers = await findPeopleWithAI({ companyName, domain, companyContext: mined.homepageText })
   }
 
   // 官網挖到、但對不上任何決策者的個人信箱 → 仍回報（verified，讓用戶自行判斷）
