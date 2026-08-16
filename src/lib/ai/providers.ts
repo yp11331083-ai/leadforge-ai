@@ -111,15 +111,23 @@ export interface PageContent {
 
 /**
  * 依優先順序嘗試多個 chat provider，第一個成功就回傳
+ *
+ * Permanent-failure memo: a provider that failed with a NON-transient
+ * error (no balance 402, no payment method, invalid key, missing config)
+ * is skipped for the rest of the process — retrying it on every one of
+ * ~20+ evaluations per run burned seconds each time for nothing.
  */
+const permanentChatFailures = new Set<string>()
+
 export async function chatWithFallback(
   options: ChatCompletionOptions,
   config: ProviderConfig
 ): Promise<ChatCompletionResult> {
-  const order = (config.chatProviderOrder ?? 'groq,zai,gemini,openai,anthropic')
+  const order = (config.chatProviderOrder ?? 'groq,gemini,openai,anthropic')
     .split(',')
     .map((s) => s.trim())
-    .filter(Boolean)
+    // 'zai' can never work outside the original sandbox (needs .z-ai-config)
+    .filter((s) => s && s !== 'zai' && !permanentChatFailures.has(s))
 
   const errors: string[] = []
 
@@ -129,6 +137,12 @@ export async function chatWithFallback(
       if (result) return result
     } catch (e: any) {
       const msg = e.message ?? String(e)
+      if (/\b402\b|Insufficient Balance|no payment method|invalid.{0,12}key|Configuration file not found/i.test(msg)) {
+        permanentChatFailures.add(provider)
+        errors.push(`${provider}: ${msg}`)
+        console.warn(`Provider ${provider} permanently unavailable this session — skipping from now on`)
+        continue
+      }
       // 429 (rate limit) 是暫時性的：退避 3 秒重試一次再換 provider。
       // 免費額度的 Groq 70B 在平行評估下很容易觸發，直接 fallback 會
       // 把全部流量打到下一個（可能也沒設定）的 provider 上。

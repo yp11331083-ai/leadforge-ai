@@ -648,6 +648,7 @@ Search for companies SHOWING the pain my service solves — never for sellers of
 ### Strategy 2: Tech-footprint queries
 Find sites built on platforms my typical buyers use:
 - "powered by Shopline", "built with WooCommerce", "runs on Shopify Plus" (+ location if given)
+- These surface the PLATFORM'S OWN pages too — that's fine, later filters drop them; the brand pages they surface are gold.
 
 ### Strategy 3: Hiring-signal queries
 Companies hiring for the function my service replaces/boosts:
@@ -655,6 +656,11 @@ Companies hiring for the function my service replaces/boosts:
 
 ### Strategy 4: Industry + niche directories of BUYERS
 - "top D2C coffee brands", "independent fashion labels" (brand lists, not SaaS lists)
+
+### Strategy 5: BRAND-HOMEPAGE bias (critical for e-commerce services)
+If my buyers are brands/sellers, target their OFFICIAL STORE pages, not content about e-commerce:
+- GOOD: "品牌 官網" (brand official site), "official online store Taiwan", "品牌旗艦店 網站"
+- BAD: "電商廣告" / "e-commerce marketing platform" / "購物平台" (these surface MARKETPLACES and AD PLATFORMS like momo ads / taobao, never buyers)
 
 ## HARD RULES:
 1. Each query is 3-8 words. SHORT and SPECIFIC beats long and vague.
@@ -788,6 +794,21 @@ export function extractCompanyUrls(
     /meepshop\./i,
     /waca\./i,
     /1shop\.com/i,
+    // Giant marketplace ecosystems — including ALL their subdomains
+    // (ads.momoshop.com.tw, guangtao.taobao.com are platform departments,
+    // never prospects). NOTE: /momo\./ only matches momo.com (Japan) —
+    // Taiwan's momoSHOP needs its own pattern.
+    /momoshop\./i,
+    /taobao\./i,
+    /tmall\./i,
+    /alibaba\./i,
+    /1688\./i,
+    /jd\.com/i,
+    /pinduoduo\./i,
+    /yangkeduo\./i,
+    /vip\.com/i,
+    /ruten\./i,
+    /buy\.yahoo\./i,
     // Job boards / recruiting platforms — recurring junk category: they are
     // talent infrastructure, never buyers of B2B services, and kept showing
     // up as false "client" matches
@@ -888,7 +909,7 @@ export function extractCompanyUrls(
       // 不是潛在客戶的官網，評估只會浪費一次 LLM 呼叫。
       // blog.shopline.tw 這類內容行銷子網域尤其危險：它是平台商的
       // 行銷能力展示，曾被誤判成「缺乏行銷的潛在客戶」還拿了 85 分。
-      if (/^(careers?|jobs?|help|support|docs?|developer|community|status|portal|app|blog|news|press|learn|academy|events|info)\./i.test(host)) continue
+      if (/^(careers?|jobs?|help|support|docs?|developer|community|status|portal|app|blog|news|press|learn|academy|events|info|ads?|dsp|seller|merchant|vendor|affiliate)\./i.test(host)) continue
 
       if (!/\.gov|\.edu|\.mil/i.test(host)) {
         // 深層連結的 title 常是文章標題不是公司名 — 用 host_name（Tavily 提供）
@@ -1267,11 +1288,10 @@ export async function autoProspect(params: {
   // after every completion.
   const EVAL_CONCURRENCY = 3
   const EVAL_PACE_MS = 400
-  // 70B 每日額度耗盡後降級 8B，其限流只有 ~6k tokens/分鐘。並行節奏
-  // （N workers 各自睡眠）合計流量仍會超標 — 改走單一序列佇列：頁面
-  // 抓取維持並行，只有 LLM 評估一次一家、間隔 9.5 秒（≈5.7k TPM），
-  // 使用者看到穩定進度而非間隔性錯誤
-  const LLM_CAPPED_SPACING_MS = 9_500
+  // 70B 每日額度耗盡後所有流量落到下一個 provider（Gemini 免費層），
+  // 它有自己的 RPM 上限 — 序列佇列間隔 12 秒（≈5/分，含 429 重試仍在
+  // 免費限額內），頁面抓取維持並行，使用者看到穩定進度而非間隔性錯誤
+  const LLM_CAPPED_SPACING_MS = 12_000
   let llmChain: Promise<void> = Promise.resolve()
   const serializedLLM = <T>(run: () => Promise<T>): Promise<T> => {
     const wrapped = async () => {
@@ -1537,7 +1557,9 @@ Classify into exactly one:
 
 IMPORTANT:
 - The page may be in ANY language (Traditional Chinese, Japanese...). Translate mentally before classifying — a Taiwanese D2C brand selling products online IS a "buyer" for an e-commerce marketing service.
-- RECALL BIAS: when torn between "buyer" and anything else, choose "buyer" — a second, stricter stage re-checks survivors with required evidence. Only drop a candidate when you are CONFIDENT it is not a buyer.
+- GIANT ECOSYSTEM DOMAINS (decisive, overrides recall bias): any subdomain of taobao/tmall/alibaba/1688/jd/momoshop/shopee/pchome/rakuten/momo/amazon is "platform" — these are marketplaces, not prospects. Same for their ads/media subdomains.
+- MARKETING/PR/MEDIA VENDOR SIGNALS (decisive): if the site sells marketing, PR, press-release distribution (海外發稿), media buying, ad operations, or agency services → "vendor". Marketing service providers never buy marketing services.
+- RECALL BIAS (only after the two checks above): when torn between "buyer" and anything else, choose "buyer" — a second, stricter stage re-checks survivors with required evidence. Only drop a candidate when you are CONFIDENT it is not a buyer.
 
 Output pure JSON: {"type":"buyer","evidence":"short quote or domain reason"}`
 
