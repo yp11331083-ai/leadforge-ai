@@ -2155,6 +2155,21 @@ Return pure JSON:
       capped.push(p)
       if (capped.length >= 5) break
     }
+
+    // LinkedIn 回填：人常從新聞結果找到（網域錨定搜尋），新聞頁沒有
+    // LinkedIn 連結 — 回頭掃原始結果，找標題含此人姓名的個人檔案頁
+    // （aviato.co 實測：Eric Zhu 從 TechCrunch 找到但 /in/ericzhu105
+    //  在 LinkedIn 搜尋結果裡，合併後兩者都該有）
+    for (const p of capped) {
+      if (p.linkedin) continue
+      const nameKey = p.name.toLowerCase()
+      const profile = raw.find((r) => {
+        if (!r.url || !/linkedin\.com\/(in|pub)\//.test(r.url)) return false
+        const title = (r.title ?? '').toLowerCase()
+        return title.includes(nameKey)
+      })
+      if (profile) p.linkedin = profile.url
+    }
     return capped
   } catch (e) {
     console.warn('llmExtractPeople failed (providers unavailable):', e instanceof Error ? e.message : e)
