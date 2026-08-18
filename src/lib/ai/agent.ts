@@ -2235,13 +2235,238 @@ function regexExtractPeople(
  * LLM 判斷「這是不是真人、是否任職於目標公司」比正則可靠得多；
  * 正則路徑保留為 LLM 不可用時的備援。
  */
+/**
+ * 自有資料源探勘 — 不依賴任何第三方搜尋 API（無 Tavily/Jina）：
+ * 1. LinkedIn 公司頁員工列表（訪客模式直接抓取 — 名字 + 個人檔案 URL）
+ * 2. Google News RSS（免費、免金鑰）— 網域錨定新聞（標題常含創辦人名字）
+ * 3. 公司官網 /about /team 頁文字（已在 mineWebsiteEmails 挖過 — 業務消歧 ground truth）
+ * 全部輸出成 llmExtractPeople 能吃的 raw 格式，既有 LLM 萃取/回填流程不變。
+ */
+async function discoverOwnSources(params: {
+  companyName: string
+  domain: string
+  website: string
+  companyContext?: string
+}): Promise<Array<{ title: string; snippet?: string; url?: string; source: string }>> {
+  const { companyName, domain, website, companyContext } = params
+  const raw: Array<{ title: string; snippet?: string; url?: string; source: string }> = []
+
+  // ===== 1. LinkedIn 公司頁員工（訪客模式）=====
+  try {
+    const liPeople = await discoverLinkedInEmployees(website, companyName, domain)
+    if (liPeople.length > 0) raw.push(...liPeople)
+  } catch (e) {
+    console.warn('LinkedIn employees discovery failed:', e instanceof Error ? e.message : e)
+  }
+
+  // ===== 2. Google News RSS — 網域錨定（新聞頁沒 LinkedIn 連結，但標題含人名）=====
+  try {
+    const news = await discoverGoogleNews(companyName, domain)
+    if (news.length > 0) raw.push(...news)
+  } catch (e) {
+    console.warn('Google News discovery failed:', e instanceof Error ? e.message : e)
+  }
+
+  // ===== 3. 官網 /about /team 文字 — 業務消歧與「誰是真團隊」的錨定 =====
+  if (companyContext && companyContext.trim().length > 0) {
+    raw.push({
+      title: `${companyName} official website (home/about/team)`,
+      snippet: companyContext,
+      url: website,
+      source: 'Company website',
+    })
+  }
+
+  return raw
+}
+
+const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36'
+
+/**
+ * 從公司官網找到 LinkedIn 公司頁，抓「Employees at X」區塊
+ * （訪客模式直接抓 HTML — 免費、免金鑰、無需登入）
+ */
+async function discoverLinkedInEmployees(
+  website: string,
+  companyName: string,
+  domain: string
+): Promise<Array<{ title: string; snippet?: string; url?: string; source: string }>> {
+  const origin = website.replace(/\/$/, '')
+  let companyUrl: string | null = null
+
+  // 1. 官網 HTML 裡找 linkedin.com/company/ 連結（最準 — 公司自己放的）
+  try {
+    const homeRes = await fetch(origin, {
+      headers: { 'user-agent': BROWSER_UA },
+      signal: AbortSignal.timeout(15_000),
+      redirect: 'follow',
+    })
+    if (homeRes.ok) {
+      const html = await homeRes.text()
+      const m = html.match(/https?:\/\/(?:www\.|[a-z]{2}\.)?linkedin\.com\/company\/[a-zA-Z0-9-]+/i)
+      if (m) companyUrl = m[0]
+    }
+  } catch {}
+
+  // 2. 官網沒有 → 猜 slug（網域主體 / 公司名小寫）
+  if (!companyUrl) {
+    const slugCandidates = [
+      domain.split('.')[0],
+      companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      companyName.toLowerCase().replace(/[^a-z0-9]+/g, ''),
+    ]
+    for (const slug of [...new Set(slugCandidates)]) {
+      try {
+        const res = await fetch(`https://www.linkedin.com/company/${slug}`, {
+          headers: { 'user-agent': BROWSER_UA },
+          signal: AbortSignal.timeout(15_000),
+          redirect: 'follow',
+        })
+        if (res.ok) {
+          const html = await res.text()
+          if (html.includes('employees-at') || /Employees at/i.test(html)) {
+            companyUrl = `https://www.linkedin.com/company/${slug}`
+            break
+          }
+        }
+      } catch {}
+    }
+  }
+
+  if (!companyUrl) return []
+
+  const res = await fetch(companyUrl, {
+    headers: { 'user-agent': BROWSER_UA },
+    signal: AbortSignal.timeout(15_000),
+    redirect: 'follow',
+  })
+  if (!res.ok) return []
+  const html = await res.text()
+  return parseLinkedInEmployees(html)
+}
+
+/**
+ * 解析 LinkedIn 公司頁的員工區塊（訪客版 HTML）
+ * 格式：<a href="/in/{slug}"><img alt="Click here to view {Name}’s profile"> <h3>{Name}</h3>
+ */
+async function parseLinkedInEmployees(
+  html: string
+): Promise<Array<{ title: string; snippet?: string; url?: string; source: string }>> {
+  const items: Array<{ title: string; snippet?: string; url?: string; source: string }> = []
+  const start = html.indexOf('employees-at')
+  const section = start >= 0 ? html.slice(start, start + 30000) : html
+
+  const linkRe = /href="https:\/\/www\.linkedin\.com\/in\/([^"?]+)(?:\?[^"]*)?"/g
+  const altRe = /alt="Click here to view\s+([^"]+)"/g
+
+  const links: string[] = []
+  let m: RegExpExecArray | null
+  while ((m = linkRe.exec(section)) !== null) links.push(m[1])
+
+  const names: string[] = []
+  while ((m = altRe.exec(section)) !== null) {
+    names.push(
+      m[1]
+        .replace(/\u2019?s profile/i, '')
+        .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F]/gu, '')
+        .trim()
+    )
+  }
+
+  for (let i = 0; i < Math.min(links.length, names.length); i++) {
+    const name = names[i]
+    if (!name || name.length < 2) continue
+    if (items.some((it) => it.title === name)) continue
+    items.push({
+      title: name,
+      url: `https://www.linkedin.com/in/${links[i]}`,
+      source: 'LinkedIn employees',
+    })
+  }
+
+  // 公司頁的員工卡只有名字沒有職稱 — llmExtractPeople 拒絕沒職稱的人。
+  // 抓個人檔案頁（訪客模式），<title> 就是 headline：「Name - 職稱 | LinkedIn」。
+  // 並行 2 個、10 秒逾時 — 失敗就保留「名字無職稱」，不阻塞整體流程。
+  const CONCURRENCY = 2
+  let next = 0
+  const workers = Array.from({ length: CONCURRENCY }, async () => {
+    while (next < items.length) {
+      const it = items[next++]
+      try {
+        const res = await fetch(it.url!, {
+          headers: { 'user-agent': BROWSER_UA },
+          signal: AbortSignal.timeout(10_000),
+          redirect: 'follow',
+        })
+        if (!res.ok) continue
+        const html = await res.text()
+        const titleMatch = html.match(/<title>([^<]*)<\/title>/)
+        if (!titleMatch) continue
+        const t = titleMatch[1].replace(/\s*\|\s*LinkedIn\s*$/i, '').trim()
+        const dash = t.indexOf(' - ')
+        if (dash > 0) {
+          const headline = t.slice(dash + 3).trim()
+          if (headline) it.title = `${it.title} — ${headline}`
+        }
+      } catch {}
+    }
+  })
+  await Promise.all(workers)
+
+  return items
+}
+
+/**
+ * Google News RSS（免費、免金鑰、無速率限制）— 網域錨定查詢
+ * 標題常含「Eric Zhu」這種創辦人全名（TechCrunch 等），url 是 Google
+ * 轉址 — 對後續 LinkedIn 回填沒用，但 LLM 萃取需要標題文字即可。
+ */
+async function discoverGoogleNews(
+  companyName: string,
+  domain: string
+): Promise<Array<{ title: string; snippet?: string; url?: string; source: string }>> {
+  const items: Array<{ title: string; snippet?: string; url?: string; source: string }> = []
+  const queries = [
+    `"${domain}"`,
+    `"${companyName}" "${domain}"`,
+  ]
+  for (const q of queries) {
+    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`
+    const res = await fetch(url, {
+      headers: { 'user-agent': BROWSER_UA },
+      signal: AbortSignal.timeout(15_000),
+    })
+    if (!res.ok) continue
+    const xml = await res.text()
+    const itemRe = /<item>([\s\S]*?)<\/item>/g
+    let m: RegExpExecArray | null
+    while ((m = itemRe.exec(xml)) !== null) {
+      const block = m[1]
+      const title = (block.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? '')
+        .replace(/<!\[CDATA\[|\]\]>/g, '')
+        .replace(/&amp;/g, '&')
+        .trim()
+      const link = (block.match(/<link>([\s\S]*?)<\/link>/)?.[1] ?? '').trim()
+      const source = (block.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1] ?? '')
+        .replace(/<!\[CDATA\[|\]\]>/g, '')
+        .trim()
+      if (!title) continue
+      // 兩個查詢（domain / company+domain）常回同一批文章 — 去重省 LLM token
+      if (items.some((i) => i.title === title)) continue
+      items.push({ title, snippet: source, url: link, source: 'Google News' })
+    }
+  }
+  return items.slice(0, 15)
+}
+
 async function findPeopleWithAI(params: {
   companyName: string
   domain: string
+  website: string
   /** 官網首頁文字 — 業務消歧的 ground truth（aviato.co vs aviator.co） */
   companyContext?: string
 }): Promise<DecisionMaker[]> {
-  const { companyName, domain, companyContext } = params
+  const { companyName, domain, website, companyContext } = params
 
   // 7 組搜尋策略（漸進放寬；含 CMO/行銷 — 用戶要多元角色）
   const searches = [
@@ -2258,18 +2483,27 @@ async function findPeopleWithAI(params: {
   ]
 
   // ===== 階段 1：搜集原始結果（title + snippet + url）=====
-  const raw: Array<{ title: string; snippet?: string; url?: string; source: string }> = []
-  for (const s of searches) {
-    try {
-      const results = await searchCompanies(s.query, 5)
-      for (const r of results) {
-        if (!r?.name) continue
-        raw.push({ title: r.name, snippet: r.snippet, url: r.url, source: s.label })
+  // 先跑自有資料源（LinkedIn 公司頁員工 + Google News + 官網團隊頁）—
+  // 免費、免金鑰、無速率限制。結果不足才退回搜尋 API。
+  let raw: Array<{ title: string; snippet?: string; url?: string; source: string }> = []
+  try {
+    raw = await discoverOwnSources({ companyName, domain, website, companyContext })
+  } catch (e) {
+    console.warn('discoverOwnSources failed:', e instanceof Error ? e.message : e)
+  }
+  if (raw.length < 3) {
+    for (const s of searches) {
+      try {
+        const results = await searchCompanies(s.query, 5)
+        for (const r of results) {
+          if (!r?.name) continue
+          raw.push({ title: r.name, snippet: r.snippet, url: r.url, source: s.label })
+        }
+      } catch (e) {
+        console.error(`search "${s.label}" failed:`, e)
       }
-    } catch (e) {
-      console.error(`search "${s.label}" failed:`, e)
+      await new Promise((r) => setTimeout(r, 600))
     }
-    await new Promise((r) => setTimeout(r, 600))
   }
   if (raw.length === 0) return []
 
@@ -2418,7 +2652,7 @@ export async function enrichEmail(params: {
 
   // Strategy 2: AI web_search (if still no results)
   if (decisionMakers.length === 0) {
-    decisionMakers = await findPeopleWithAI({ companyName, domain, companyContext: mined.homepageText })
+    decisionMakers = await findPeopleWithAI({ companyName, domain, website, companyContext: mined.homepageText })
   }
 
   // 官網挖到、但對不上任何決策者的個人信箱 → 仍回報（verified，讓用戶自行判斷）
