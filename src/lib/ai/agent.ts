@@ -15,6 +15,49 @@ import {
 export type { ProviderConfig, ChatMessage, SearchResultItem, PageContent } from './providers'
 
 /**
+ * 非人名的常見新聞/網頁字詞 — LLM 曾把標題片段誤當人名
+ * （"After SpaceX's Youngest"、"Insane Plot Twist"、"LinkedIn Bans"）。
+ * 名字 token 出現在這裡就直接拒絕。
+ */
+const NAME_STOPWORDS = new Set([
+  'after', 'before', 'inside', 'behind', 'between', 'above', 'below', 'meet', 'meeting',
+  'how', 'why', 'what', 'who', 'when', 'where', 'which', 'this', 'that', 'these', 'those',
+  'the', 'and', 'or', 'but', 'with', 'without', 'from', 'into', 'onto', 'upon', 'over',
+  'under', 'through', 'during', 'while', 'his', 'her', 'their', 'our', 'your', 'my', 'its',
+  'him', 'she', 'they', 'we', 'you', 'himself', 'herself', 'themselves', 'another', 'former',
+  'banned', 'ban', 'bans', 'linkedin', 'startup', 'startups', 'company', 'companies',
+  'business', 'businesses', 'engineer', 'engineering', 'school', 'bathroom', 'zoom',
+  'raised', 'raise', 'million', 'millionaire', 'billion', 'years', 'year', 'old', 'young',
+  'becomes', 'became', 'exclusive', 'secures', 'secured', 'secure', 'investment', 'investor',
+  'invest', 'intern', 'internship', 'underage', 'free', 'press', 'journal', 'journalist',
+  'insider', 'story', 'stories', 'plot', 'twist', 'insane', 'spacex', 'aerospace', 'hiring',
+  'careers', 'career', 'opening', 'openings', 'apply', 'remote', 'salary', 'today', 'now',
+  'new', 'news', 'weekly', 'daily', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday',
+  'saturday', 'sunday', 'january', 'february', 'march', 'april', 'may', 'june', 'july',
+  'august', 'september', 'october', 'november', 'december', 'spring', 'summer', 'autumn',
+  'winter', 'inside', 'during', 'against', 'around', 'about', 'first', 'second', 'third',
+  'last', 'next', 'best', 'top', 'biggest', 'largest', 'smallest', 'latest', 'leading',
+  'world', 'global', 'national', 'local', 'regional', 'industry', 'market', 'markets',
+  'across', 'amid', 'amidst', 'reports', 'report', 'reveals', 'reveal', 'explains',
+  'explain', 'explained', 'watch', 'read', 'inside', 'nearly', 'almost', 'just', 'only',
+  'ever', 'still', 'already', 'even', 'also', 'very', 'really', 'actually', 'apparently',
+  'reportedly', 'allegedly', 'officially', 'launches', 'launched', 'launch', 'releases',
+  'released', 'release', 'announces', 'announced', 'announcement', 'acquires', 'acquired',
+  'acquisition', 'merges', 'merged', 'merger', 'partners', 'partner', 'partnership',
+  'raises', 'secured', 'lands', 'landed', 'wins', 'won', 'names', 'named', 'namesake',
+  'insights', 'insight', 'deep', 'dive', 'guide', 'guide', 'tutorial', 'review', 'reviews',
+  'analysis', 'analyst', 'analysts', 'analytics', 'survey', 'studies', 'study', 'research',
+  'researchers', 'findings', 'finding', 'result', 'results', 'data', 'datasets', 'dataset',
+  'metrics', 'metric', 'stats', 'statistics', 'score', 'scores', 'ranking', 'rankings',
+  'ranked', 'rate', 'rates', 'rating', 'ratings', 'risk', 'risks', 'threat', 'threats',
+  'security', 'cyber', 'hacker', 'hackers', 'hacking', 'breach', 'breaches', 'leak',
+  'leaks', 'leaked', 'attack', 'attacks', 'attacked', 'vulnerability', 'vulnerabilities',
+  'exploit', 'exploits', 'exploited', 'malware', 'ransomware', 'phishing', 'scam', 'scams',
+  'fraud', 'fake', 'false', 'real', 'genuine', 'original', 'copies', 'copy', 'clone',
+  'clones', 'cloned', 'imitation', 'imitations', 'counterfeit', 'bogus', 'bogus',
+])
+
+/**
  * Cheap stable hash (djb2) for cache-keying a service definition.
  */
 export function serviceFingerprint(serviceName: string, description: string): string {
@@ -2059,6 +2102,24 @@ async function findPeopleWithHunter(params: {
 }
 
 /**
+ * 保險絲：模型/正則都曾把新聞標題字詞當成人名輸出
+ * （"After SpaceX's Youngest"、"Insane Plot Twist"、"LinkedIn Bans"）。
+ * 人名必須：全字母 token（無撇號/連字號/數字）、不含常見非人名詞、
+ * 且完整出現在原始結果或官網文字中（grounding — 防純幻覺）。
+ */
+function isPlausiblePersonName(
+  name: string,
+  raw: Array<{ title: string; snippet?: string }>,
+  companyContext?: string
+): boolean {
+  const tokens = name.toLowerCase().split(/\s+/)
+  if (!tokens.every((t) => /^[a-z]{2,}$/.test(t))) return false
+  if (tokens.some((t) => NAME_STOPWORDS.has(t))) return false
+  const groundText = `${raw.map((r) => `${r.title} ${r.snippet ?? ''}`).join(' ')} ${companyContext ?? ''}`.toLowerCase()
+  return groundText.includes(name.toLowerCase())
+}
+
+/**
  * LLM 結構化真人萃取：餵入原始搜尋結果，請模型判斷哪些是「任職於目標
  * 公司的真人」。這是 ContactOut 級品質與正則垃圾的差別所在 — 模型能
  * 看懂「Joined Vercel」是頁面標題碎片、「Sales UK」是部門、某個 founder
@@ -2072,7 +2133,7 @@ async function llmExtractPeople(
 ): Promise<Array<{ name: string; title: string; linkedin?: string; source: string }>> {
   const resultsText = raw
     .slice(0, 25)
-    .map((r, i) => `[${i}] TITLE: ${r.title}\n    SNIPPET: ${(r.snippet ?? '').slice(0, 200)}\n    URL: ${r.url ?? ''}`)
+    .map((r, i) => `[${i}] TITLE: ${r.title}\n    SNIPPET: ${(r.snippet ?? '').slice(0, 400)}\n    URL: ${r.url ?? ''}`)
     .join('\n')
 
   const prompt = `You extract REAL PEOPLE from messy web-search results.
@@ -2087,7 +2148,7 @@ Search results (titles + snippets + URLs):
 ${resultsText}
 
 Rules — extract only entries where you are CONFIDENT all of these hold:
-1. It is a REAL PERSON (first + last name). NOT a page fragment ("Joined Vercel", "Today I'm"), NOT a department/office ("Sales UK"), NOT a job listing, NOT a course/event.
+1. It is a REAL PERSON (first + last name). The name MUST appear VERBATIM in one of the search results above (title or snippet) or in the site text — never invent or splice a name from title fragments like "After SpaceX's Youngest" or "Insane Plot Twist". NOT a page fragment ("Joined Vercel", "Today I'm"), NOT a department/office ("Sales UK"), NOT a job listing, NOT a course/event.
 2. BUSINESS-MATCH (the strongest filter): the person's snippet/title must be consistent with the site text above — THIS company's actual business. REJECT anyone whose snippet describes a DIFFERENT business, even with the same/similar company name. Real example of failure to avoid: "aviato.co" (VC data platform) vs "aviator.co" (dev tools) vs "Aviato" (Singapore aviation HR) — three companies, near-identical names; only people from the one matching the site text qualify. Near-identical spellings (aviato/aviator) are DIFFERENT companies.
    EVIDENCE HIERARCHY when names collide: (a) a result mentioning the DOMAIN "${domain}" (news/PR name the real company) beats (b) a LinkedIn title alone — "CEO at Aviato" is AMBIGUOUS with three same-named companies; only accept a LinkedIn-title-only person if their snippet's business description matches the site text. (c) The team/about page above is the definitive roster when present.
 3. Their title is a leadership/senior role (C-level, VP, Director, Head, Founder). Skip engineers/individual contributors. Title is REQUIRED — derive it from the title/snippet text; if the person's role is genuinely unknown, REJECT them (a decision maker without a role is useless).
@@ -2122,6 +2183,9 @@ Return pure JSON:
       if (/\b(vice president|\bvp\b|president|chief|officer|director|head|manager|executive|\bceo\b|\bcto\b|\bcmo\b|\bcoo\b|\bcro\b|\bcfo\b|founder|owner|jobs?|hiring|careers?|vacanc|opening|apply|remote|salary|group|agency|solutions|consulting|partners?|holdings)\b/i.test(name)) continue
       const words = name.split(/\s+/)
       if (words.length < 2 || words.length > 4) continue
+      // 保險絲 2：弱模型曾把新聞標題字詞當成人名輸出（"After SpaceX's
+      // Youngest"、"Insane Plot Twist"、"LinkedIn Bans" 等，全部是標題片段）。
+      if (!isPlausiblePersonName(name, raw, companyContext)) continue
       const li = String(p?.linkedin ?? '')
       out.push({
         name,
@@ -2181,7 +2245,8 @@ Return pure JSON:
  * 舊正則萃取路徑（LLM 不可用時的備援 — 品質較差）
  */
 function regexExtractPeople(
-  raw: Array<{ title: string; snippet?: string; url?: string; source: string }>
+  raw: Array<{ title: string; snippet?: string; url?: string; source: string }>,
+  companyContext?: string
 ): Array<{ name: string; title: string; linkedin?: string; source: string }> {
   const found: Array<{ name: string; title: string; linkedin?: string; source: string }> = []
 
@@ -2213,6 +2278,8 @@ function regexExtractPeople(
     const name = nameMatch?.[1] ?? altNameMatch?.[1]
     if (!name || !extractedTitle) continue
     if (junkNameRe.test(name)) continue
+    // 保險絲：標題碎片不是人名（"After SpaceX's Youngest"、"Insane Plot Twist"）
+    if (!isPlausiblePersonName(name, raw, companyContext)) continue
     const nameWords = name.split(/\s+/)
     if (nameWords.length < 2 || nameWords.length > 4) continue
 
@@ -2429,6 +2496,8 @@ async function discoverGoogleNews(
   const queries = [
     `"${domain}"`,
     `"${companyName}" "${domain}"`,
+    `"${companyName}" CEO OR founder OR "Co-Founder"`,
+    `"${companyName}" "VP of Sales" OR CMO OR COO OR "Chief Revenue" OR "Chief Marketing"`,
   ]
   for (const q of queries) {
     const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`
@@ -2456,6 +2525,43 @@ async function discoverGoogleNews(
       items.push({ title, snippet: source, url: link, source: 'Google News' })
     }
   }
+
+  // 新聞標題常只有人名沒有公司（"Eric Zhu's startup..."）— 業務消歧需要
+  // 正文（TechCrunch 內文才有 "started building Aviato"）。用 Jina Reader
+  // 抓正文前段當 snippet（並行 2、失敗跳過 — 不阻塞整體流程）。
+  const ENRICH_LIMIT = 8
+  const toEnrich = items.slice(0, ENRICH_LIMIT).filter((it) => it.url)
+  let enrichIdx = 0
+  const enrichWorkers = Array.from({ length: 2 }, async () => {
+    while (enrichIdx < toEnrich.length) {
+      const it = toEnrich[enrichIdx++]
+      try {
+        const page = await fetchPageWithFallback(it.url!, {
+          ...globalProviderConfig,
+          pageReaderProviderOrder: 'jina',
+        })
+        if (!page?.text) continue
+        // Jina Reader 回傳：Title / URL Source / Published Time / Markdown Content 標頭
+        // （標頭間有空行 — 用 Markdown Content 錨點切，別用逐行 ^ 正則）
+        const mcIdx = page.text.indexOf('Markdown Content:')
+        let body = mcIdx >= 0 ? page.text.slice(mcIdx + 'Markdown Content:'.length) : page.text
+        body = body.replace(/[ \t]+/g, ' ').replace(/\n{2,}/g, '\n').trim()
+        if (body.length > 60) {
+          // 新聞頁開頭是導覽/cookie 橫幅等 boilerplate — 內文要往後找。
+          // 錨點：公司名第一次出現（TechCrunch 內文 "started building Aviato"），
+          // 沒有就退而求其次用標題片段，再沒有就跳過前 1500 字元。
+          const companyIdx = body.toLowerCase().indexOf(companyName.toLowerCase())
+          const titleAnchor = title.replace(/[^A-Za-z0-9'\s-]/g, '').slice(0, 40).trim()
+          const titleIdx = titleAnchor ? body.indexOf(titleAnchor) : -1
+          const anchorIdx = companyIdx >= 0 ? companyIdx : titleIdx >= 0 ? titleIdx : 1500
+          const start = Math.max(0, anchorIdx - 120)
+          it.snippet = body.slice(start, start + 500)
+        }
+      } catch {}
+    }
+  })
+  await Promise.all(enrichWorkers)
+
   return items.slice(0, 15)
 }
 
@@ -2514,7 +2620,7 @@ async function findPeopleWithAI(params: {
     people = llmPeople
   } else {
     // 備援：正則萃取（品質差但不需要 LLM 額度）
-    people = regexExtractPeople(raw)
+    people = regexExtractPeople(raw, companyContext)
   }
 
   // 去重（同名同 title）
