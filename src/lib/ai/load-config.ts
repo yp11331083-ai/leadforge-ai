@@ -50,6 +50,18 @@ export async function loadProviderConfig(): Promise<void> {
     if (openrouterKey && !orderList().includes('openrouter')) chatOrder = chatOrder.replace('opencode,', 'opencode,openrouter,')
     const chatProviderOrder = chatOrder
 
+    // Same treatment for search: a tenant order saved before jina existed
+    // (or while it was missing) can omit it — prepend when the key is present.
+    const savedSearchOrder = config?.searchProviderOrder?.trim()
+    let searchOrder = savedSearchOrder && savedSearchOrder.length > 0
+      ? savedSearchOrder
+      : 'jina,tavily'
+    const searchOrderList = () => searchOrder.split(',').map((s) => s.trim())
+    const searchJinaKey = config?.jinaApiKey ?? platformJinaKey
+    const searchTavilyKey = config?.tavilyApiKey ?? platformTavilyKey
+    if (searchJinaKey && !searchOrderList().includes('jina')) searchOrder = `jina,${searchOrder}`
+    if (searchTavilyKey && !searchOrderList().includes('tavily')) searchOrder = `${searchOrder},tavily`
+
     const providerConfig: ProviderConfig = {
       openaiApiKey: config?.openaiApiKey ?? undefined,
       openaiModel: config?.openaiModel ?? 'gpt-4o-mini',
@@ -70,12 +82,14 @@ export async function loadProviderConfig(): Promise<void> {
       // OpenRouter free-tier models (":free" suffix models cost $0)
       openrouterApiKey: openrouterKey,
       openrouterModel: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
-      // Platform-managed search + page reader (users never see these)
-      tavilyApiKey: config?.tavilyApiKey ?? platformTavilyKey,
-      jinaApiKey: config?.jinaApiKey ?? platformJinaKey,
-      firecrawlApiKey: config?.firecrawlApiKey ?? undefined,
-      chatProviderOrder,
-      searchProviderOrder: config?.searchProviderOrder ?? 'tavily',
+// Platform-managed search + page reader (users never see these)
+    tavilyApiKey: config?.tavilyApiKey ?? platformTavilyKey,
+    jinaApiKey: config?.jinaApiKey ?? platformJinaKey,
+    firecrawlApiKey: config?.firecrawlApiKey ?? undefined,
+    chatProviderOrder,
+    // Jina search first: free tier works without quota, Tavily falls back
+    // when a tenant saved an order that omits jina or its key is exhausted.
+    searchProviderOrder: searchOrder,
       pageReaderProviderOrder: config?.pageReaderProviderOrder ?? 'jina',
     }
 

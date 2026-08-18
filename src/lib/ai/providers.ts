@@ -426,7 +426,7 @@ export async function searchWithFallback(
   num: number,
   config: ProviderConfig
 ): Promise<SearchResultItem[]> {
-  const order = (config.searchProviderOrder ?? 'tavily')
+  const order = (config.searchProviderOrder ?? 'jina,tavily')
     .split(',')
     .map((s) => s.trim())
     // 'zai' can never work outside the original sandbox — every search wasted
@@ -458,6 +458,9 @@ async function callSearchProvider(
     case 'tavily':
       if (!config.tavilyApiKey) return []
       return await searchWithTavily(query, num, config.tavilyApiKey, signal)
+    case 'jina':
+      if (!config.jinaApiKey) return []
+      return await searchWithJina(query, num, config.jinaApiKey, signal)
     default:
       return []
   }
@@ -526,6 +529,64 @@ async function searchWithTavily(query: string, num: number, apiKey: string, sign
     snippet: r.content ?? '',
     host_name: (() => { try { return new URL(r.url).hostname } catch { return '' } })(),
   }))
+}
+
+/**
+ * Jina search (https://s.jina.ai/?q=...) — free tier, returns markdown with
+ * `[n] Title:` / `[n] URL Source:` / `[n] Description:` blocks. The POST
+ * /search endpoint 500s on free keys; this GET endpoint works.
+ */
+async function searchWithJina(query: string, num: number, apiKey: string, signal?: AbortSignal): Promise<SearchResultItem[]> {
+  const url = `https://s.jina.ai/?q=${encodeURIComponent(query)}`
+  const res = await fetch(url, {
+    method: 'GET',
+    signal,
+    headers: { 'Authorization': `Bearer ${apiKey}` },
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Jina search ${res.status}: ${text.slice(0, 200)}`)
+  }
+  const markdown = await res.text()
+
+  // Parse blocks like:
+  //   [1] Title: Foo Bar
+  //   [1] URL Source: https://...
+  //   [1] Description: ...
+  const results: SearchResultItem[] = []
+  const lines = markdown.split('\n')
+  let current: { title?: string; url?: string; snippet?: string } | null = null
+  let currentIdx = -1
+  for (const line of lines) {
+    const m = line.match(/^\[(\d+)\]\s+(\w+(?:\s+\w+)?):\s*(.*)$/)
+    if (!m) continue
+    const idx = parseInt(m[1], 10)
+    const field = m[2].toLowerCase()
+    const value = m[3].trim()
+    if (field === 'title') {
+      if (current && currentIdx !== idx) {
+        if (current.url) results.push(toSearchItem(current))
+        current = null
+      }
+      current = { title: value }
+      currentIdx = idx
+    } else if (current && currentIdx === idx) {
+      if (field === 'url source' || field === 'url') current.url = value
+      else if (field === 'description') current.snippet = value
+    }
+  }
+  if (current && current.url) results.push(toSearchItem(current))
+
+  return results.slice(0, num)
+}
+
+function toSearchItem(r: { title?: string; url?: string; snippet?: string }): SearchResultItem {
+  return {
+    url: r.url ?? '',
+    name: r.title ?? r.url ?? '',
+    snippet: r.snippet ?? '',
+    host_name: (() => { try { return new URL(r.url ?? '').hostname } catch { return '' } })(),
+  }
 }
 
 // ===== Page Reader =====
