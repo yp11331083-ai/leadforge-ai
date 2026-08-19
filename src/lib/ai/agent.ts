@@ -2169,7 +2169,10 @@ export function predictEmailFormats(firstName: string, lastName: string, domain:
  */
 export function extractDomain(url: string): string | null {
   try {
-    const host = new URL(url).hostname.replace(/^www\./, '')
+    // 無 protocol 的裸網域（scale.com）會讓 new URL() 直接 throw —
+    // 先補上 https:// 再解析，避免整筆 lead 被丟棄。
+    const normalized = /^[a-z][a-z0-9+.-]*:\/\//i.test(url) ? url : `https://${url}`
+    const host = new URL(normalized).hostname.replace(/^www\./, '')
     // 取最後兩段（例如 example.com 從 mail.example.com）
     const parts = host.split('.')
     if (parts.length >= 2) {

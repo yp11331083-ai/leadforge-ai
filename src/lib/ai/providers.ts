@@ -703,7 +703,7 @@ export async function fetchPageWithFallback(
   config: ProviderConfig
 ): Promise<PageContent | null> {
   const normalized = normalizeUrlForFetch(url)
-  const order = (config.pageReaderProviderOrder ?? 'zai,jina,firecrawl')
+  const order = (config.pageReaderProviderOrder ?? 'jina,firecrawl')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)

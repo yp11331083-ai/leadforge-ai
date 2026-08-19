@@ -82,6 +82,8 @@ export interface EmailConfig {
   chatProviderOrder: string | null
   searchProviderOrder: string | null
   pageReaderProviderOrder: string | null
+  createdAt: string | null
+  updatedAt: string | null
 }
 
 export interface DecisionMaker {
@@ -167,8 +169,8 @@ interface LeadStore {
   prospectJobId: string | null
   prospectError: string | null
   rateLimitedAt: number | null  // First 429 detected timestamp
-  viewMode: 'admin' | 'sales' | 'analytics'
-  setViewMode: (mode: 'admin' | 'sales' | 'analytics') => void
+  viewMode: 'admin' | 'sales' | 'analytics' | 'billing'
+  setViewMode: (mode: 'admin' | 'sales' | 'analytics' | 'billing') => void
   // Current user (from NextAuth session)
   currentUser: {
     id: string
@@ -195,7 +197,7 @@ interface LeadStore {
   setSelectedLeadId: (id: string | null) => void
   setSenderConfig: (cfg: Partial<SenderConfig>) => void
   fetchEmailConfig: () => Promise<void>
-  saveEmailConfig: (cfg: Partial<EmailConfig>) => Promise<void>
+  saveEmailConfig: (cfg: Record<string, unknown>) => Promise<void>
   testEmailConfig: (action: 'test-smtp' | 'test-smartlead' | 'test-apollo') => Promise<{ success: boolean; message?: string; error?: string }>
   fetchSmartleadCampaigns: () => Promise<void>
   enrichEmail: (id: string) => Promise<{ success: boolean; result?: EnrichEmailResult; error?: string }>

@@ -83,18 +83,10 @@ export async function POST(req: NextRequest) {
     // Deduct 1 credit
     const creditResult = await deductCredits(user.tenantId, 1, `Email sent to ${lead.company}`, leadId)
     
-    // Mark as sent + activate follow-up
-    const isInitialEmail = lead.followUpStep === null || lead.followUpStep === 0
+    // Mark as sent
     await db.lead.update({
       where: { id: leadId },
-      data: {
-        status: 'sent',
-        ...(isInitialEmail ? {
-          followUpStep: 0,
-          followUpActive: true,
-          nextFollowUpDate: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
-        } : {}),
-      },
+      data: { status: 'sent' },
     })
 
     // Record email event

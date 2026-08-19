@@ -146,25 +146,26 @@ export async function POST() {
     const stripe = new Stripe(config.stripeSecretKey)
     const tenant = await db.tenant.findUnique({ where: { id: user.tenantId } })
 
-    if (!tenant?.stripeSubscriptionId) {
-      return NextResponse.json({ error: 'Tenant 沒有 Stripe subscription' }, { status: 400 })
+    if (!tenant?.stripeCustomerId) {
+      return NextResponse.json({ error: 'Tenant 沒有 Stripe customer' }, { status: 400 })
     }
 
-    // 取得 subscription 的 metered item
-    const subscription = await stripe.subscriptions.retrieve(tenant.stripeSubscriptionId)
-    const meteredItem = subscription.items.data.find(
-      (item) => item.price?.id === config.stripeMeteredPriceId && item.price?.recurring?.usage_type === 'metered'
-    )
+    // Stripe v22 移除了 subscriptionItems.createUsageRecord — 改走 Billing
+    // Meter Events API。meter 需在 Stripe Dashboard（Billing → Meters）設定，
+    // event_name 對應此處固定值；payload 帶 stripe_customer_id（預設 mapping）。
+    const METER_EVENT_NAME = 'email_sent'
+    const stripeCustomerId = tenant.stripeCustomerId
 
-    if (!meteredItem) {
-      return NextResponse.json({ error: '找不到 metered subscription item' }, { status: 400 })
-    }
-
-    // 建立一筆 usage record（用現在的 timestamp）
-    await stripe.subscriptionItems.createUsageRecord(meteredItem.id, {
-      quantity: unrecorded.length,
+    // 分批建立（Stripe 限制單次大量事件），每筆用唯一 identifier 防重複
+    const identifierPrefix = `email_sent_${tenant.id}_`
+    await stripe.billing.meterEvents.create({
+      event_name: METER_EVENT_NAME,
+      payload: {
+        stripe_customer_id: stripeCustomerId,
+        value: String(unrecorded.length),
+      },
+      identifier: `${identifierPrefix}${unrecorded[0].id}`,
       timestamp: Math.floor(Date.now() / 1000),
-      action: 'increment',
     })
 
     // 標記所有已上報

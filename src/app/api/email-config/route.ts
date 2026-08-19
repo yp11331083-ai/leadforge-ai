@@ -50,9 +50,9 @@ export async function PUT(req: NextRequest) {
       tavilyApiKey: body.tavilyApiKey ?? null,
       jinaApiKey: body.jinaApiKey ?? null,
       firecrawlApiKey: body.firecrawlApiKey ?? null,
-      chatProviderOrder: body.chatProviderOrder ?? 'zai,openai,anthropic,gemini',
-      searchProviderOrder: body.searchProviderOrder ?? 'zai,tavily',
-      pageReaderProviderOrder: body.pageReaderProviderOrder ?? 'zai,jina,firecrawl',
+      chatProviderOrder: body.chatProviderOrder ?? 'groq,deepseek,opencode,openrouter,gemini,openai,anthropic',
+      searchProviderOrder: body.searchProviderOrder ?? 'jina,tavily',
+      pageReaderProviderOrder: body.pageReaderProviderOrder ?? 'jina,firecrawl',
     }
     if (body.smtpPass && body.smtpPass.trim() !== '') {
       data.smtpPass = body.smtpPass

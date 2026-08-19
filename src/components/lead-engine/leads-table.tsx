@@ -233,7 +233,7 @@ export function LeadsTable() {
                       <DropdownMenuRadioGroup
                         value={lead.status}
                         onValueChange={(v) => {
-                          updateLead(lead.id, { status: v })
+                          updateLead(lead.id, { status: v as Lead['status'] })
                           toast.success(`已標記為：${STATUS_LABELS[v as Lead['status']]}`)
                         }}
                       >
