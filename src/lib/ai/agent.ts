@@ -2551,7 +2551,7 @@ async function discoverGoogleNews(
           // 錨點：公司名第一次出現（TechCrunch 內文 "started building Aviato"），
           // 沒有就退而求其次用標題片段，再沒有就跳過前 1500 字元。
           const companyIdx = body.toLowerCase().indexOf(companyName.toLowerCase())
-          const titleAnchor = title.replace(/[^A-Za-z0-9'\s-]/g, '').slice(0, 40).trim()
+          const titleAnchor = it.title.replace(/[^A-Za-z0-9'\s-]/g, '').slice(0, 40).trim()
           const titleIdx = titleAnchor ? body.indexOf(titleAnchor) : -1
           const anchorIdx = companyIdx >= 0 ? companyIdx : titleIdx >= 0 ? titleIdx : 1500
           const start = Math.max(0, anchorIdx - 120)
