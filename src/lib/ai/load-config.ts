@@ -70,9 +70,9 @@ export async function loadProviderConfig(): Promise<void> {
       // Platform-managed Gemini (user never sees this key)
       geminiApiKey: config?.geminiApiKey ?? platformGeminiKey,
       geminiModel: config?.geminiModel ?? 'gemini-2.5-flash',
-      // Platform-managed Groq (user never sees this key) — free + fast Llama 3.3 70B
+      // Platform-managed Groq (user never sees this key) — free + fast, gpt-oss-120b
       groqApiKey: groqKey,
-      groqModel: config?.groqModel ?? 'llama-3.3-70b-versatile',
+      groqModel: config?.groqModel ?? 'openai/gpt-oss-120b',
       // Platform-managed DeepSeek (user never sees this key)
       deepseekApiKey: deepseekKey,
       deepseekModel: 'deepseek-chat',

@@ -2139,7 +2139,7 @@ async function llmExtractPeople(
   const prompt = `You extract REAL PEOPLE from messy web-search results.
 
 Target company: "${companyName}" (website domain: ${domain}).
-What THIS company's own website says — homepage + /about + /team pages (ground truth for disambiguation; the team page, when present, is the DEFINITIVE roster):
+What THIS company's own website says (ground truth — use it to disambiguate same-named companies):
 """
 ${(companyContext ?? '').slice(0, 2000) || '(site unavailable — rely on the domain alone)'}
 """
@@ -2147,16 +2147,15 @@ ${(companyContext ?? '').slice(0, 2000) || '(site unavailable — rely on the do
 Search results (titles + snippets + URLs):
 ${resultsText}
 
-Rules — extract only entries where you are CONFIDENT all of these hold:
-1. It is a REAL PERSON (first + last name). The name MUST appear VERBATIM in one of the search results above (title or snippet) or in the site text — never invent or splice a name from title fragments like "After SpaceX's Youngest" or "Insane Plot Twist". NOT a page fragment ("Joined Vercel", "Today I'm"), NOT a department/office ("Sales UK"), NOT a job listing, NOT a course/event.
-2. BUSINESS-MATCH (the strongest filter): the person's snippet/title must be consistent with the site text above — THIS company's actual business. REJECT anyone whose snippet describes a DIFFERENT business, even with the same/similar company name. Real example of failure to avoid: "aviato.co" (VC data platform) vs "aviator.co" (dev tools) vs "Aviato" (Singapore aviation HR) — three companies, near-identical names; only people from the one matching the site text qualify. Near-identical spellings (aviato/aviator) are DIFFERENT companies.
-   EVIDENCE HIERARCHY when names collide: (a) a result mentioning the DOMAIN "${domain}" (news/PR name the real company) beats (b) a LinkedIn title alone — "CEO at Aviato" is AMBIGUOUS with three same-named companies; only accept a LinkedIn-title-only person if their snippet's business description matches the site text. (c) The team/about page above is the definitive roster when present.
-3. Their title is a leadership/senior role (C-level, VP, Director, Head, Founder). Skip engineers/individual contributors. Title is REQUIRED — derive it from the title/snippet text; if the person's role is genuinely unknown, REJECT them (a decision maker without a role is useless).
-4. linkedin must be a PERSONAL profile URL (contains /in/ or /pub/). Job pages (/jobs/) are NOT people.
+Rules:
+1. It is a REAL PERSON (first + last name). The name MUST appear VERBATIM in a result (title or snippet) or in the site text. NEVER splice a name from title fragments ("After SpaceX's Youngest", "Insane Plot Twist"). NOT a page fragment, department, job listing, or course/event.
+2. BUSINESS-MATCH: the person must belong to the target company, not another company with the same/similar name. Compare their snippet's business description against the site text above. If a result describes a DIFFERENT business (e.g. an aviation Aviato when the site text says private-market data platform), that person is from a different company — reject them. If the snippet clearly describes the same business, accept them.
+3. Their title is a leadership/senior role (C-level, VP, Director, Head, Founder). Title is REQUIRED — derive it from the title/snippet; if genuinely unknown, reject.
+4. linkedin must be a PERSONAL profile URL (contains /in/ or /pub/) if provided.
 
-SELECTION POLICY (critical):
-- MAX 2 founders/co-founders/CEOs total — pick the ones with the STRONGEST explicit tie to ${domain}. A company has 1-2 founders; five "Co-Founder & CEO" entries means four are from same-named other companies.
-- DIVERSIFY the rest by role: prefer one VP of Sales / CRO, one CMO / Head of Marketing, one COO / other C-level. A list of 5 founders is a failure; a list of CEO + VP Sales + CMO + 1-2 others is a success.
+SELECTION POLICY:
+- Max 2 founders/CEOs total — pick the ones with the STRONGEST explicit tie to ${domain}.
+- DIVERSIFY by role: prefer one VP of Sales/CRO, one CMO/Head of Marketing, one COO/other C-level.
 - Max 5 people, best first. Empty array [] if none qualify.
 
 Return pure JSON:
@@ -2169,7 +2168,7 @@ Return pure JSON:
         { role: 'user', content: prompt },
       ],
       temperature: 0.1,
-      maxTokens: 800,
+      maxTokens: 3000,
     }, { ...globalProviderConfig, noGroqModelLadder: true })
     const parsed = extractJsonLoose(chatResult.content)
     if (!Array.isArray(parsed)) return []

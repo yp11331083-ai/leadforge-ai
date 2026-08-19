@@ -192,7 +192,7 @@ async function callChatProvider(
       return await chatWithGemini(options, config.geminiApiKey, config.geminiModel ?? 'gemini-2.5-flash')
     case 'groq':
       if (!config.groqApiKey) return null
-      return await chatWithGroq(options, config.groqApiKey, config.groqModel ?? 'llama-3.3-70b-versatile', !config.noGroqModelLadder)
+      return await chatWithGroq(options, config.groqApiKey, config.groqModel ?? 'openai/gpt-oss-120b', !config.noGroqModelLadder)
     case 'deepseek':
       if (!config.deepseekApiKey) return null
       return await chatWithOpenAICompatible(options, 'https://api.deepseek.com/chat/completions', 'DeepSeek', config.deepseekApiKey, config.deepseekModel ?? 'deepseek-chat')
@@ -381,7 +381,7 @@ async function chatWithGroq(
   model: string,
   allowModelLadder = true
 ): Promise<ChatCompletionResult> {
-  const FALLBACK_MODEL = 'llama-3.1-8b-instant'
+  const FALLBACK_MODEL = 'openai/gpt-oss-20b'
   const models = model === FALLBACK_MODEL || !allowModelLadder ? [model] : [model, FALLBACK_MODEL]
   let lastError: Error | null = null
 
@@ -609,7 +609,55 @@ export async function fetchPageWithFallback(
     }
   }
 
+  // Last resort: plain HTTP fetch with a browser UA. All page-reader
+  // providers can be down (dead API keys, rate limits) — direct fetch keeps
+  // research + enrichment working as long as the site itself is reachable.
+  try {
+    const direct = await fetchPageDirect(url, config.pageTimeoutMs ?? 20_000)
+    if (direct) return direct
+  } catch (e: any) {
+    console.warn(`Page reader direct fetch failed: ${e.message}`)
+  }
+
   return null
+}
+
+async function fetchPageDirect(url: string, timeoutMs: number): Promise<PageContent | null> {
+  const res = await fetch(url, {
+    redirect: 'follow',
+    signal: AbortSignal.timeout(timeoutMs),
+    headers: {
+      'user-agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36',
+      'accept': 'text/html,application/xhtml+xml,text/plain',
+    },
+  })
+  if (!res.ok) throw new Error(`Direct ${res.status}`)
+  const html = await res.text()
+  if (!html || html.length < 100) throw new Error('Direct returned empty/short response')
+  const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim() ?? url
+  return {
+    title,
+    html,
+    text: directHtmlToText(html),
+    url,
+  }
+}
+
+function directHtmlToText(html: string): string {
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 30000)
 }
 
 async function callPageReaderProvider(
@@ -665,6 +713,24 @@ async function fetchPageWithJina(url: string, apiKey?: string, signal?: AbortSig
   const res = await fetch(`https://r.jina.ai/${url}`, { headers, signal })
 
   if (!res.ok) {
+    // Zero-balance / expired API keys get rejected (401/402/403/429) while the
+    // free tier still works — retry without the key before giving up.
+    if (apiKey && [401, 402, 403, 429].includes(res.status)) {
+      const headersNoKey: Record<string, string> = {
+        'Accept': 'text/plain',
+        'X-Return-Format': 'markdown',
+      }
+      const retry = await fetch(`https://r.jina.ai/${url}`, { headers: headersNoKey, signal })
+      if (retry.ok) {
+        const text = await retry.text()
+        if (text && text.length >= 50) {
+          const lines = text.split('\n').filter(Boolean)
+          const retryTitle = lines[0]?.replace(/^Title:\s*/i, '').replace(/^#+\s*/, '') ?? url
+          const html = `<div>${text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</div>`
+          return { title: retryTitle, html, text, url }
+        }
+      }
+    }
     throw new Error(`Jina ${res.status}`)
   }
 
