@@ -1943,25 +1943,77 @@ function emailBelongsToPerson(email: string, firstName: string, lastName: string
 }
 
 /**
+ * 買方情境分類 — 決定哪一類職位是「該公司真正的採購決策者」。
+ * 用戶提供的人員定位規則：
+ * - CEO/Founder：目標是小型企業/新創時最佳（高階主管直接做採購決策）。
+ * - CTO/Tech Lead：賣技術工具/API/軟體/開發者服務時最佳。
+ * - SDR/BDR/Sales：賣銷售工具/外展軟體/潛在客戶開發服務時最佳。
+ * 由官網首頁文字（homepageText / companyContext）推斷目標公司業務類型。
+ */
+export type BuyerContext = 'smb' | 'devtools' | 'sales_tools' | 'general'
+
+export function classifyBuyerContext(companyContext?: string): BuyerContext {
+  const t = (companyContext ?? '').toLowerCase()
+  const hit = (re: RegExp) => (t.match(re) ?? []).length
+  const devtools = hit(/\b(api|sdk|developer|developers|software|code|coding|programming|infrastructure|devtool|technical|engineering|documentation|open source|cloud)\b/g)
+  const salesTools = hit(/\b(sales|outreach|lead generation|leadgen|prospecting|crm|sales automation|sales platform|revenue intelligence|email finder|sales engagement|cold email|b2b|demand generation)\b/g)
+  const smb = hit(/\b(small business|startup|start-up|smb|solo founder|small team|small teams|entrepreneur|founder-led|bootstrapped|early-stage)\b/g)
+  if (salesTools >= 2 && salesTools > devtools && salesTools > smb) return 'sales_tools'
+  if (devtools >= 2 && devtools > smb) return 'devtools'
+  if (smb >= 2) return 'smb'
+  return 'general'
+}
+
+export function buyerContextLabel(ctx: BuyerContext): string {
+  switch (ctx) {
+    case 'smb': return '小型企業/新創 — CEO/Founder 直接決策'
+    case 'devtools': return '技術/開發者工具公司 — CTO/Tech Lead 是技術採購決策者'
+    case 'sales_tools': return '銷售工具公司 — SDR/BDR/Sales 是直接使用者與決策者'
+    default: return '一般公司'
+  }
+}
+
+/**
  * 決策者優先級排序規則
  * 用戶要求：
  * 1. VP of Sales / VP Sales / Sales Director → 第一優先
  * 2. CEO / Founder → 第二優先
  * 3. CRO / CMO / COO → 第三優先
  * 4. SDR / AE → 永遠跳過（除非真的找不到別的）
+ * 5. 依買方情境（buyerContext）提升該類職位優先級：
+ *    - smb → CEO/Founder 最優先
+ *    - devtools → CTO/Tech Lead 最優先
+ *    - sales_tools → SDR/BDR/Sales 最優先（不再跳過）
  */
-export function rankTitle(title: string): { seniority: DecisionMaker['seniority']; priority: number; reason: string } {
+export function rankTitle(title: string, buyerContext: BuyerContext = 'general'): { seniority: DecisionMaker['seniority']; priority: number; reason: string } {
   const t = title.toLowerCase()
+
+  const isFounderCeo = /\bceo\b|\bchief executive\b|\bfounder\b|\bco-founder\b|\bco founder\b|\bpresident\b|\bowner\b|\bcro\b|chief revenue officer/i.test(t)
+  const isTechLead = /\b(cto|chief technology|chief technical|tech lead|technical lead|head of engineering|engineering director|chief architect|engineering lead)\b|\bvp of engineering\b|\bvice president of engineering\b|\bvp engineering\b|\bvice president engineering\b|\bhead of developer\b|\bhead of development\b|\bengineering manager\b/i.test(t)
+  const isSdrSales = /\b(sdr|bdr|sales development|account executive|\bae\b|business development rep|bd rep)\b/i.test(t)
+
+  // 買方情境優先：該公司「真正會買單」的角色排最前面
+  if (buyerContext === 'devtools' && isTechLead) {
+    return { seniority: 'c_level', priority: 1, reason: 'CTO/技術主管 — 技術型公司由技術決策者拍板' }
+  }
+  if (buyerContext === 'sales_tools' && isSdrSales) {
+    return { seniority: 'manager', priority: 1, reason: 'SDR/業務 — 銷售工具公司的直接使用者與決策者' }
+  }
 
   // 1. CEO / 創辦人 / 總裁 / CRO — 最終決策者，最優先
   //（舊版把他們排在「業務主管」之後 — Director of Growth 壓過
   //  Co-Founder & CEO，用戶反應 Linear 案例排序錯誤）
-  if (/\bceo\b|\bchief executive\b|\bfounder\b|\bco-founder\b|\bco founder\b|\bpresident\b|\bowner\b|\bcro\b|chief revenue officer/i.test(t)) {
-    return { seniority: 'c_level', priority: 1, reason: 'CEO/創辦人 — 能做預算決定的最終決策者' }
+  if (isFounderCeo) {
+    return {
+      seniority: 'c_level',
+      priority: 1,
+      reason: buyerContext === 'smb' ? 'CEO/創辦人 — 小型/新創公司由最高主管直接決策' : 'CEO/創辦人 — 能做預算決定的最終決策者',
+    }
   }
 
   // SDR / AE 先擋（避免 'sales' 字眼被下面業務主管分支吃掉）
-  if (/\b(sdr|sales development|account executive|\bae\b|business development rep|bd rep)\b/i.test(t)) {
+  //（sales_tools 情境已在上方提升為高優先，不會走到這裡）
+  if (isSdrSales) {
     return { seniority: 'manager', priority: 99, reason: '業務專員 — 太基層，跳過' }
   }
 
@@ -1971,6 +2023,11 @@ export function rankTitle(title: string): { seniority: DecisionMaker['seniority'
   if (/\b(vp|vice president|head|director)\b.*\b(sales|revenue|commercial)\b/i.test(t) ||
       /\b(sales|revenue|commercial)\b.*\b(vp|vice president|head|director)\b/i.test(t)) {
     return { seniority: 'vp', priority: 2, reason: '業務最高主管 — 直接背負業績' }
+  }
+
+  // 2.5 技術主管（devtools 情境已在上方提升；一般情境仍算主管級）
+  if (isTechLead) {
+    return { seniority: 'c_level', priority: 3, reason: '技術主管（CTO/工程主管）' }
   }
 
   // 3. 其他 C-level（含 CFO — 舊版漏掉掉進「其他」）
@@ -2129,7 +2186,8 @@ async function llmExtractPeople(
   raw: Array<{ title: string; snippet?: string; url?: string; source: string }>,
   companyName: string,
   domain: string,
-  companyContext?: string
+  companyContext?: string,
+  buyerContext: BuyerContext = 'general'
 ): Promise<Array<{ name: string; title: string; linkedin?: string; source: string }>> {
   const resultsText = raw
     .slice(0, 25)
@@ -2156,6 +2214,7 @@ Rules:
 SELECTION POLICY:
 - Max 2 founders/CEOs total — pick the ones with the STRONGEST explicit tie to ${domain}.
 - DIVERSIFY by role: prefer one VP of Sales/CRO, one CMO/Head of Marketing, one COO/other C-level.
+- Buyer context: ${buyerContextLabel(buyerContext)}. When the company type matches a buyer persona, PRIORITIZE those roles in your output (they are the real decision makers for a vendor selling into them): ${buyerContext === 'devtools' ? 'CTO, CTO/Co-founder, Tech Lead, Head of Engineering, VP Engineering.' : buyerContext === 'sales_tools' ? 'SDR, BDR, Account Executive, Sales Development, Sales/Business Development staff (they are the hands-on users of sales tools).' : buyerContext === 'smb' ? 'CEO, Founder, Owner (top execs decide directly in small companies).' : 'CEO/Founder, VP Sales, C-level.'}
 - Max 5 people, best first. Empty array [] if none qualify.
 
 Return pure JSON:
@@ -2572,13 +2631,32 @@ async function findPeopleWithAI(params: {
   companyContext?: string
 }): Promise<DecisionMaker[]> {
   const { companyName, domain, website, companyContext } = params
+  const buyerContext = classifyBuyerContext(companyContext)
 
   // 7 組搜尋策略（漸進放寬；含 CMO/行銷 — 用戶要多元角色）
+  // 依買方情境加掛對應職位查詢：devtools 公司找 CTO/工程主管，
+  // sales_tools 公司找 SDR/業務，smb 找 CEO/Founder。
+  const contextSearches: Array<{ query: string; label: string }> = []
+  if (buyerContext === 'devtools') {
+    contextSearches.push(
+      { query: `"${companyName}" CTO OR "Chief Technology Officer" OR "Head of Engineering" OR "VP Engineering" site:linkedin.com`, label: 'CTO/Engineering LinkedIn' },
+      { query: `"${companyName}" "tech lead" OR "technical lead" OR "engineering director" site:linkedin.com`, label: 'Tech Lead LinkedIn' },
+    )
+  } else if (buyerContext === 'sales_tools') {
+    contextSearches.push(
+      { query: `"${companyName}" SDR OR BDR OR "Account Executive" OR "Sales Development" site:linkedin.com`, label: 'SDR/BDR LinkedIn' },
+    )
+  } else if (buyerContext === 'smb') {
+    contextSearches.push(
+      { query: `"${companyName}" CEO OR Founder OR Owner site:linkedin.com`, label: 'CEO/Founder LinkedIn' },
+    )
+  }
   const searches = [
     // 0. 網域錨定 — 新聞/PR 報導會同時出現網域與真實創辦人，
     //    是同名公司泥沼中最不可模糊的證據（aviato.co 案例：
     //    LinkedIn「CEO at Aviato」有三家同名公司，TechCrunch 報導只有一家）
     { query: `"${domain}" founder OR CEO leadership`, label: 'Domain-anchored news' },
+    ...contextSearches,
     { query: `"${companyName}" "VP of Sales" OR "VP Sales" OR "Vice President of Sales" site:linkedin.com`, label: 'VP Sales LinkedIn' },
     { query: `"${companyName}" CEO OR founder OR "Co-Founder" site:linkedin.com`, label: 'CEO LinkedIn' },
     { query: `"${companyName}" "Sales Director" OR "Director of Sales" OR "Head of Sales" site:linkedin.com`, label: 'Sales Director LinkedIn' },
@@ -2614,7 +2692,7 @@ async function findPeopleWithAI(params: {
 
   // ===== 階段 2：LLM 結構化萃取（主要路徑）=====
   let people: Array<{ name: string; title: string; linkedin?: string; source: string }> = []
-  const llmPeople = await llmExtractPeople(raw, companyName, domain, companyContext)
+  const llmPeople = await llmExtractPeople(raw, companyName, domain, companyContext, buyerContext)
   if (llmPeople.length > 0) {
     people = llmPeople
   } else {
@@ -2638,7 +2716,7 @@ async function findPeopleWithAI(params: {
   // 組合成 DecisionMaker
   const decisionMakers: DecisionMaker[] = []
   for (const person of unique.slice(0, 10)) {
-    const rank = rankTitle(person.title)
+    const rank = rankTitle(person.title, buyerContext)
     if (rank.priority === 99) continue  // 跳過 SDR/AE
 
     // 從姓名與網域預測 email 格式
@@ -2690,10 +2768,13 @@ export async function enrichEmail(params: {
 
   let decisionMakers: DecisionMaker[] = []
 
+  // 買方情境：官網文字推斷該公司業務類型，決定哪類職位優先
+  const buyerContext = classifyBuyerContext(mined.homepageText)
+
   // Strategy 0: Use key_people from deep research (no API cost)
   if (existingKeyPeople && existingKeyPeople.length > 0) {
     for (const p of existingKeyPeople.slice(0, 8)) {
-      const rank = rankTitle(p.title)
+      const rank = rankTitle(p.title, buyerContext)
       if (rank.priority === 99) continue
 
       const nameParts = p.name.split(' ')
