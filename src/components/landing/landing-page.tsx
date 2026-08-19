@@ -9,6 +9,7 @@ import {
   Search,
   Calendar,
   Sparkles,
+  Check,
 } from 'lucide-react'
 import demoData from './demo-data.json'
 
@@ -338,6 +339,59 @@ export function LandingPage() {
           </div>
           <p className="text-center text-xs text-stone-400 mt-8">
             Google Workspace & Microsoft 365 OAuth — coming soon
+          </p>
+        </div>
+      </section>
+
+      {/* Pricing — warm gray layer */}
+      <section className="bg-stone-50">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-20">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold tracking-tight text-stone-900">Simple pricing that scales with you</h2>
+            <p className="mt-3 text-stone-400">Start free. Upgrade when you're ready to scale outreach.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {[
+              { name: 'Free', price: '$0', credits: '30 credits', desc: 'Get started free, no credit card required', features: ['~3 auto-prospect runs', 'Basic AI research', 'Email sending (SMTP)', '1 mailbox'], featured: false, color: 'from-slate-400 to-slate-500' },
+              { name: 'Starter', price: '$49', credits: '500 credits', desc: 'For solo founders', features: ['~50 auto-prospect runs', 'Deep research', 'Verified decision-maker emails', '3 mailboxes'], featured: false, color: 'from-emerald-500 to-teal-600' },
+              { name: 'Growth', price: '$149', credits: '2,000 credits', desc: 'For small teams', features: ['~200 auto-prospect runs', '5 seats', 'Manager dashboard + analytics', 'Priority support'], featured: true, color: 'from-violet-500 to-fuchsia-600' },
+              { name: 'Agency', price: '$399', credits: '8,000 credits', desc: 'For agencies & sales teams', features: ['~800 auto-prospect runs', '3 SDR seats included', 'Role-based access control', 'Dedicated success manager'], featured: false, color: 'from-amber-500 to-orange-600' },
+            ].map((plan) => (
+              <div
+                key={plan.name}
+                className={`p-6 rounded-2xl border bg-white shadow-sm transition-all ${
+                  plan.featured
+                    ? 'border-violet-300 ring-2 ring-violet-200 hover:shadow-lg'
+                    : 'border-stone-200 hover:shadow-md hover:border-violet-200'
+                }`}
+              >
+                {plan.featured && (
+                  <span className="inline-block px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-violet-700 bg-violet-50 border border-violet-200 rounded-full mb-3">
+                    Most Popular
+                  </span>
+                )}
+                <h3 className="text-lg font-semibold text-stone-900">{plan.name}</h3>
+                <p className="mt-2 text-3xl font-bold tracking-tight text-stone-900">
+                  {plan.price}<span className="text-sm font-normal text-stone-400">/mo</span>
+                </p>
+                <p className="mt-1 text-sm font-medium text-violet-600">{plan.credits}</p>
+                <p className="mt-1 text-sm text-stone-500">{plan.desc}</p>
+                <ul className="mt-4 space-y-2 text-sm text-stone-600">
+                  {plan.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2">
+                      <Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Button asChild size="sm" className={`mt-5 w-full rounded-full ${plan.featured ? '' : 'bg-stone-900 hover:bg-stone-800'}`}>
+                  <a href="/signup">{plan.name === 'Free' ? 'Start free' : `Start with ${plan.name}`}</a>
+                </Button>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-xs text-stone-400 mt-8">
+            All plans include unlimited email sending · One-time credit packs available · Cancel anytime
           </p>
         </div>
       </section>

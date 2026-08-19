@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
     if (!result.success || !result.result) {
       // Refund credits — enrichment failed
       await refundCredits(user.tenantId, creditCost, `Enrich fail: ${lead.company}`)
+      console.error(`[enrich] FAILED tenant=${user.tenantId} lead=${leadId} company=${lead.company} website=${lead.website} reason=${result.error ?? 'unknown'}`)
       return NextResponse.json({
         error: result.error ?? 'Email enrichment 失敗',
         creditsRefunded: creditCost,

@@ -68,6 +68,7 @@ export async function POST(req: NextRequest) {
       // Refund credits — we couldn't even fetch the website
       await refundCredits(user.tenantId, creditCost, `Research fetch-fail: ${targetCompany}`)
       if (leadId) await db.lead.update({ where: { id: leadId }, data: { status: 'new' } })
+      console.error(`[research] WEBSITE-FETCH-FAILED tenant=${user.tenantId} company=${targetCompany} website=${targetWebsite} mode=${mode}`)
       return NextResponse.json({
         error: 'Failed to fetch website',
         creditsRefunded: creditCost,
@@ -137,6 +138,7 @@ export async function POST(req: NextRequest) {
       // Refund credits — AI call didn't produce parseable output
       await refundCredits(user.tenantId, creditCost, `Research parse-fail: ${targetCompany}`)
       if (leadId) await db.lead.update({ where: { id: leadId }, data: { status: 'new' } })
+      console.error(`[research] PARSE-FAILED tenant=${user.tenantId} company=${targetCompany} website=${targetWebsite} mode=${mode} raw=${research.raw?.slice(0, 500)}`)
       // Include the raw AI response in the error so we can debug parsing failures
       return NextResponse.json({
         error: 'AI research parsing failed',
