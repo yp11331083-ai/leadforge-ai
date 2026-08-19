@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
         { role: 'user', content: prompt },
       ],
       temperature: 0.3,
-      maxTokens: 500,
+      maxTokens: 1200,
     }, getProviderConfig())
 
     let cleaned = chatResult.content.trim()

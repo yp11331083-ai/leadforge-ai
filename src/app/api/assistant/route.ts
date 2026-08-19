@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
         { role: 'user', content: message },
       ],
       temperature: 0.4,
-      maxTokens: 400,
+      maxTokens: 1200,
     }, getProviderConfig())
 
     // AGGRESSIVE JSON extraction

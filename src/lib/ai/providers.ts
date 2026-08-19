@@ -385,7 +385,7 @@ async function chatWithGroq(
   const models = model === FALLBACK_MODEL || !allowModelLadder ? [model] : [model, FALLBACK_MODEL]
   let lastError: Error | null = null
 
-  for (const m of models) {
+  const doRequest = async (m: string, maxTokens: number) => {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       signal: AbortSignal.timeout(90_000),
@@ -397,25 +397,49 @@ async function chatWithGroq(
         model: m,
         messages: options.messages,
         temperature: options.temperature ?? 0.5,
-        max_tokens: options.maxTokens,
+        max_tokens: maxTokens,
       }),
     })
-
     if (res.ok) {
       const data = await res.json() as any
-      const content = data.choices?.[0]?.message?.content ?? ''
-      if (!content) throw new Error('Groq returned an empty response')
-      return { content, provider: 'groq', model: m }
+      return { ok: true as const, content: (data.choices?.[0]?.message?.content ?? '') as string }
+    }
+    const text = await res.text()
+    return { ok: false as const, status: res.status, text }
+  }
+
+  for (const m of models) {
+    let baseTokens = options.maxTokens ?? 500
+    // gpt-oss-* 是 reasoning 模型：內部思考會吃掉大量 token，
+    // 小額 maxTokens 會把預算全燒在思考上、content 回傳空字串。
+    // 給思考預留空間 — 至少 3 倍、下限 1500。
+    if (/gpt-oss/i.test(m)) baseTokens = Math.max(baseTokens * 3, 1500)
+
+    const first = await doRequest(m, baseTokens)
+    if (first.ok) {
+      if (first.content) return { content: first.content, provider: 'groq', model: m }
+      // 空內容 = 思考吃光預算 → 加碼重試一次（上限 8000，Groq on-demand TPM 限制）
+      lastError = new Error(`Groq ${m} returned an empty response (reasoning consumed budget)`)
+      const bumped = Math.min(baseTokens * 2, 8000)
+      if (bumped > baseTokens) {
+        const retry = await doRequest(m, bumped)
+        if (retry.ok && retry.content) return { content: retry.content, provider: 'groq', model: m }
+        if (retry.ok && !retry.content) {
+          console.warn(`Groq ${m} still empty at ${bumped} tokens, trying next model...`)
+          continue
+        }
+        lastError = new Error(`Groq ${m} retry ${retry.status}: ${(retry as any).text?.slice(0, 200) ?? 'unknown'}`)
+      }
+      continue
     }
 
-    const text = await res.text()
-    lastError = new Error(`Groq ${res.status} (${m}): ${text.slice(0, 200)}`)
+    lastError = new Error(`Groq ${first.status} (${m}): ${first.text.slice(0, 200)}`)
     // 429 = quota/rate — try the lighter model before giving up
     // 404 = model not found (stale saved model) — try the platform default model too
-    const modelNotFound = res.status === 404 || /does not exist|model_not_found/i.test(text)
-    if (res.status !== 429 && !modelNotFound) throw lastError
+    const modelNotFound = first.status === 404 || /does not exist|model_not_found/i.test(first.text)
+    if (first.status !== 429 && !modelNotFound) throw lastError
     if (modelNotFound && m === FALLBACK_MODEL) throw lastError
-    if (/per day|\bTPD\b|tokens per day/i.test(text)) markGroqDailyCapped()
+    if (/per day|\bTPD\b|tokens per day/i.test(first.text)) markGroqDailyCapped()
     console.warn(`Groq model ${m} failed, falling back to ${FALLBACK_MODEL}...`)
   }
 

@@ -1623,7 +1623,7 @@ Output pure JSON: {"type":"buyer","evidence":"short quote or domain reason"}`
         { role: 'user', content: prompt },
       ],
       temperature: 0.1,
-      maxTokens: 120,
+      maxTokens: 800,
     }, config)
     const parsed = extractJsonLoose(chatResult.content)
     const t = String(parsed?.type ?? '').toLowerCase()
