@@ -409,18 +409,21 @@ async function chatWithGroq(
   }
 
   for (const m of models) {
-    let baseTokens = options.maxTokens ?? 500
     // gpt-oss-* 是 reasoning 模型：內部思考會吃掉大量 token，
     // 小額 maxTokens 會把預算全燒在思考上、content 回傳空字串。
-    // 給思考預留空間 — 至少 3 倍、下限 1500。
-    if (/gpt-oss/i.test(m)) baseTokens = Math.max(baseTokens * 3, 1500)
+    // 只有小預算呼叫才加碼（×3、下限 1500）；大預算（萃取 3000、
+    // 分析 1200…）原樣送出 — 再加碼會撞 Groq on_demand 的 TPM 8000 上限。
+    let baseTokens = options.maxTokens ?? 500
+    if (/gpt-oss/i.test(m) && baseTokens < 1000) {
+      baseTokens = Math.min(Math.max(baseTokens * 3, 1500), 7000)
+    }
 
     const first = await doRequest(m, baseTokens)
     if (first.ok) {
       if (first.content) return { content: first.content, provider: 'groq', model: m }
-      // 空內容 = 思考吃光預算 → 加碼重試一次（上限 8000，Groq on-demand TPM 限制）
+      // 空內容 = 思考吃光預算 → 加碼重試一次（上限 7000，Groq on-demand TPM 限制）
       lastError = new Error(`Groq ${m} returned an empty response (reasoning consumed budget)`)
-      const bumped = Math.min(baseTokens * 2, 8000)
+      const bumped = Math.min(baseTokens * 2, 7000)
       if (bumped > baseTokens) {
         const retry = await doRequest(m, bumped)
         if (retry.ok && retry.content) return { content: retry.content, provider: 'groq', model: m }
@@ -436,9 +439,12 @@ async function chatWithGroq(
     lastError = new Error(`Groq ${first.status} (${m}): ${first.text.slice(0, 200)}`)
     // 429 = quota/rate — try the lighter model before giving up
     // 404 = model not found (stale saved model) — try the platform default model too
+    // 413 = Request too large (TPM) — try the lighter model (it has a different
+    //      TPM pool) before throwing
     const modelNotFound = first.status === 404 || /does not exist|model_not_found/i.test(first.text)
-    if (first.status !== 429 && !modelNotFound) throw lastError
-    if (modelNotFound && m === FALLBACK_MODEL) throw lastError
+    const tooLarge = first.status === 413 || /Request too large|tokens per minute/i.test(first.text)
+    if (first.status !== 429 && !modelNotFound && !tooLarge) throw lastError
+    if ((modelNotFound || tooLarge) && m === FALLBACK_MODEL) throw lastError
     if (/per day|\bTPD\b|tokens per day/i.test(first.text)) markGroqDailyCapped()
     console.warn(`Groq model ${m} failed, falling back to ${FALLBACK_MODEL}...`)
   }
@@ -459,6 +465,9 @@ export async function searchWithFallback(
     // 'zai' can never work outside the original sandbox — every search wasted
     // a failed round-trip (and occasionally the retry timeout) before Tavily
     .filter((s) => s && s !== 'zai')
+  // Bing HTML (免費、免金鑰) 永遠當最後備援 — Jina/Tavily key 掛掉時
+  // 搜尋還是能用，決策者查找不會歸零
+  if (!order.includes('bing')) order.push('bing')
 
   for (const provider of order) {
     try {
@@ -488,8 +497,79 @@ async function callSearchProvider(
     case 'jina':
       if (!config.jinaApiKey) return []
       return await searchWithJina(query, num, config.jinaApiKey, signal)
+    case 'bing':
+      return await searchWithBingHtml(query, num)
     default:
       return []
+  }
+}
+
+/**
+ * Bing HTML search (免費、免金鑰、無速率限制) — 當 Jina/Tavily 都掛掉時的最後防線。
+ * 直接抓 SERP 頁面，解析 <li class="b_algo"> 區塊；Bing 用 /ck/a 轉址 + base64
+ * (u=a1...) 包真實 URL，需要解碼。
+ */
+async function searchWithBingHtml(query: string, num: number): Promise<SearchResultItem[]> {
+  const BROWSER_UA_BING = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36'
+  const res = await fetch(`https://www.bing.com/search?q=${encodeURIComponent(query)}&count=${Math.min(num * 2, 20)}`, {
+    headers: { 'user-agent': BROWSER_UA_BING, 'accept': 'text/html', 'accept-language': 'en-US,en;q=0.9' },
+    signal: AbortSignal.timeout(15_000),
+    redirect: 'follow',
+  })
+  if (!res.ok) throw new Error(`Bing ${res.status}`)
+  const html = await res.text()
+  if (!html || !html.includes('b_algo')) throw new Error('Bing returned no organic results')
+
+  const results: SearchResultItem[] = []
+  // b_algo blocks: <li class="b_algo"> ... <h2><a href="...">Title</a></h2> ... <p>snippet</p>
+  const blockRe = /<li[^>]*class="[^"]*\bb_algo\b[^"]*"[^>]*>([\s\S]*?)<\/li>/g
+  let m: RegExpExecArray | null
+  while ((m = blockRe.exec(html)) !== null) {
+    if (results.length >= num) break
+    const block = m[1]
+    const aMatch = block.match(/<h2[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/)
+    if (!aMatch) continue
+    const href = aMatch[1].replace(/&amp;/g, '&')
+    const title = aMatch[2]
+      .replace(/<[^>]+>/g, '')
+      .replace(/&amp;/g, '&')
+      .replace(/&#39;/g, "'")
+      .replace(/&quot;/g, '"')
+      .trim()
+    if (!title) continue
+    const url = decodeBingUrl(href)
+    if (!url || /^https?:\/\/(www\.)?bing\.com\//i.test(url)) continue
+    const pMatch = block.match(/<p[^>]*>([\s\S]*?)<\/p>/)
+    const snippet = (pMatch?.[1] ?? '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&amp;/g, '&')
+      .replace(/&#39;/g, "'")
+      .replace(/&quot;/g, '"')
+      .trim()
+    results.push({
+      url,
+      name: title,
+      snippet,
+      host_name: (() => { try { return new URL(url).hostname } catch { return '' } })(),
+    })
+  }
+  if (results.length === 0) throw new Error('Bing parse found no valid results')
+  return results
+}
+
+/** Bing /ck/a redirect 裡 u=a1<base64> 是 URL-safe base64 的真實網址 */
+function decodeBingUrl(href: string): string | null {
+  try {
+    const uParam = href.match(/[?&]u=a1([^&]+)/)
+    if (!uParam) {
+      if (/^https?:\/\//i.test(href)) return href
+      return null
+    }
+    const b64 = decodeURIComponent(uParam[1])
+    const decoded = Buffer.from(b64, 'base64').toString('utf-8')
+    return /^https?:\/\//i.test(decoded) ? decoded : null
+  } catch {
+    return null
   }
 }
 
@@ -756,12 +836,17 @@ async function fetchPageWithJina(url: string, apiKey?: string, signal?: AbortSig
   if (!res.ok) {
     // Zero-balance / expired API keys get rejected (401/402/403/429) while the
     // free tier still works — retry without the key before giving up.
+    // NOTE: must use a FRESH signal — the keyed request may have consumed the
+    // whole timeout, and a shared aborted signal kills the retry instantly.
     if (apiKey && [401, 402, 403, 429].includes(res.status)) {
       const headersNoKey: Record<string, string> = {
         'Accept': 'text/plain',
         'X-Return-Format': 'markdown',
       }
-      const retry = await fetch(`https://r.jina.ai/${url}`, { headers: headersNoKey, signal })
+      const retry = await fetch(`https://r.jina.ai/${url}`, {
+        headers: headersNoKey,
+        signal: AbortSignal.timeout(25_000),
+      })
       if (retry.ok) {
         const text = await retry.text()
         if (text && text.length >= 50) {

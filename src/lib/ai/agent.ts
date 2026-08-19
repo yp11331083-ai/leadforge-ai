@@ -2280,32 +2280,48 @@ async function llmExtractPeople(
   buyerContext: BuyerContext = 'general'
 ): Promise<Array<{ name: string; title: string; linkedin?: string; source: string }>> {
   const resultsText = raw
-    .slice(0, 25)
-    .map((r, i) => `[${i}] TITLE: ${r.title}\n    SNIPPET: ${(r.snippet ?? '').slice(0, 400)}\n    URL: ${r.url ?? ''}`)
+    .slice(0, 20)
+    .map((r, i) => `[${i}] TITLE: ${r.title}\n    SNIPPET: ${(r.snippet ?? '').slice(0, 200)}\n    URL: ${r.url ?? ''}`)
     .join('\n')
+    // Groq on_demand 的 TPM 上限 8000 — 輸入太長直接 413。
+    // 截到 ~9k 字元（≈2500 tokens）給推理預留空間。
+    .slice(0, 9000)
 
-  const prompt = `You extract REAL PEOPLE from messy web-search results.
+  const siteText = (companyContext ?? '').slice(0, 1500)
+// 只有「Title: X」「URL Source」等 boilerplate 不算可用 site text — JS SPA
+// 常常抓不到內文，這種情況要放寬 BUSINESS-MATCH 而不是誤判成其他公司
+const hasUsableSiteText = siteText.trim().length > 120 && !/^(title:|url source:|markdown content:)/i.test(siteText.trim())
+
+const siteBlock = hasUsableSiteText
+  ? `What THIS company's own website says (ground truth — use it to disambiguate same-named companies):
+"""
+${siteText}
+"""`
+  : `The company website could not be read (JS-only or blocked site) — use the domain ${domain} as the ONLY anchor. "${companyName}" is a startup operating at ${domain}; ignore same-named companies from unrelated industries unless a result is EXPLICITLY about one.`
+
+const businessMatchRule = hasUsableSiteText
+  ? `2. BUSINESS-MATCH: the person must belong to the target company, not another company with the same/similar name. Compare their snippet's business description against the site text above. If a result describes a DIFFERENT business (e.g. an aviation Aviato when the site text says private-market data platform), that person is from a different company — reject them. If the snippet clearly describes the same business, accept them.`
+  : `2. The person must plausibly lead or work at the target company — a startup CEO/founder story anchored by the domain or startup context counts (a news story about "the 15-year-old CEO of the startup at ${domain}" fits even when the article never names the company). Only reject when a result is EXPLICITLY about a different business with the same name.`
+
+const prompt = `You extract REAL PEOPLE from messy web-search results.
 
 Target company: "${companyName}" (website domain: ${domain}).
-What THIS company's own website says (ground truth — use it to disambiguate same-named companies):
-"""
-${(companyContext ?? '').slice(0, 2000) || '(site unavailable — rely on the domain alone)'}
-"""
+${siteBlock}
 
 Search results (titles + snippets + URLs):
 ${resultsText}
 
 Rules:
 1. It is a REAL PERSON (first + last name). The name MUST appear VERBATIM in a result (title or snippet) or in the site text. NEVER splice a name from title fragments ("After SpaceX's Youngest", "Insane Plot Twist"). NOT a page fragment, department, job listing, or course/event.
-2. BUSINESS-MATCH: the person must belong to the target company, not another company with the same/similar name. Compare their snippet's business description against the site text above. If a result describes a DIFFERENT business (e.g. an aviation Aviato when the site text says private-market data platform), that person is from a different company — reject them. If the snippet clearly describes the same business, accept them.
-3. Their title is a leadership/senior role (C-level, VP, Director, Head, Founder). Title is REQUIRED — derive it from the title/snippet; if genuinely unknown, reject.
+${businessMatchRule}
+3. Their title is a leadership/senior role (C-level, VP, Director, Head, Founder). Title is REQUIRED — derive it from the title/snippet ("15-year-old CEO" → CEO, "Eric Zhu ... founder" → Founder/CEO); if genuinely unknown, reject.
 4. linkedin must be a PERSONAL profile URL (contains /in/ or /pub/) if provided.
 
 SELECTION POLICY:
 - Max 2 founders/CEOs total — pick the ones with the STRONGEST explicit tie to ${domain}.
 - DIVERSIFY by role: prefer one VP of Sales/CRO, one CMO/Head of Marketing, one COO/other C-level.
 - Buyer context: ${buyerContextLabel(buyerContext)}. When the company type matches a buyer persona, PRIORITIZE those roles in your output (they are the real decision makers for a vendor selling into them): ${buyerContext === 'devtools' ? 'CTO, CTO/Co-founder, Tech Lead, Head of Engineering, VP Engineering.' : buyerContext === 'sales_tools' ? 'SDR, BDR, Account Executive, Sales Development, Sales/Business Development staff (they are the hands-on users of sales tools).' : buyerContext === 'smb' ? 'CEO, Founder, Owner (top execs decide directly in small companies).' : 'CEO/Founder, VP Sales, C-level.'}
-- Max 5 people, best first. Empty array [] if none qualify.
+- Max 5 people, best first. Empty array [] only if NO real person with a leadership title is present in any result.
 
 Return pure JSON:
 [{"name":"Jane Wang","title":"VP of Sales","linkedin":"https://www.linkedin.com/in/..."}]`
@@ -2320,7 +2336,9 @@ Return pure JSON:
       maxTokens: 3000,
     }, { ...globalProviderConfig, noGroqModelLadder: true })
     const parsed = extractJsonLoose(chatResult.content)
-    if (!Array.isArray(parsed)) return []
+    if (!Array.isArray(parsed)) {
+      return []
+    }
     const out: Array<{ name: string; title: string; linkedin?: string; source: string }> = []
     for (const p of parsed) {
       const name = String(p?.name ?? '').trim()
@@ -2572,7 +2590,8 @@ async function parseLinkedInEmployees(
   const start = html.indexOf('employees-at')
   const section = start >= 0 ? html.slice(start, start + 30000) : html
 
-  const linkRe = /href="https:\/\/www\.linkedin\.com\/in\/([^"?]+)(?:\?[^"]*)?"/g
+  // 各國子域（fr.linkedin.com、de.linkedin.com…）也要抓 — 公司頁常掛區域子域
+  const linkRe = /href="https:\/\/(?:www\.|[a-z]{2}\.)linkedin\.com\/in\/([^"?]+)(?:\?[^"]*)?"/g
   const altRe = /alt="Click here to view\s+([^"]+)"/g
 
   const links: string[] = []
@@ -2781,7 +2800,9 @@ async function findPeopleWithAI(params: {
       await new Promise((r) => setTimeout(r, 600))
     }
   }
-  if (raw.length === 0) return []
+  if (raw.length === 0) {
+    return []
+  }
 
   // ===== 階段 2：LLM 結構化萃取（主要路徑）=====
   let people: Array<{ name: string; title: string; linkedin?: string; source: string }> = []
