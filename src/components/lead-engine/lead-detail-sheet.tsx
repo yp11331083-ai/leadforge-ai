@@ -167,6 +167,7 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
           title: string
           seniority: string
           email?: string
+          emailAlternates?: string[]
           linkedin?: string
           confidence: string
           email_source: string
@@ -817,7 +818,8 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                   const sourceLabel =
                     dm.email_source === 'hunter' ? 'Apollo 驗證' :
                     dm.email_source === 'ai_predicted' ? 'AI 預測' :
-                    dm.email_source === 'web_search' ? '網路Search' : 'Unknown'
+                    dm.email_source === 'web_search' ? '網路Search' :
+                    dm.email_source === 'website' ? '官網/來源驗證' : 'Unknown'
 
                   return (
                     <div
@@ -859,6 +861,21 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                               >
                                 {sourceLabel} · {dm.confidence}
                               </Badge>
+                            </div>
+                          )}
+                          {dm.emailAlternates && dm.emailAlternates.length > 0 && (
+                            <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] text-muted-foreground">其他格式：</span>
+                              {dm.emailAlternates.map((alt) => (
+                                <button
+                                  key={alt}
+                                  onClick={() => handleUseDecisionMakerEmail({ ...dm, email: alt })}
+                                  className="text-[11px] text-muted-foreground hover:text-foreground hover:underline font-mono border border-border/60 rounded px-1.5 py-0.5 bg-background/60"
+                                  title="設為收件者"
+                                >
+                                  {alt}
+                                </button>
+                              ))}
                             </div>
                           )}
                           {dm.linkedin && (

@@ -55,6 +55,16 @@ const NAME_STOPWORDS = new Set([
   'exploit', 'exploits', 'exploited', 'malware', 'ransomware', 'phishing', 'scam', 'scams',
   'fraud', 'fake', 'false', 'real', 'genuine', 'original', 'copies', 'copy', 'clone',
   'clones', 'cloned', 'imitation', 'imitations', 'counterfeit', 'bogus', 'bogus',
+  // 新聞標題動詞 — LLM 曾把 "Vercel Appoints Amit" 整段當成人名
+  'appoints', 'appointed', 'appoint', 'hires', 'hired', 'hire', 'joins', 'joined', 'join',
+  'steps', 'steps-down', 'quits', 'quit', 'leaves', 'left', 'departs', 'departed', 'depart',
+  'exits', 'exited', 'exit', 'taps', 'tapped', 'tap', 'unveils', 'unveiled', 'unveil',
+  'welcomes', 'welcomed', 'promotes', 'promoted', 'promote', 'elevates', 'elevated',
+  'boots', 'booted', 'ousts', 'ousted', 'fires', 'fired', 'sacks', 'sacked', 'lays',
+  'replaces', 'replaced', 'replace', 'reshuffles', 'reshuffled', 'reshuffle', 'appoints',
+  'hiring', 'named', 'names', 'claims', 'claimed', 'backs', 'backed', 'funds', 'funded',
+  'calls', 'called', 'says', 'said', 'speaks', 'spoke', 'talks', 'talked', 'warns', 'warned',
+  'slams', 'slammed', 'praises', 'praised', 'criticizes', 'criticized', 'praised',
 ])
 
 /**
@@ -1823,6 +1833,8 @@ export interface DecisionMaker {
   title: string
   seniority: 'c_level' | 'vp' | 'director' | 'manager' | 'other'
   email?: string
+  /** 其他可能格式（ContactOut 級：同一人提供多個候選信箱） */
+  emailAlternates?: string[]
   linkedin?: string
   confidence: 'high' | 'medium' | 'low'  // email 信心度
   email_source: 'hunter' | 'ai_predicted' | 'web_search' | 'website' | 'unknown'
@@ -1912,18 +1924,28 @@ export async function mineWebsiteEmails(website: string): Promise<{
  * 用官網找到的個人信箱反推公司的 email 命名格式，把預測清單裡
  * 符合該格式的排到最前（例：官網有 jane.wang@ → {first}.{last}@ 最可能）
  */
-function reorderPredictionsByObservedFormat(predictions: string[], observedEmails: string[]): string[] {
-  if (observedEmails.length === 0 || predictions.length === 0) return predictions
-  const observed = observedEmails[0].split('@')[0]
-  const hasDot = observed.includes('.')
-  const localWords = observed.replace(/[^a-z]/g, '').length
+function reorderPredictionsByObservedFormat(
+  predictions: string[],
+  observedEmails: string[],
+  preferFirstFormat = false
+): string[] {
+  if (observedEmails.length === 0 && !preferFirstFormat) return predictions
+  const observed = observedEmails[0]?.split('@')[0]
+  const hasDot = observed?.includes('.')
+  const localWords = observed?.replace(/[^a-z]/g, '').length ?? 0
   const scored = predictions.map((p) => {
     const local = p.split('@')[0]
     let score = 0
-    if (hasDot === local.includes('.')) score += 2
-    if (local.replace(/[^a-z]/g, '').length > 0 && localWords > 0) score += 0
-    // 長度接近加權
-    score -= Math.abs(local.replace(/[^a-z]/g, '').length - localWords) * 0.1
+    // 官網已觀察到某格式 → 優先該格式的形態（含點/不含點/長度接近）
+    if (hasDot !== undefined) {
+      if (hasDot === local.includes('.')) score += 2
+      score -= Math.abs(local.replace(/[^a-z]/g, '').length - localWords) * 0.1
+    } else if (preferFirstFormat) {
+      // 無觀察樣本：新創/小型公司大多用 first@（Ivan Maryasin → ivan@monite.com）
+      const isPlainFirst = /^[a-z]+@/.test(p)
+      if (isPlainFirst) score += 2
+      score += /^[a-z]+\.[a-z]+@/.test(p) ? 0 : 1
+    }
     return { p, score }
   })
   scored.sort((a, b) => b.score - a.score)
@@ -1940,6 +1962,68 @@ function emailBelongsToPerson(email: string, firstName: string, lastName: string
   if (!f) return false
   const forms = l ? [f, l, `${f}.${l}`, `${f}${l}`, `${f[0]}${l}`, `${f}.${l[0]}`, `${f}_${l}`] : [f]
   return forms.includes(local)
+}
+
+/**
+ * 從搜尋結果原始文字（標題/摘要/官網文字）找出真實存在的 email —
+ * ContactOut 級：同一人可能有多個信箱（公司格式 + 其他域）。只回傳
+ * 與目標網域相符者，避免把別家公司的信箱掛到這家公司的人頭上。
+ */
+function scanEmailsFromRaw(
+  raw: Array<{ title: string; snippet?: string; url?: string }>,
+  companyContext: string | undefined,
+  domain: string
+): string[] {
+  const text = [
+    ...raw.map((r) => `${r.title} ${r.snippet ?? ''}`),
+    companyContext ?? '',
+  ].join(' ')
+  const found = new Set<string>()
+  const re = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    const email = m[0].toLowerCase()
+    const [, emailDomain] = email.split('@')
+    if (emailDomain === domain) found.add(email)
+  }
+  return [...found]
+}
+
+/**
+ * 一個人的 email 候選清單（ContactOut 級）：先放搜尋結果/官網文字中
+ * 實際出現的（verified），再補上格式預測的候選。
+ */
+function buildEmailCandidates(
+  firstName: string,
+  lastName: string,
+  domain: string,
+  rawEmails: string[],
+  observedFormats: string[],
+  preferFirstFormat = false
+): { email?: string; emailAlternates?: string[]; source: 'website' | 'ai_predicted'; confidence: 'high' | 'low' } {
+  // 1. 官網/原始文字中實際出現、且比對得上這個人的信箱 → verified
+  //   （observedFormats 是官網挖到的 — 公司自己公布的，比搜尋摘要更可靠）
+  const verified = [
+    ...observedFormats,
+    ...rawEmails,
+  ].filter((e) => emailBelongsToPerson(e, firstName, lastName))
+  // 2. 格式預測（用官網觀察到的格式排序；無觀察樣本時偏好 first@ — 新創/SaaS 最常見）
+  const predictions = reorderPredictionsByObservedFormat(
+    predictEmailFormats(firstName, lastName, domain),
+    observedFormats,
+    observedFormats.length === 0 || preferFirstFormat
+  )
+  const unique: string[] = []
+  for (const e of [...verified, ...predictions]) {
+    if (!unique.includes(e)) unique.push(e)
+  }
+  if (unique.length === 0) return { source: 'ai_predicted' as const, confidence: 'low' as const }
+  return {
+    email: unique[0],
+    emailAlternates: unique.slice(1, 5),
+    source: verified.length > 0 ? 'website' : 'ai_predicted',
+    confidence: verified.length > 0 ? 'high' : 'low',
+  }
 }
 
 /**
@@ -2167,11 +2251,17 @@ async function findPeopleWithHunter(params: {
 function isPlausiblePersonName(
   name: string,
   raw: Array<{ title: string; snippet?: string }>,
-  companyContext?: string
+  companyContext?: string,
+  companyName?: string
 ): boolean {
   const tokens = name.toLowerCase().split(/\s+/)
   if (!tokens.every((t) => /^[a-z]{2,}$/.test(t))) return false
   if (tokens.some((t) => NAME_STOPWORDS.has(t))) return false
+  // 公司名 token 混進人名 = 標題碎片（"Vercel Appoints Amit"、"Monite Raises $20M"）
+  if (companyName) {
+    const companyTokens = companyName.toLowerCase().split(/\s+/).filter((t) => t.length >= 3)
+    if (tokens.some((t) => companyTokens.includes(t))) return false
+  }
   const groundText = `${raw.map((r) => `${r.title} ${r.snippet ?? ''}`).join(' ')} ${companyContext ?? ''}`.toLowerCase()
   return groundText.includes(name.toLowerCase())
 }
@@ -2243,7 +2333,7 @@ Return pure JSON:
       if (words.length < 2 || words.length > 4) continue
       // 保險絲 2：弱模型曾把新聞標題字詞當成人名輸出（"After SpaceX's
       // Youngest"、"Insane Plot Twist"、"LinkedIn Bans" 等，全部是標題片段）。
-      if (!isPlausiblePersonName(name, raw, companyContext)) continue
+      if (!isPlausiblePersonName(name, raw, companyContext, companyName)) continue
       const li = String(p?.linkedin ?? '')
       out.push({
         name,
@@ -2304,7 +2394,8 @@ Return pure JSON:
  */
 function regexExtractPeople(
   raw: Array<{ title: string; snippet?: string; url?: string; source: string }>,
-  companyContext?: string
+  companyContext?: string,
+  companyName?: string
 ): Array<{ name: string; title: string; linkedin?: string; source: string }> {
   const found: Array<{ name: string; title: string; linkedin?: string; source: string }> = []
 
@@ -2337,7 +2428,7 @@ function regexExtractPeople(
     if (!name || !extractedTitle) continue
     if (junkNameRe.test(name)) continue
     // 保險絲：標題碎片不是人名（"After SpaceX's Youngest"、"Insane Plot Twist"）
-    if (!isPlausiblePersonName(name, raw, companyContext)) continue
+    if (!isPlausiblePersonName(name, raw, companyContext, companyName)) continue
     const nameWords = name.split(/\s+/)
     if (nameWords.length < 2 || nameWords.length > 4) continue
 
@@ -2629,8 +2720,10 @@ async function findPeopleWithAI(params: {
   website: string
   /** 官網首頁文字 — 業務消歧的 ground truth（aviato.co vs aviator.co） */
   companyContext?: string
+  /** 官網挖到的個人信箱 — 可反推公司 email 格式 + 直接比對姓名 */
+  observedEmails?: string[]
 }): Promise<DecisionMaker[]> {
-  const { companyName, domain, website, companyContext } = params
+  const { companyName, domain, website, companyContext, observedEmails = [] } = params
   const buyerContext = classifyBuyerContext(companyContext)
 
   // 7 組搜尋策略（漸進放寬；含 CMO/行銷 — 用戶要多元角色）
@@ -2697,7 +2790,7 @@ async function findPeopleWithAI(params: {
     people = llmPeople
   } else {
     // 備援：正則萃取（品質差但不需要 LLM 額度）
-    people = regexExtractPeople(raw, companyContext)
+    people = regexExtractPeople(raw, companyContext, companyName)
   }
 
   // 去重（同名同 title）
@@ -2714,6 +2807,8 @@ async function findPeopleWithAI(params: {
   }
 
   // 組合成 DecisionMaker
+  // 先掃描原始文字（搜尋結果 + 官網文字）裡真實出現的 email — 比格式預測可靠
+  const rawEmails = scanEmailsFromRaw(raw, companyContext, domain)
   const decisionMakers: DecisionMaker[] = []
   for (const person of unique.slice(0, 10)) {
     const rank = rankTitle(person.title, buyerContext)
@@ -2723,19 +2818,27 @@ async function findPeopleWithAI(params: {
     const nameParts = person.name.split(' ')
     const firstName = nameParts[0] ?? ''
     const lastName = nameParts.slice(1).join(' ') ?? ''
-    const predictedEmails = predictEmailFormats(firstName, lastName, domain)
+    const candidates = buildEmailCandidates(
+      firstName,
+      lastName,
+      domain,
+      rawEmails,
+      observedEmails,
+      buyerContext === 'smb'
+    )
 
     decisionMakers.push({
       name: person.name,
       title: person.title,
       seniority: rank.seniority,
-      email: predictedEmails[0],  // 最高機率格式
+      email: candidates.email,
+      emailAlternates: candidates.emailAlternates,
       linkedin: person.linkedin,
-      confidence: 'low',
-      email_source: 'ai_predicted',
-      verified: false,
+      confidence: candidates.confidence,
+      email_source: candidates.source,
+      verified: candidates.source === 'website',
       priority: rank.priority,
-      reason: `${rank.reason}（格式預測，未驗證）`,
+      reason: `${rank.reason}${candidates.email ? `（${candidates.source === 'website' ? '原始文字中出現' : '格式預測'}，${candidates.confidence === 'high' ? '已驗證' : '未驗證'}）` : '（未找到 email）'}`,
     })
   }
 
@@ -2787,11 +2890,19 @@ export async function enrichEmail(params: {
       )
       if (matched) {
         usedPersonal.add(matched)
+        // 同一人其他可能信箱（其他官網信箱 + 格式預測）— ContactOut 級多候選
+        const altRaw = mined.personal.filter((e) => e !== matched && emailBelongsToPerson(e, firstName, lastName))
+        const altPredicted = reorderPredictionsByObservedFormat(
+          predictEmailFormats(firstName, lastName, domain),
+          mined.personal
+        ).filter((e) => e !== matched)
+        const emailAlternates = [...new Set([...altRaw, ...altPredicted])].slice(0, 5)
         decisionMakers.push({
           name: p.name,
           title: p.title,
           seniority: rank.seniority,
           email: matched,
+          emailAlternates,
           linkedin: p.linkedin,
           confidence: 'high',
           email_source: 'website',
@@ -2811,6 +2922,7 @@ export async function enrichEmail(params: {
         title: p.title,
         seniority: rank.seniority,
         email: predictedEmails[0],
+        emailAlternates: predictedEmails.slice(1, 5),
         linkedin: p.linkedin,
         confidence: 'low',
         email_source: 'ai_predicted',
@@ -2838,7 +2950,7 @@ export async function enrichEmail(params: {
 
   // Strategy 2: AI web_search (if still no results)
   if (decisionMakers.length === 0) {
-    decisionMakers = await findPeopleWithAI({ companyName, domain, website, companyContext: mined.homepageText })
+    decisionMakers = await findPeopleWithAI({ companyName, domain, website, companyContext: mined.homepageText, observedEmails: mined.personal })
   }
 
   // 官網挖到、但對不上任何決策者的個人信箱 → 仍回報（verified，讓用戶自行判斷）
