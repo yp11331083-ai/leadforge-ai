@@ -411,9 +411,12 @@ async function chatWithGroq(
     const text = await res.text()
     lastError = new Error(`Groq ${res.status} (${m}): ${text.slice(0, 200)}`)
     // 429 = quota/rate — try the lighter model before giving up
-    if (res.status !== 429) throw lastError
+    // 404 = model not found (stale saved model) — try the platform default model too
+    const modelNotFound = res.status === 404 || /does not exist|model_not_found/i.test(text)
+    if (res.status !== 429 && !modelNotFound) throw lastError
+    if (modelNotFound && m === FALLBACK_MODEL) throw lastError
     if (/per day|\bTPD\b|tokens per day/i.test(text)) markGroqDailyCapped()
-    console.warn(`Groq model ${m} rate-limited, falling back to ${FALLBACK_MODEL}...`)
+    console.warn(`Groq model ${m} failed, falling back to ${FALLBACK_MODEL}...`)
   }
 
   throw lastError ?? new Error('Groq failed')
@@ -595,6 +598,7 @@ export async function fetchPageWithFallback(
   url: string,
   config: ProviderConfig
 ): Promise<PageContent | null> {
+  const normalized = normalizeUrlForFetch(url)
   const order = (config.pageReaderProviderOrder ?? 'zai,jina,firecrawl')
     .split(',')
     .map((s) => s.trim())
@@ -602,7 +606,7 @@ export async function fetchPageWithFallback(
 
   for (const provider of order) {
     try {
-      const result = await callPageReaderProvider(provider, url, config)
+      const result = await callPageReaderProvider(provider, normalized, config)
       if (result) return result
     } catch (e: any) {
       console.warn(`Page reader ${provider} failed: ${e.message}, trying next...`)
@@ -613,13 +617,26 @@ export async function fetchPageWithFallback(
   // providers can be down (dead API keys, rate limits) — direct fetch keeps
   // research + enrichment working as long as the site itself is reachable.
   try {
-    const direct = await fetchPageDirect(url, config.pageTimeoutMs ?? 20_000)
+    const direct = await fetchPageDirect(normalized, config.pageTimeoutMs ?? 20_000)
     if (direct) return direct
   } catch (e: any) {
     console.warn(`Page reader direct fetch failed: ${e.message}`)
   }
 
   return null
+}
+
+/**
+ * 使用者在輸入框常打 "scale.com" / "www.vercel.com"（無 protocol）。
+ * fetch() 對這種 URL 會丟 "Failed to parse URL" — 這裡補上 https://。
+ */
+export function normalizeUrlForFetch(url: string): string {
+  const trimmed = url.trim()
+  if (!trimmed) return trimmed
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) return trimmed
+  // 含空格/無點的本地路徑別亂加（例如 "localhost:3000" 已有 port 也可補 https 對外）
+  if (/^\//.test(trimmed)) return trimmed
+  return `https://${trimmed}`
 }
 
 async function fetchPageDirect(url: string, timeoutMs: number): Promise<PageContent | null> {

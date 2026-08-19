@@ -35,6 +35,13 @@ export async function loadProviderConfig(): Promise<void> {
     // A tenant order saved before a provider existed can omit it even though a
     // platform key is available — prepend so it's never skipped.
     const groqKey = config?.groqApiKey ?? platformGroqKey
+    // 平台 Groq key 只授權 openai/gpt-oss-*（及 groq/compound、qwen）系列。
+    // 使用者可能在舊版 UI 存了已不支援的 llama-3.1-8b-instant 等模型 —
+    // 只要是用平台 key，非開放模型一律退回平台預設，避免每次呼叫 404。
+    const savedGroqModel = config?.groqModel
+    const groqModel = !config?.groqApiKey && savedGroqModel && !/^(openai\/gpt-oss-|groq\/compound|qwen)/i.test(savedGroqModel)
+      ? 'openai/gpt-oss-120b'
+      : savedGroqModel ?? 'openai/gpt-oss-120b'
     // DeepSeek is platform-managed (env var only — no EmailConfig column yet)
     const deepseekKey = platformDeepseekKey
     const opencodeKey = platformOpencodeKey
@@ -72,7 +79,7 @@ export async function loadProviderConfig(): Promise<void> {
       geminiModel: config?.geminiModel ?? 'gemini-2.5-flash',
       // Platform-managed Groq (user never sees this key) — free + fast, gpt-oss-120b
       groqApiKey: groqKey,
-      groqModel: config?.groqModel ?? 'openai/gpt-oss-120b',
+      groqModel,
       // Platform-managed DeepSeek (user never sees this key)
       deepseekApiKey: deepseekKey,
       deepseekModel: 'deepseek-chat',

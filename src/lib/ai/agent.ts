@@ -2785,11 +2785,18 @@ async function findPeopleWithAI(params: {
 
   // ===== 階段 2：LLM 結構化萃取（主要路徑）=====
   let people: Array<{ name: string; title: string; linkedin?: string; source: string }> = []
-  const llmPeople = await llmExtractPeople(raw, companyName, domain, companyContext, buyerContext)
-  if (llmPeople.length > 0) {
-    people = llmPeople
-  } else {
-    // 備援：正則萃取（品質差但不需要 LLM 額度）
+  try {
+    const llmPeople = await llmExtractPeople(raw, companyName, domain, companyContext, buyerContext)
+    if (llmPeople.length > 0) {
+      people = llmPeople
+    } else {
+      // 備援：正則萃取（品質差但不需要 LLM 額度）
+      people = regexExtractPeople(raw, companyContext, companyName)
+    }
+  } catch (e: any) {
+    // 所有 chat provider 都掛（額度、key 失效…）時不能整包回傳 0 —
+    // 退到正則萃取，至少還能給出人選
+    console.warn(`LLM extraction failed (${e?.message ?? e}), using regex fallback...`)
     people = regexExtractPeople(raw, companyContext, companyName)
   }
 
