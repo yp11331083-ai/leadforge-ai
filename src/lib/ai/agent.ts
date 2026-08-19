@@ -2306,7 +2306,15 @@ async function llmExtractPeople(
 
   const resultsText = filteredRaw
     .slice(0, 20)
-    .map((r, i) => `[${i}] TITLE: ${r.title}\n    SNIPPET: ${(r.snippet ?? '').slice(0, 200)}\n    URL: ${r.url ?? ''}`)
+    .map((r, i) => {
+      // LLM 只需要知道結果來自哪個站（Google News / LinkedIn / 官網…），
+      // 完整 URL（尤其 news.google.com 的 ~600 字元 base64 轉址）純屬雜訊：
+      // 塞進 prompt 會瞬間燒掉 Groq on_demand 的 TPM 8000 上限（實測 413），
+      // 對萃取品質沒有幫助。真實 URL 仍留在 raw，給 LinkedIn 回填用。
+      let host = ''
+      try { host = r.url ? new URL(r.url).hostname.replace(/^www\./, '') : '' } catch { host = '' }
+      return `[${i}] TITLE: ${r.title}\n    SNIPPET: ${(r.snippet ?? '').slice(0, 200)}\n    URL: ${host}`
+    })
     .join('\n')
     // Groq on_demand 的 TPM 上限 8000 — 輸入太長直接 413。
     // 截到 ~9k 字元（≈2500 tokens）給推理預留空間。
@@ -2337,16 +2345,17 @@ Return pure JSON:
 [{"name":"Jane Wang","title":"VP of Sales","linkedin":"https://www.linkedin.com/in/..."}]`
 
   // gpt-oss 對雜訊 items 極敏感（實測 llm20–llm36）：同一份輸入有 50–90%
-  // 機率回 []。解法 = 重試 + 逐步加話術引導，直到回非空或 3 次失敗。
+  // 機率回 []。解法 = 重試 + 逐步加話術引導，直到回非空或 2 次失敗。
+  // TPM 預算：Groq on_demand 上限 8000/min — maxTokens 1200（實測足夠且
+  // 佔用只有 3000 的 1/3）、URL 只留 host、最多 2 次重試、重試間隔拉長，
+  // 避免單次搜索就燒光整分鐘額度（那正是 app 顯示 0 的主因）。
   let parsed: unknown = []
   try {
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       const hint =
         attempt === 1
           ? '\nNOTE: Look carefully — the startup founder story IS in these results. Extract any person who plausibly leads the company.\n'
-          : attempt === 2
-            ? '\nNOTE: Do NOT return an empty array. Find the real founder/CEO mentioned in the results.\n'
-            : ''
+          : ''
       const attemptPrompt = hint ? prompt + hint : prompt
       const chatResult = await chatWithFallback({
         messages: [
@@ -2354,11 +2363,11 @@ Return pure JSON:
           { role: 'user', content: attemptPrompt },
         ],
         temperature: 0.1,
-        maxTokens: 3000,
+        maxTokens: 1200,
       }, { ...globalProviderConfig, noGroqModelLadder: true })
       parsed = extractJsonLoose(chatResult.content)
       if (Array.isArray(parsed) && parsed.length > 0) break
-      await new Promise((res) => setTimeout(res, 1500))
+      await new Promise((res) => setTimeout(res, 5000))
     }
     if (!Array.isArray(parsed)) return []
     const out: Array<{ name: string; title: string; linkedin?: string; source: string }> = []
