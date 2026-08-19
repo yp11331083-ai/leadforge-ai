@@ -831,39 +831,39 @@ async function fetchPageWithJina(url: string, apiKey?: string, signal?: AbortSig
     headers['Authorization'] = `Bearer ${apiKey}`
   }
 
-  const res = await fetch(`https://r.jina.ai/${url}`, { headers, signal })
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+  const doFetch = async (h: Record<string, string>, s: AbortSignal) => {
+    const res = await fetch(`https://r.jina.ai/${url}`, { headers: h, signal: s })
+    if (!res.ok) throw Object.assign(new Error(`Jina ${res.status}`), { status: res.status })
+    const text = await res.text()
+    if (!text || text.length < 50) throw new Error(`Jina returned empty/short response (len=${text.length})`)
+    return text
+  }
 
-  if (!res.ok) {
-    // Zero-balance / expired API keys get rejected (401/402/403/429) while the
-    // free tier still works — retry without the key before giving up.
-    // NOTE: must use a FRESH signal — the keyed request may have consumed the
-    // whole timeout, and a shared aborted signal kills the retry instantly.
-    if (apiKey && [401, 402, 403, 429].includes(res.status)) {
-      const headersNoKey: Record<string, string> = {
-        'Accept': 'text/plain',
-        'X-Return-Format': 'markdown',
+  let text: string | null = null
+  // 免費 tier 每分鐘 ~20 次 — 403/429 是速率限制，退避重試（1.5s → 3s）。
+  // 帶 key 時 401/402/403/429 一律先丟掉 key 改走免金鑰（免費 tier 反而穩）。
+  const attempts = apiKey ? 2 : 3
+  for (let i = 0; i < attempts && text === null; i++) {
+    try {
+      text = await doFetch(headers, signal ?? AbortSignal.timeout(25_000))
+    } catch (e: any) {
+      const status = e?.status
+      if (apiKey && [401, 402, 403, 429].includes(status)) {
+        // 過期/零餘額的 key（401/402）或限額（403/429）→ 免金鑰重試
+        delete headers['Authorization']
+        apiKey = undefined
+        continue
       }
-      const retry = await fetch(`https://r.jina.ai/${url}`, {
-        headers: headersNoKey,
-        signal: AbortSignal.timeout(25_000),
-      })
-      if (retry.ok) {
-        const text = await retry.text()
-        if (text && text.length >= 50) {
-          const lines = text.split('\n').filter(Boolean)
-          const retryTitle = lines[0]?.replace(/^Title:\s*/i, '').replace(/^#+\s*/, '') ?? url
-          const html = `<div>${text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</div>`
-          return { title: retryTitle, html, text, url }
-        }
+      if (status === 403 || status === 429) {
+        await sleep(1500 * (i + 1))
+        continue
       }
+      throw e
     }
-    throw new Error(`Jina ${res.status}`)
   }
+  if (text === null) throw new Error(`Jina rate limited (${attempts} attempts)`)
 
-  const text = await res.text()
-  if (!text || text.length < 50) {
-    throw new Error(`Jina returned empty/short response (len=${text.length})`)
-  }
   // Jina 回傳 markdown 格式，標題在第一行 "Title: ..."
   const lines = text.split('\n').filter(Boolean)
   const title = lines[0]?.replace(/^Title:\s*/i, '').replace(/^#+\s*/, '') ?? url

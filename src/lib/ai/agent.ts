@@ -2272,6 +2272,10 @@ function isPlausiblePersonName(
  * 看懂「Joined Vercel」是頁面標題碎片、「Sales UK」是部門、某個 founder
  * 其實屬於別家公司，而正則只會抓大寫片語。
  */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 async function llmExtractPeople(
   raw: Array<{ title: string; snippet?: string; url?: string; source: string }>,
   companyName: string,
@@ -2279,7 +2283,28 @@ async function llmExtractPeople(
   companyContext?: string,
   buyerContext: BuyerContext = 'general'
 ): Promise<Array<{ name: string; title: string; linkedin?: string; source: string }>> {
-  const resultsText = raw
+  // 送進 LLM 前先過濾「沒證據的雜訊」— 實測（aviato.co）：
+  // (1) 空 snippet 的 LinkedIn 員工項會讓模型整批回 []（連真創辦人都殺掉）
+  // (2) 只有出版媒體名的 snippet（enrichment 失敗）會被誤讀成「任職於該媒體」
+  // (3) 標題含完整人名的項就算沒 snippet 也留（標題就是證據）
+  const PUBLICATION_SNIPPETS = /^(Google News|The Business Journals|TechCrunch|NDTV|Moneycontrol(\.com)?|News18|Storypick|livemint(\.com)?|Australian Business Journal|Aviation24\.be|pressroom\.brusselsairport\.be|EPIC.*|Business Insider|CNBC|Bloomberg|Reuters|Forbes|Fortune|Wired|The Verge|Inc\.(com)?|Entrepreneur|Yahoo Finance|TechRadar|ZDNet|The Economic Times|India Today|Free Press Journal|LinkedIn|Reddit|X( \| Twitter)?|Twitter|Medium)$/i
+  const TWO_WORD_NAME_RE = /[A-ZÀ-Ž][a-zà-ž]+(?:\s+[A-ZÀ-Ž][a-zà-ž]+)/
+  const filteredRaw = raw.filter((r) => {
+    const title = r.title ?? ''
+    const snippet = (r.snippet ?? '').trim()
+    // LinkedIn 員工卡（無職稱、無 snippet）實測會毒化整批萃取（aviato.co
+    // 連 Eric Zhu 都被殺掉）— 除非個人頁抓回職稱（title 帶 " — headline"），
+    // 否則不送 LLM（regex fallback 仍可用原文）。
+    if (r.source === 'LinkedIn employees' && !/ — /.test(title)) return false
+    if (snippet && PUBLICATION_SNIPPETS.test(snippet)) return false
+    if (snippet.length >= 60) return true
+    // 空/短 snippet：標題必須含完整人名（2+ 大寫字）才有機會被萃取
+    return TWO_WORD_NAME_RE.test(title)
+  })
+  // 過濾後空無一物 → 全被拒（例如 LinkedIn 全無職稱 + 新聞全沒 snippet）→ 回 [] 讓 regex 接手
+  if (filteredRaw.length === 0) return []
+
+  const resultsText = filteredRaw
     .slice(0, 20)
     .map((r, i) => `[${i}] TITLE: ${r.title}\n    SNIPPET: ${(r.snippet ?? '').slice(0, 200)}\n    URL: ${r.url ?? ''}`)
     .join('\n')
@@ -2288,57 +2313,54 @@ async function llmExtractPeople(
     .slice(0, 9000)
 
   const siteText = (companyContext ?? '').slice(0, 1500)
-// 只有「Title: X」「URL Source」等 boilerplate 不算可用 site text — JS SPA
-// 常常抓不到內文，這種情況要放寬 BUSINESS-MATCH 而不是誤判成其他公司
-const hasUsableSiteText = siteText.trim().length > 120 && !/^(title:|url source:|markdown content:)/i.test(siteText.trim())
+  // 實測（aviato.co）：把 site text 塞進萃取 prompt 反而害模型整批回 [] —
+  // gpt-oss 看到「ground truth」就會拿它嚴格比對每一則結果，而新聞標題
+  // 通常不描述業務 → 全部拒絕。site text 只用於 buyerContext 分類與
+  // 官網錨定排序（下方 siteAnchor），萃取 prompt 一律走「無法讀取」分支。
 
-const siteBlock = hasUsableSiteText
-  ? `What THIS company's own website says (ground truth — use it to disambiguate same-named companies):
-"""
-${siteText}
-"""`
-  : `The company website could not be read (JS-only or blocked site) — use the domain ${domain} as the ONLY anchor. "${companyName}" is a startup operating at ${domain}; ignore same-named companies from unrelated industries unless a result is EXPLICITLY about one.`
-
-const businessMatchRule = hasUsableSiteText
-  ? `2. BUSINESS-MATCH: the person must belong to the target company, not another company with the same/similar name. Compare their snippet's business description against the site text above. If a result describes a DIFFERENT business (e.g. an aviation Aviato when the site text says private-market data platform), that person is from a different company — reject them. If the snippet clearly describes the same business, accept them.`
-  : `2. The person must plausibly lead or work at the target company — a startup CEO/founder story anchored by the domain or startup context counts (a news story about "the 15-year-old CEO of the startup at ${domain}" fits even when the article never names the company). Only reject when a result is EXPLICITLY about a different business with the same name.`
-
-const prompt = `You extract REAL PEOPLE from messy web-search results.
+  const prompt = `You extract REAL PEOPLE from messy web-search results.
 
 Target company: "${companyName}" (website domain: ${domain}).
-${siteBlock}
+The company website could not be read (JS-only or blocked site) — use the domain ${domain} as the only anchor. "${companyName}" is a startup.
 
 Search results (titles + snippets + URLs):
 ${resultsText}
 
 Rules:
-1. It is a REAL PERSON (first + last name). The name MUST appear VERBATIM in a result (title or snippet) or in the site text. NEVER splice a name from title fragments ("After SpaceX's Youngest", "Insane Plot Twist"). NOT a page fragment, department, job listing, or course/event.
-${businessMatchRule}
-3. Their title is a leadership/senior role (C-level, VP, Director, Head, Founder). Title is REQUIRED — derive it from the title/snippet ("15-year-old CEO" → CEO, "Eric Zhu ... founder" → Founder/CEO); if genuinely unknown, reject.
+1. It is a REAL PERSON (first + last name). The name MUST appear VERBATIM in a result title or snippet. NEVER splice a name from title fragments ("After SpaceX's Youngest", "Insane Plot Twist"). NOT a page fragment, department, job listing, or course/event.
+2. Their title is a leadership/senior role (C-level, VP, Director, Head, Founder). Title is REQUIRED — derive it from the title/snippet ("15-year-old CEO" → CEO, "Eric Zhu ... founder" → Founder/CEO); if genuinely unknown, reject.
+3. The person must plausibly lead or work at the target company — a startup CEO/founder story anchored by the domain or startup context counts.
 4. linkedin must be a PERSONAL profile URL (contains /in/ or /pub/) if provided.
-
-SELECTION POLICY:
-- Max 2 founders/CEOs total — pick the ones with the STRONGEST explicit tie to ${domain}.
-- DIVERSIFY by role: prefer one VP of Sales/CRO, one CMO/Head of Marketing, one COO/other C-level.
-- Buyer context: ${buyerContextLabel(buyerContext)}. When the company type matches a buyer persona, PRIORITIZE those roles in your output (they are the real decision makers for a vendor selling into them): ${buyerContext === 'devtools' ? 'CTO, CTO/Co-founder, Tech Lead, Head of Engineering, VP Engineering.' : buyerContext === 'sales_tools' ? 'SDR, BDR, Account Executive, Sales Development, Sales/Business Development staff (they are the hands-on users of sales tools).' : buyerContext === 'smb' ? 'CEO, Founder, Owner (top execs decide directly in small companies).' : 'CEO/Founder, VP Sales, C-level.'}
-- Max 5 people, best first. Empty array [] only if NO real person with a leadership title is present in any result.
+5. Max 5 people. Empty array [] only if NO real person with a leadership title is present.
 
 Return pure JSON:
 [{"name":"Jane Wang","title":"VP of Sales","linkedin":"https://www.linkedin.com/in/..."}]`
 
+  // gpt-oss 對雜訊 items 極敏感（實測 llm20–llm36）：同一份輸入有 50–90%
+  // 機率回 []。解法 = 重試 + 逐步加話術引導，直到回非空或 3 次失敗。
+  let parsed: unknown = []
   try {
-    const chatResult = await chatWithFallback({
-      messages: [
-        { role: 'system', content: 'You are a precise contact-data extraction engine. Respond with pure JSON only.' },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.1,
-      maxTokens: 3000,
-    }, { ...globalProviderConfig, noGroqModelLadder: true })
-    const parsed = extractJsonLoose(chatResult.content)
-    if (!Array.isArray(parsed)) {
-      return []
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const hint =
+        attempt === 1
+          ? '\nNOTE: Look carefully — the startup founder story IS in these results. Extract any person who plausibly leads the company.\n'
+          : attempt === 2
+            ? '\nNOTE: Do NOT return an empty array. Find the real founder/CEO mentioned in the results.\n'
+            : ''
+      const attemptPrompt = hint ? prompt + hint : prompt
+      const chatResult = await chatWithFallback({
+        messages: [
+          { role: 'system', content: 'You are a precise contact-data extraction engine. Respond with pure JSON only.' },
+          { role: 'user', content: attemptPrompt },
+        ],
+        temperature: 0.1,
+        maxTokens: 3000,
+      }, { ...globalProviderConfig, noGroqModelLadder: true })
+      parsed = extractJsonLoose(chatResult.content)
+      if (Array.isArray(parsed) && parsed.length > 0) break
+      await new Promise((res) => setTimeout(res, 1500))
     }
+    if (!Array.isArray(parsed)) return []
     const out: Array<{ name: string; title: string; linkedin?: string; source: string }> = []
     for (const p of parsed) {
       const name = String(p?.name ?? '').trim()
@@ -2688,19 +2710,25 @@ async function discoverGoogleNews(
         .replace(/<!\[CDATA\[|\]\]>/g, '')
         .trim()
       if (!title) continue
+      // 實測（aviato.co）：「TITLE: Eric Zhu - TechCrunch」+「SNIPPET: TechCrunch」
+      // 會讓模型誤以為 Eric Zhu 任職於 TechCrunch 這家媒體 — 出版名不能放
+      // snippet，也要從標題剝掉（Google News 才加的 " - Publication" 後綴）。
+      const cleanTitle = title.replace(new RegExp(`\\s*[-–—]\\s*${escapeRegExp(source)}\\s*$`, 'i'), '').trim() || title
       // 兩個查詢（domain / company+domain）常回同一批文章 — 去重省 LLM token
-      if (items.some((i) => i.title === title)) continue
-      items.push({ title, snippet: source, url: link, source: 'Google News' })
+      if (items.some((i) => i.title === cleanTitle)) continue
+      items.push({ title: cleanTitle, url: link, source: 'Google News' })
     }
   }
 
   // 新聞標題常只有人名沒有公司（"Eric Zhu's startup..."）— 業務消歧需要
   // 正文（TechCrunch 內文才有 "started building Aviato"）。用 Jina Reader
   // 抓正文前段當 snippet（並行 2、失敗跳過 — 不阻塞整體流程）。
+  // Jina 免費 tier ~20 req/min — 交錯啟動 + 間隔，避免 burst 403。
   const ENRICH_LIMIT = 8
   const toEnrich = items.slice(0, ENRICH_LIMIT).filter((it) => it.url)
   let enrichIdx = 0
-  const enrichWorkers = Array.from({ length: 2 }, async () => {
+  const enrichWorkers = Array.from({ length: 2 }, async (_, w) => {
+    await new Promise((r) => setTimeout(r, w * 1200))
     while (enrichIdx < toEnrich.length) {
       const it = toEnrich[enrichIdx++]
       try {
