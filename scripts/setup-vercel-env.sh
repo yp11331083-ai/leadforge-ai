@@ -1,28 +1,41 @@
 #!/bin/bash
-# Run this script to set all Vercel environment variables
+# Set Vercel environment variables. Reads values from the local .env file so
+# real secrets never get committed to git.
 # Usage: bash scripts/setup-vercel-env.sh
+#
+# Prereqs: npm i -g vercel && vercel login, then run from project root.
 
 echo "=== Setting Vercel Environment Variables ==="
 
-# You need to install Vercel CLI first: npm i -g vercel
-# Then run: vercel login
-# Then run this script from the project root
+if [ ! -f .env ]; then
+  echo "ERROR: .env not found. Create it first (see .env.example or local setup)."
+  exit 1
+fi
 
-PROJECT_ID="prj_..." # Replace with your Vercel project ID
+get() { grep -E "^${1}=" .env | head -n1 | cut -d= -f2-; }
+
+PROJECT_ID="${VERCEL_PROJECT_ID:-prj_...}"
 
 ENV_VARS=(
-  "DATABASE_URL=postgresql://postgres.iysgbuwftibckbieafke:XpVv4SSJSA6lQwGN@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
-  "DIRECT_DATABASE_URL=postgresql://postgres.iysgbuwftibckbieafke:XpVv4SSJSA6lQwGN@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres"
-  "NEXTAUTH_SECRET=slFRCmo4rBARt3s/57LXLTRC+S0CLTMNxeJTxdy8rmI="
+  "DATABASE_URL=$(get DATABASE_URL)"
+  "DIRECT_DATABASE_URL=$(get DIRECT_DATABASE_URL)"
+  "NEXTAUTH_SECRET=$(get NEXTAUTH_SECRET)"
   "NEXTAUTH_URL=https://leadforge-ai-614m.vercel.app"
-  "GEMINI_API_KEY=AQ.Ab8RN6LgyOkf8W0FjGSH2UkAVhYZai3V8taC312WegqCLvoALw"
-  "TAVILY_API_KEY=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"
-  "JINA_API_KEY=jina_b1d00230734a4e4b9d6fdc03ea4c7614v5fYdahQNZjvtzm6nWq3Wkor8_6I"
+  "GEMINI_API_KEY=$(get GEMINI_API_KEY)"
+  "TAVILY_API_KEY=$(get TAVILY_API_KEY)"
+  "JINA_API_KEY=$(get JINA_API_KEY)"
+  "GROQ_API_KEY=$(get GROQ_API_KEY)"
+  "DEEPSEEK_API_KEY=$(get DEEPSEEK_API_KEY)"
+  "OPENCODE_API_KEY=$(get OPENCODE_API_KEY)"
 )
 
 for var in "${ENV_VARS[@]}"; do
   KEY="${var%%=*}"
   VALUE="${var#*=}"
+  if [ -z "$VALUE" ] || [ "$VALUE" = "$KEY" ]; then
+    echo "SKIP $KEY (empty in .env)"
+    continue
+  fi
   echo "Setting $KEY..."
   echo "$VALUE" | vercel env add "$KEY" production preview 2>/dev/null || echo "  (may already exist)"
 done

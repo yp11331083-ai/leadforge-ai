@@ -6,6 +6,9 @@ import { enrichEmail } from '@/lib/ai/agent'
 import { deductCredits, hasCredits, addCredits } from '@/lib/credits'
 import { CREDIT_COSTS } from '@/lib/credit-pricing'
 
+export const maxDuration = 60
+export const dynamic = 'force-dynamic'
+
 /** Refund credits if email enrichment fails. */
 async function refundCredits(tenantId: string, amount: number, reason: string): Promise<void> {
   try {
