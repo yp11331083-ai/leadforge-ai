@@ -46,6 +46,7 @@ import { SalesCardFeed } from '@/components/sales-view/sales-card-feed'
 import { AnalyticsDashboard } from '@/components/analytics-view/analytics-dashboard'
 import { BillingPanel } from '@/components/billing/billing-panel'
 import { AssistantWidget } from '@/components/assistant/assistant-widget'
+import { OnboardingChecklist } from '@/components/lead-engine/onboarding-checklist'
 import { LandingPage } from '@/components/landing/landing-page'
 import {
   DropdownMenu,
@@ -386,6 +387,9 @@ export default function Home() {
 
       {/* Floating AI Assistant — always available */}
       <AssistantWidget />
+
+      {/* Guided onboarding — admin users with incomplete setup */}
+      {access.admin && <OnboardingChecklist />}
 
       <Toaster />
     </div>
