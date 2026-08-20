@@ -66,9 +66,9 @@ function LoginForm() {
 
   const handleQuickLogin = (role: 'admin' | 'manager' | 'sdr') => {
     const accounts = {
-      admin: { email: 'admin@outrovo.com', password: 'demo1234' },
-      manager: { email: 'manager@outrovo.com', password: 'demo1234' },
-      sdr: { email: 'sdr@outrovo.com', password: 'demo1234' },
+      admin: { email: 'admin@forge.ai', password: 'demo1234' },
+      manager: { email: 'manager@forge.ai', password: 'demo1234' },
+      sdr: { email: 'sdr@forge.ai', password: 'demo1234' },
     }
     const acc = accounts[role]
     setEmail(acc.email)
