@@ -1869,6 +1869,32 @@ const WEBSITE_EMAIL_JUNK = /^(no.?reply|donotreply|postmaster|abuse|spam|root|ma
 const WEBSITE_EMAIL_SAAS_DOMAINS = /\.(sentry|wixpress|shopline|cyberbiz|91app|square\.site|myshopify|cloudflare|example|test)\./i
 const GENERIC_MAILBOX_RE = /^(info|contact|hello|hi|service|support|sales|marketing|admin|office|team|inquiry|inquiries|cs|help|helpdesk|customerservice|customercare|general|mail|email|press|pr|hr|jobs|career)/i
 
+/**
+ * 從 /about /team 頁文字裡抽出「姓名 + 領導職稱」區段。
+ * 官網文字常被扁平化成一長串（Next.js 直接把內文灌進一行），
+ * 前 900 字全是導覽列（Product/Pricing/Docs…）— 創辦人團隊會落在
+ * 1300+ 字之後，舊版 slice(0,900) 直接把它們砍掉（linear.app 實測：
+ * Karri Saarinen / Jori Lallo / Tuomas Artman 全在 index 1318 之後）。
+ * 這裡改為掃全文找「姓名 + (Co-founder|Founder|CEO|…)」的視窗，
+ * 只把 leadership 相關段落留下，導覽雜訊直接丟棄。
+ */
+function extractLeadershipWindows(text: string): string {
+  const LEADERSHIP_TITLE_RE = /(Co-?founder|Founder|CEO|CTO|CPO|COO|CFO|CRO|CMO|Chief\s+\w+|Head\s+of\s+\w+|VP\s*\.?\s*of?\s*\w+|Vice\s+President|President|Director\s+of\s+\w+)/i
+  if (!text || text.length < 60) return text ?? ''
+  const windows: string[] = []
+  const TITLE_SPAN = 160
+  const NAME_OFFSET = 90
+  let m: RegExpExecArray | null
+  const titleRe = new RegExp(LEADERSHIP_TITLE_RE.source, 'gi')
+  while ((m = titleRe.exec(text)) !== null) {
+    const start = Math.max(0, m.index - NAME_OFFSET)
+    const end = Math.min(text.length, m.index + m[0].length + TITLE_SPAN)
+    const win = text.slice(start, end).replace(/\s+/g, ' ').trim()
+    if (win.length >= 8 && !windows.includes(win)) windows.push(win)
+  }
+  return windows.length > 0 ? windows.join(' ').slice(0, 2500) : text.slice(0, 2500)
+}
+
 export async function mineWebsiteEmails(website: string): Promise<{
   personal: string[]
   generic: string[]
@@ -1892,7 +1918,7 @@ export async function mineWebsiteEmails(website: string): Promise<{
       if (p === '') {
         homepageText = (page.text || htmlToText(page.html ?? '')).slice(0, 800)
       } else if (p === '/about' || p === '/team') {
-        teamTexts.push((page.text || htmlToText(page.html ?? '')).slice(0, 900))
+        teamTexts.push(extractLeadershipWindows(page.text || htmlToText(page.html ?? '')))
       }
       // mailto: 連結 + 純文字 email
       const mailtos = [...haystack.matchAll(/mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi)].map((m) => m[1])
@@ -2319,7 +2345,12 @@ async function llmExtractPeople(
       // 對萃取品質沒有幫助。真實 URL 仍留在 raw，給 LinkedIn 回填用。
       let host = ''
       try { host = r.url ? new URL(r.url).hostname.replace(/^www\./, '') : '' } catch { host = '' }
-      return `[${i}] TITLE: ${r.title}\n    SNIPPET: ${(r.snippet ?? '').slice(0, 200)}\n    URL: ${host}`
+      // 長 snippet 用 extractLeadershipWindows 優先取「姓名+職稱」區段 —
+      // 官網 /about 的文字常是「導覽列雜訊在前、創辦人團隊在 1300+ 字之後」，
+      // 直接 slice(0,200) 會把唯一能證明「誰是決策者」的證據砍掉（linear.app 實測）。
+      const leadershipSnippet = extractLeadershipWindows(r.snippet ?? '')
+      const snip = leadershipSnippet.length > 0 ? leadershipSnippet : (r.snippet ?? '').slice(0, 200)
+      return `[${i}] TITLE: ${r.title}\n    SNIPPET: ${snip}\n    URL: ${host}`
     })
     .join('\n')
     // Groq on_demand 的 TPM 上限 8000 — 輸入太長直接 413。
