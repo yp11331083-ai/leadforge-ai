@@ -25,10 +25,10 @@ async function main() {
   const hash = await bcrypt.hash(password, 10)
 
   const admin = await db.user.upsert({
-    where: { email: 'admin@forge.ai' },
+    where: { email: 'admin@outrovo.com' },
     update: {},
     create: {
-      email: 'admin@forge.ai',
+      email: 'admin@outrovo.com',
       name: 'Sarah Chen',
       passwordHash: hash,
       role: 'admin',
@@ -38,10 +38,10 @@ async function main() {
   console.log(`✅ Admin: ${admin.email} (${admin.role})`)
 
   const manager = await db.user.upsert({
-    where: { email: 'manager@forge.ai' },
+    where: { email: 'manager@outrovo.com' },
     update: {},
     create: {
-      email: 'manager@forge.ai',
+      email: 'manager@outrovo.com',
       name: 'Marcus Wu',
       passwordHash: hash,
       role: 'sales_manager',
@@ -51,10 +51,10 @@ async function main() {
   console.log(`✅ Manager: ${manager.email} (${manager.role})`)
 
   const sdr = await db.user.upsert({
-    where: { email: 'sdr@forge.ai' },
+    where: { email: 'sdr@outrovo.com' },
     update: {},
     create: {
-      email: 'sdr@forge.ai',
+      email: 'sdr@outrovo.com',
       name: 'Alex Chen',
       passwordHash: hash,
       role: 'sdr',
@@ -312,9 +312,9 @@ Monite 的 embedded finance 平台正在快速成長。我們幫助像 Monite �
 
   console.log('\n🎉 Seed 完成！')
   console.log('\n📋 登入資訊：')
-  console.log('  Admin:    admin@forge.ai / demo1234')
-  console.log('  Manager:  manager@forge.ai / demo1234')
-  console.log('  SDR:      sdr@forge.ai / demo1234')
+  console.log('  Admin:    admin@outrovo.com / demo1234')
+  console.log('  Manager:  manager@outrovo.com / demo1234')
+  console.log('  SDR:      sdr@outrovo.com / demo1234')
 }
 
 main()
