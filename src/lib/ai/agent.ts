@@ -1,5 +1,6 @@
 import ZAI from 'z-ai-web-dev-sdk'
 import { db } from '@/lib/db'
+import { verifyEmails, type EmailVerificationResult } from './email-verify'
 import {
   chatWithFallback,
   searchWithFallback,
@@ -1840,6 +1841,8 @@ export interface DecisionMaker {
   email_source: 'hunter' | 'ai_predicted' | 'web_search' | 'website' | 'unknown'
   /** true = email 是公司自己公布的（官網頁面上找到），不是猜測 */
   verified?: boolean
+  /** SMTP 實測信箱是否存在：'verified' | 'invalid' | 'unknown'（未測） */
+  smtp_check?: EmailVerificationResult
   priority: number  // 1=最高優先
   reason?: string  // 為什麼這個人是對的聯絡人
 }
@@ -3036,6 +3039,43 @@ export async function enrichEmail(params: {
       priority: 4,
       reason: '信箱直接取自官網頁面（已驗證），但對應的決策者身份未知',
     })
+  }
+
+  // ===== SMTP 實測：官網找不到、AI 猜測 / 搜尋到的信箱，實際打去 MX 問這個信箱存不存在 =====
+  // 官網直接挖到的（verified=true）也順手實測 — 確認可送達（信箱可能已停用）。
+  const emailsToCheck = [...new Set(
+    decisionMakers
+      .map((d) => d.email)
+      .filter((e): e is string => !!e && e.includes('@'))
+  )]
+  if (emailsToCheck.length > 0) {
+    try {
+      const smtpResults = await verifyEmails(emailsToCheck)
+      for (const dm of decisionMakers) {
+        if (!dm.email) continue
+        const result = smtpResults.get(dm.email.toLowerCase())
+        if (!result) continue
+        dm.smtp_check = result
+        if (result === 'verified') {
+          dm.verified = true
+          dm.confidence = 'high'
+          if (!dm.reason) dm.reason = ''
+          if (dm.email_source === 'ai_predicted') {
+            dm.reason += ' — SMTP 實測信箱存在（可送達）'
+          }
+        } else if (result === 'invalid') {
+          dm.verified = false
+          if (dm.email_source !== 'website') dm.confidence = 'low'
+          if (!dm.reason) dm.reason = ''
+          dm.reason += ' — SMTP 實測信箱不存在（會退信）'
+        } else {
+          // unknown（無 MX / 擋探測 / catch-all）— 保持原狀
+          dm.verified = dm.email_source === 'website'
+        }
+      }
+    } catch (e) {
+      console.error('[enrich] SMTP verification failed:', e)
+    }
   }
 
   // 排序：已驗證信箱最優先，再按優先級 1 > 2 > 3，有 email > 沒 email

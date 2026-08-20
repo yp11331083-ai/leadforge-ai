@@ -91,9 +91,12 @@ export interface DecisionMaker {
   title: string
   seniority: 'c_level' | 'vp' | 'director' | 'manager' | 'other'
   email?: string
+  emailAlternates?: string[]
   linkedin?: string
   confidence: 'high' | 'medium' | 'low'
   email_source: 'apollo' | 'ai_predicted' | 'web_search' | 'unknown'
+  verified?: boolean
+  smtp_check?: 'verified' | 'invalid' | 'unknown'
   priority: number
   reason?: string
 }

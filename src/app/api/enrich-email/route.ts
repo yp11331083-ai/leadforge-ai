@@ -80,9 +80,10 @@ export async function POST(req: NextRequest) {
       data: { enrichedEmails: JSON.stringify(result.result) },
     })
 
-    // 只有「官網驗證過」的 email 才自動填入 lead 欄位 — 格式猜測的
-    // 信箱寄出去只會退信，留給用戶自己決定要不要用
-    const firstVerified = result.result.decisionMakers.find((d) => d.email && d.verified)
+    // 只有「已驗證」的 email 才自動填入 lead 欄位：
+    // 官網挖到的（website）或 SMTP 實測確認存在的（smtp_check='verified'）。
+    // 純格式猜測、或實測會退信的，留給用戶自己決定。
+    const firstVerified = result.result.decisionMakers.find((d) => d.email && (d.verified || d.smtp_check === 'verified'))
     if (firstVerified && !lead.email) {
       await db.lead.update({
         where: { id: leadId },

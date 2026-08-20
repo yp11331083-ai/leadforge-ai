@@ -173,6 +173,8 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
           email_source: string
           priority: number
           reason?: string
+          verified?: boolean
+          smtp_check?: 'verified' | 'invalid' | 'unknown'
         }>
         companyEmailPattern?: string
         totalFound: number
@@ -821,6 +823,11 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                     dm.email_source === 'web_search' ? '網路Search' :
                     dm.email_source === 'website' ? '官網/來源驗證' : 'Unknown'
 
+                  const smtpLabel =
+                    dm.smtp_check === 'verified' ? 'SMTP實測存在' :
+                    dm.smtp_check === 'invalid' ? 'SMTP實測不存在' :
+                    null
+
                   return (
                     <div
                       key={i}
@@ -861,6 +868,19 @@ export function LeadDetailSheet({ lead, open, onOpenChange }: LeadDetailSheetPro
                               >
                                 {sourceLabel} · {dm.confidence}
                               </Badge>
+                              {smtpLabel && (
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[10px] ${
+                                    dm.smtp_check === 'verified'
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
+                                      : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300'
+                                  }`}
+                                >
+                                  {dm.smtp_check === 'verified' ? <CheckCircle2 className="mr-1 h-3 w-3" /> : <AlertCircle className="mr-1 h-3 w-3" />}
+                                  {smtpLabel}
+                                </Badge>
+                              )}
                             </div>
                           )}
                           {dm.emailAlternates && dm.emailAlternates.length > 0 && (
